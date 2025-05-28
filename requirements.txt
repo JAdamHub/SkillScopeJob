@@ -1,0 +1,7 @@
+selenium
+webdriver-manager
+selenium-stealth
+beautifulsoup4
+markdownify
+pyautogui
+cloudscraper
