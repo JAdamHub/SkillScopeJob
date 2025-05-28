@@ -2,6 +2,7 @@
 venv/
 .env/
 .venv/
+.env
 
 # 📦 Python cachefiles
 __pycache__/
