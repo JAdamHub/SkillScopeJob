@@ -68,10 +68,10 @@ class JobRecord:
 # Initialize TogetherAI LLM with updated configuration
 try:
     llm = Together(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
         api_key=TOGETHER_API_KEY,
         temperature=0.1,
-        max_tokens=512,  # Reduced to prevent long rambling responses
+        max_tokens=1024,  # Reduced to prevent long rambling responses
         top_p=0.9,
         repetition_penalty=1.1
     )
@@ -147,7 +147,7 @@ def is_rate_limit_error(msg: str) -> bool:
         or "model_rate_limit" in msg
     )
 
-def simple_direct_enrichment(batch_size=20):
+def simple_direct_enrichment(batch_size=15):
     """Direct enrichment processing multiple records in a single LLM call."""
     logging.info(f"Starting batch enrichment process with batch size: {batch_size}")
     
@@ -480,7 +480,7 @@ def main():
     batch_count = 0
     max_batches = 10  # Øget fra 5 til 10
     total_processed = 0
-    batch_size = 20  # Øget fra 3 til 20 opslag ad gangen
+    batch_size = 15  # Øget fra 3 til 20 opslag ad gangen
     wait_time = 3  # Reduceret ventetid
 
     logging.info(f"🚀 Starting enrichment with batch size: {batch_size}")
