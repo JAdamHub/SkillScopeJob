@@ -28,6 +28,8 @@ websockets
 wsproto
 python-dotenv
 spacy
-# For spaCy model, download separately using: python -m spacy download en_core_web_lg
-# Loguru for bedre logging (valgfrit, men godt for MLOps)
 loguru
+streamlit
+plotly
+python-jobspy
+sqlite3
