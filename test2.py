@@ -10,9 +10,15 @@ except ImportError:
     exit(1)
 
 # configuration parameters
-JOB_TITLE = "product manager"
+JOB_TITLES = [
+    "key account manager",
+    "project manager", 
+    "business analyst",
+    "marketing manager",
+    "data analyst"
+]
 LOCATION = "copenhagen, denmark"
-RESULTS_WANTED = 300
+RESULTS_WANTED = 100  # per job title
 HOURS_OLD = 168  # 1 week
 COUNTRY = "denmark"
 
@@ -320,7 +326,7 @@ def check_description_quality():
 
 def main():
     """main execution function."""
-    logging.info("starting indeed job scraper")
+    logging.info("starting indeed job scraper with multiple job titles")
     
     # initialize database
     init_database()
@@ -330,15 +336,31 @@ def main():
         logging.error("database test failed - exiting")
         return
     
-    # scrape jobs from indeed
-    total_inserted = scrape_indeed_jobs(JOB_TITLE, LOCATION)
+    total_inserted_all = 0
+    
+    # scrape jobs for each job title
+    for job_title in JOB_TITLES:
+        logging.info(f"=== searching for: {job_title} ===")
+        
+        try:
+            inserted = scrape_indeed_jobs(job_title, LOCATION)
+            total_inserted_all += inserted
+            logging.info(f"inserted {inserted} jobs for '{job_title}'")
+            
+            # small delay between searches to be respectful
+            import time
+            time.sleep(2)
+            
+        except Exception as e:
+            logging.error(f"error searching for '{job_title}': {e}")
+            continue
     
     # show final statistics
-    logging.info(f"=== scraping completed ===")
-    logging.info(f"total new jobs inserted: {total_inserted}")
+    logging.info(f"=== all searches completed ===")
+    logging.info(f"total new jobs inserted across all titles: {total_inserted_all}")
     get_database_stats()
     
-    if total_inserted > 0:
+    if total_inserted_all > 0:
         check_description_quality()
     
     logging.info("indeed scraper finished")
