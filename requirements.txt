@@ -29,3 +29,7 @@ wsproto
 python-dotenv
 spacy
 loguru
+streamlit
+plotly
+python-jobspy
+sqlite3
