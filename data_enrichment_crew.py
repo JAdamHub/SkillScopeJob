@@ -2,8 +2,6 @@ import sqlite3
 import logging
 import os
 from typing import Dict, List, Optional
-import json
-from dataclasses import dataclass
 
 # Load environment variables
 try:
@@ -16,20 +14,16 @@ except ImportError:
     load_dotenv()
 
 try:
-    from crewai import Agent, Task, Crew
-    from crewai.tools import BaseTool
-    from pydantic import BaseModel, Field
     from langchain_together import Together
 except ImportError as e:
-    print(f"Required packages not installed: {e}")
-    print("Please run: pip install crewai langchain-together")
+    print(f"Required package not installed: {e}")
+    print("Please run: pip install langchain-together")
     exit(1)
 
 # Configuration
 DB_NAME = 'indeed_jobs.db'
 TABLE_NAME = 'job_postings'
 TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY')
-BATCH_SIZE = 10  # Set your preferred batch size here
 
 if not TOGETHER_API_KEY:
     print("Please set TOGETHER_API_KEY in your .env file")
@@ -46,36 +40,17 @@ logging.basicConfig(
     ]
 )
 
-@dataclass
-class JobRecord:
-    """Data class for job records."""
-    id: int
-    title: str
-    company: str
-    company_url: str
-    job_url: str
-    location: str
-    is_remote: bool
-    job_type: str
-    description: str
-    date_posted: str
-    company_industry: str
-    company_description: str
-    company_logo: str
-    search_term: str
-    search_location: str
-
-# Initialize TogetherAI LLM with updated configuration
+# Initialize TogetherAI LLM
 try:
     llm = Together(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
         api_key=TOGETHER_API_KEY,
         temperature=0.1,
-        max_tokens=1024,  # Reduced to prevent long rambling responses
+        max_tokens=1024,
         top_p=0.9,
         repetition_penalty=1.1
     )
-    # Test the LLM connection immediately with more detailed error handling
+    # Test the LLM connection
     try:
         test_response = llm.invoke("What is 2+2? Answer only with the number.")
         logging.info(f"LLM initialized successfully. Test response: {test_response[:100]}...")
@@ -92,7 +67,7 @@ except Exception as e:
     if TOGETHER_API_KEY:
         print(f"API Key starts with: {TOGETHER_API_KEY[:10]}...")
     
-    # Try a simple test without CrewAI
+    # Try a simple test
     try:
         import requests
         response = requests.get("https://api.together.xyz/health", timeout=10)
@@ -147,8 +122,8 @@ def is_rate_limit_error(msg: str) -> bool:
         or "model_rate_limit" in msg
     )
 
-def simple_direct_enrichment(batch_size=15):
-    """Direct enrichment processing multiple records in a single LLM call."""
+def batch_enrichment(batch_size=15):
+    """Process multiple job records in a single LLM call for efficiency."""
     logging.info(f"Starting batch enrichment process with batch size: {batch_size}")
     
     # Get incomplete records
@@ -174,12 +149,14 @@ def simple_direct_enrichment(batch_size=15):
         
         logging.info(f"Found {len(records)} records to process in one batch")
         
-        # Byg en samlet prompt med alle opslag
+        # Build a more structured and clear prompt
         prompt_parts = [
-            "Analyze the following job postings and provide missing information for each.",
-            "For each job, provide company name (if missing), industry category, and brief company description.",
+            "You are a data analyst. Analyze job postings and extract missing company information.",
             "",
-            "Jobs to analyze:"
+            "IMPORTANT: You must respond in the exact format specified below for each job.",
+            "Do not include any other text, explanations, or code.",
+            "",
+            "JOBS TO ANALYZE:"
         ]
         
         jobs_data = []
@@ -207,7 +184,7 @@ def simple_direct_enrichment(batch_size=15):
             prompt_parts.append(f"JOB ID: {job_id}")
             prompt_parts.append(f"Title: {title}")
             prompt_parts.append(f"Company: {company if company else 'MISSING'}")
-            prompt_parts.append(f"Description: {description[:400]}...")
+            prompt_parts.append(f"Description: {description[:350]}...")
             
             missing_fields = []
             if missing_company:
@@ -216,7 +193,7 @@ def simple_direct_enrichment(batch_size=15):
                 missing_fields.append("industry")
             if missing_description:
                 missing_fields.append("company description")
-            prompt_parts.append(f"Missing: {', '.join(missing_fields)}")
+            prompt_parts.append(f"Missing fields: {', '.join(missing_fields)}")
         
         if not jobs_data:
             logging.info("No jobs need enrichment")
@@ -224,16 +201,26 @@ def simple_direct_enrichment(batch_size=15):
             
         prompt_parts.extend([
             "",
-            "For each job, respond in this exact format:",
-            "JOB_ID: [job_id]",
-            "COMPANY: [company name if missing]",
-            "INDUSTRY: [industry category]", 
-            "DESCRIPTION: [brief company description]",
+            "RESPONSE FORMAT:",
+            "For each job above, respond with exactly this format (no extra text):",
             "",
-            "Use these industry categories: Technology, Healthcare, Finance, Retail, Manufacturing, Education, Government, Consulting, Transportation, Energy, Real Estate, Media, Food & Beverage, Hospitality, Construction, Legal, Non-profit",
+            "JOB_ID: 1",
+            "COMPANY: [company name only if missing]",
+            "INDUSTRY: [one of: Technology, Healthcare, Finance, Retail, Manufacturing, Education, Government, Consulting, Transportation, Energy, Real Estate, Media, Food & Beverage, Hospitality, Construction, Legal, Non-profit]",
+            "DESCRIPTION: [brief company description in 1-2 sentences]",
             "",
-            "Only include COMPANY: line if the company was missing. Always include INDUSTRY: and DESCRIPTION: lines.",
-            "Keep descriptions to 1-2 sentences max."
+            "JOB_ID: 2", 
+            "INDUSTRY: [category]",
+            "DESCRIPTION: [description]",
+            "",
+            "RULES:",
+            "- Only include COMPANY: line if company was MISSING",
+            "- Always include INDUSTRY: and DESCRIPTION: for every job",
+            "- Use exact format shown above",
+            "- No explanations, code, or extra text",
+            "- Process ALL jobs listed above",
+            "",
+            "START YOUR RESPONSE NOW:"
         ])
         
         prompt = "\n".join(prompt_parts)
@@ -243,42 +230,59 @@ def simple_direct_enrichment(batch_size=15):
             response = llm.invoke(prompt)
             logging.info(f"LLM batch response received: {len(response)} characters")
             
-            # Parse batch response
+            # Log first 500 chars of response for debugging
+            logging.info(f"Response preview: {response[:500]}...")
+            
+            # Parse batch response with better error handling
             current_job_id = None
             current_updates = {}
             all_updates = {}
             
-            for line in response.split('\n'):
+            lines = response.split('\n')
+            for i, line in enumerate(lines):
                 line = line.strip()
+                if not line:
+                    continue
+                    
                 if line.startswith('JOB_ID:'):
                     # Save previous job if exists
                     if current_job_id is not None and current_updates:
                         all_updates[current_job_id] = current_updates
+                        logging.debug(f"Saved updates for job {current_job_id}: {current_updates}")
                     
                     # Start new job
                     current_job_id = line.replace('JOB_ID:', '').strip()
                     current_updates = {}
+                    logging.debug(f"Started processing job {current_job_id}")
                     
                 elif line.startswith('COMPANY:') and current_job_id:
                     company_name = line.replace('COMPANY:', '').strip()
-                    if company_name and company_name.lower() not in ['unknown', 'n/a', 'not specified', 'missing']:
+                    if company_name and len(company_name) > 2 and company_name.lower() not in ['unknown', 'n/a', 'not specified', 'missing', 'various']:
                         current_updates['company'] = company_name
+                        logging.debug(f"Found company for job {current_job_id}: {company_name}")
                         
                 elif line.startswith('INDUSTRY:') and current_job_id:
                     industry = line.replace('INDUSTRY:', '').strip()
-                    if industry and industry.lower() not in ['unknown', 'n/a', 'not specified']:
+                    if industry and len(industry) > 2 and industry.lower() not in ['unknown', 'n/a', 'not specified', 'various']:
                         current_updates['company_industry'] = industry
+                        logging.debug(f"Found industry for job {current_job_id}: {industry}")
                         
                 elif line.startswith('DESCRIPTION:') and current_job_id:
                     description = line.replace('DESCRIPTION:', '').strip()
-                    if description and len(description) > 10 and description.lower() not in ['unknown', 'n/a', 'not specified']:
+                    if description and len(description) > 10 and description.lower() not in ['unknown', 'n/a', 'not specified', 'not available']:
                         current_updates['company_description'] = description
+                        logging.debug(f"Found description for job {current_job_id}: {description[:50]}...")
             
             # Don't forget the last job
             if current_job_id is not None and current_updates:
                 all_updates[current_job_id] = current_updates
+                logging.debug(f"Saved final updates for job {current_job_id}: {current_updates}")
             
-            logging.info(f"Parsed updates for {len(all_updates)} jobs")
+            logging.info(f"Parsed updates for {len(all_updates)} jobs out of {len(jobs_data)} sent")
+            
+            # If we got very few responses, log the full response for debugging
+            if len(all_updates) < len(jobs_data) / 2:
+                logging.warning(f"Low response rate. Full LLM response: {response}")
             
             # Apply updates to database
             updated_count = 0
@@ -328,7 +332,8 @@ def simple_direct_enrichment(batch_size=15):
             conn.commit()
             logging.info(f"🎉 Successfully committed {updated_count} record updates to database")
             
-            return updated_count > 0
+            # Return True if we processed at least some records successfully
+            return updated_count > 0 or len(all_updates) > 0
             
         except Exception as e:
             logging.error(f"❌ Error processing LLM batch response: {e}")
@@ -345,61 +350,55 @@ def simple_direct_enrichment(batch_size=15):
     finally:
         conn.close()
 
-def run_enrichment_batch(batch_size=BATCH_SIZE):
-    """Run a single batch of data enrichment using direct approach."""
-    logging.info("Starting data enrichment batch")
-    try:
-        # Use direct enrichment instead of CrewAI
-        result = simple_direct_enrichment(batch_size=batch_size)
-        if result:
-            logging.info("Enrichment batch completed successfully")
-            return True
-        else:
-            logging.error("Direct enrichment failed")
-            return False
-    except Exception as e:
-        msg = str(e)
-        logging.error(f"Error during enrichment: {msg}")
-        import traceback
-        logging.error(f"Full traceback: {traceback.format_exc()}")
-        if is_rate_limit_error(msg):
-            return "rate_limit"
-        return False
-
-def test_llm_directly():
-    """Test LLM functionality directly without CrewAI."""
-    logging.info("Testing LLM directly...")
+def test_llm_functionality():
+    """Test LLM functionality with improved prompting."""
+    logging.info("Testing LLM functionality...")
     
     try:
-        # Test batch processing format
-        batch_test_prompt = """
-        Analyze the following job postings and provide missing information for each.
+        # Test with clearer, more structured prompt
+        test_prompt = """You are a data analyst. Analyze job postings and extract missing company information.
+
+IMPORTANT: You must respond in the exact format specified below for each job.
+Do not include any other text, explanations, or code.
+
+JOBS TO ANALYZE:
+
+JOB ID: 1
+Title: Software Engineer
+Company: MISSING
+Description: We are a leading technology company developing mobile applications and web solutions for clients worldwide...
+Missing fields: company name, industry, company description
+
+JOB ID: 2
+Title: Nurse
+Company: Regional Hospital
+Description: Hospital seeking qualified nurses for patient care in our emergency department...
+Missing fields: industry, company description
+
+RESPONSE FORMAT:
+For each job above, respond with exactly this format (no extra text):
+
+JOB_ID: 1
+COMPANY: [company name only if missing]
+INDUSTRY: [one of: Technology, Healthcare, Finance, Retail, Manufacturing, Education, Government, Consulting, Transportation, Energy, Real Estate, Media, Food & Beverage, Hospitality, Construction, Legal, Non-profit]
+DESCRIPTION: [brief company description in 1-2 sentences]
+
+JOB_ID: 2
+INDUSTRY: [category]
+DESCRIPTION: [description]
+
+RULES:
+- Only include COMPANY: line if company was MISSING
+- Always include INDUSTRY: and DESCRIPTION: for every job
+- Use exact format shown above
+- No explanations, code, or extra text
+- Process ALL jobs listed above
+
+START YOUR RESPONSE NOW:"""
         
-        Jobs to analyze:
-        
-        JOB ID: 1
-        Title: Software Engineer
-        Company: MISSING
-        Description: We are a leading technology company developing mobile applications...
-        Missing: company name, industry, company description
-        
-        JOB ID: 2
-        Title: Nurse
-        Company: Regional Hospital
-        Description: Hospital seeking qualified nurses for patient care...
-        Missing: industry, company description
-        
-        For each job, respond in this exact format:
-        JOB_ID: [job_id]
-        COMPANY: [company name if missing]
-        INDUSTRY: [industry category]
-        DESCRIPTION: [brief company description]
-        
-        Only include COMPANY: line if the company was missing.
-        """
-        
-        response = llm.invoke(batch_test_prompt)
-        logging.info(f"Batch test response: {response[:300]}...")
+        response = llm.invoke(test_prompt)
+        logging.info(f"Test response length: {len(response)} characters")
+        logging.info(f"Test response preview: {response[:400]}...")
         
         # Test parsing
         job_updates = {}
@@ -414,31 +413,26 @@ def test_llm_directly():
                 job_updates[current_job_id]['company'] = line.replace('COMPANY:', '').strip()
             elif line.startswith('INDUSTRY:') and current_job_id:
                 job_updates[current_job_id]['industry'] = line.replace('INDUSTRY:', '').strip()
+            elif line.startswith('DESCRIPTION:') and current_job_id:
+                job_updates[current_job_id]['description'] = line.replace('DESCRIPTION:', '').strip()
         
-        logging.info(f"Parsed batch updates: {job_updates}")
+        logging.info(f"Parsed test updates: {job_updates}")
         
-        return True
+        # Check if we got responses for both test jobs
+        if len(job_updates) >= 2:
+            logging.info("✅ Test passed - got responses for multiple jobs")
+            return True
+        else:
+            logging.warning(f"⚠️ Test partial - only got {len(job_updates)} responses")
+            return True  # Still continue, but with warning
+            
     except Exception as e:
-        logging.error(f"Direct LLM test failed: {e}")
-        return False
-
-def simple_enrichment_test():
-    """Test enrichment process with a simple approach."""
-    logging.info("Running simple enrichment test...")
-    
-    try:
-        # Test the direct enrichment function with 1 record
-        result = simple_direct_enrichment(batch_size=1)
-        logging.info(f"Simple enrichment test result: {result}")
-        return True
-        
-    except Exception as e:
-        logging.error(f"Simple enrichment test failed: {e}")
+        logging.error(f"LLM test failed: {e}")
         return False
 
 def main():
     """Main execution function."""
-    logging.info("Starting direct data enrichment process")
+    logging.info("Starting data enrichment process")
     
     # Check database connection
     if not os.path.exists(DB_NAME):
@@ -450,14 +444,9 @@ def main():
     if TOGETHER_API_KEY:
         logging.info(f"API key length: {len(TOGETHER_API_KEY)}")
     
-    # Test LLM directly first
-    if not test_llm_directly():
-        logging.error("Direct LLM test failed. Check your API key and connection.")
-        return
-    
-    # Run simple enrichment test
-    if not simple_enrichment_test():
-        logging.error("Simple enrichment test failed.")
+    # Test LLM functionality
+    if not test_llm_functionality():
+        logging.error("LLM test failed. Check your API key and connection.")
         return
     
     # Get initial stats
@@ -476,34 +465,39 @@ def main():
         logging.info("✅ No missing data found. Nothing to enrich.")
         return
     
-    # Run enrichment batches med større batch størrelse
+    # Run enrichment batches with smaller batch size for better consistency
     batch_count = 0
-    max_batches = 10  # Øget fra 5 til 10
-    total_processed = 0
-    batch_size = 15  # Øget fra 3 til 20 opslag ad gangen
-    wait_time = 3  # Reduceret ventetid
+    max_batches = 15  # Increased since we're using smaller batches
+    batch_size = 8   # Reduced batch size for better LLM consistency
+    wait_time = 3
 
     logging.info(f"🚀 Starting enrichment with batch size: {batch_size}")
 
     while batch_count < max_batches:
         batch_count += 1
         logging.info(f"🔄 Running enrichment batch {batch_count}/{max_batches} (batch_size={batch_size})")
-        result = run_enrichment_batch(batch_size=batch_size)
         
-        if result == "rate_limit":
-            logging.warning(f"⏰ Rate limit hit. Waiting {wait_time} seconds before retrying...")
-            import time
-            time.sleep(wait_time)
-            wait_time = min(wait_time * 2, 60)  # exponential backoff, max 1 min
-            batch_count -= 1  # retry this batch
-            batch_size = max(5, batch_size // 2)  # reduce batch size, minimum 5
-            logging.info(f"📉 Reduced batch size to {batch_size}")
-            continue
-        elif not result:
-            logging.error(f"❌ Batch {batch_count} failed")
-            break
+        try:
+            result = batch_enrichment(batch_size=batch_size)
             
-        total_processed += batch_size
+            if not result:
+                logging.warning(f"⚠️ Batch {batch_count} had no updates - continuing anyway")
+                # Don't break immediately, continue with next batch
+                
+        except Exception as e:
+            msg = str(e)
+            if is_rate_limit_error(msg):
+                logging.warning(f"⏰ Rate limit hit. Waiting {wait_time} seconds before retrying...")
+                import time
+                time.sleep(wait_time)
+                wait_time = min(wait_time * 2, 60)  # exponential backoff, max 1 min
+                batch_count -= 1  # retry this batch
+                batch_size = max(3, batch_size // 2)  # reduce batch size, minimum 3
+                logging.info(f"📉 Reduced batch size to {batch_size}")
+                continue
+            else:
+                logging.error(f"❌ Batch {batch_count} failed with error: {e}")
+                break
         
         # Check if there's more work to do
         current_stats = get_database_stats()
@@ -513,14 +507,13 @@ def main():
                             current_stats['missing_description'])
             
             logging.info(f"📈 Progress update after batch {batch_count}:")
-            logging.info(f"  Records processed: {total_processed}")
             logging.info(f"  Remaining missing fields: {remaining_work}")
             
             if remaining_work == 0:
                 logging.info("🎉 All missing data has been enriched!")
                 break
         
-        # Kortere pause mellem batches
+        # Wait between batches
         if batch_count < max_batches:
             logging.info(f"⏸️  Waiting {wait_time} seconds before next batch...")
             import time
