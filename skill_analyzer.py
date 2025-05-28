@@ -384,19 +384,133 @@ if __name__ == "__main__":
         logger.info(f"Dummy database {DB_PATH} oprettet med eksempeldata.")
 
     if not TAXONOMY_PATH.exists():
-        logger.warning(f"Taksonomifil {TAXONOMY_PATH} ikke fundet. Opretter en dummy-fil for test.")
+        logger.warning(f"Taksonomifil {TAXONOMY_PATH} ikke fundet. Opretter en udvidet dummy-fil for test.")
+        # Udvidet dummy taksonomi data
         dummy_taxonomy_data = {
-            'variation': ['python', 'python programming', 'sql', 'structured query language', 'javascript', 'js', 
-                          'project mgmt', 'project management', 'machine learning', 'ml', 'java', 'spring boot',
-                          'react', 'angular', 'django', 'agile methodologies', 'git', 'css', 'html', 'big data', 'spark', 'r'],
-            'canonical_skill': ['Python', 'Python', 'SQL', 'SQL', 'JavaScript', 'JavaScript', 
-                                'Project Management', 'Project Management', 'Machine Learning', 'Machine Learning', 'Java', 'Spring Boot',
-                                'React', 'Angular', 'Django', 'Agile Methodologies', 'Git', 'CSS', 'HTML', 'Big Data', 'Spark', 'R'],
-            'category': ['Programming Language', 'Programming Language', 'Database', 'Database', 'Programming Language', 'Programming Language',
-                         'Methodology', 'Methodology', 'AI/ML', 'AI/ML', 'Programming Language', 'Framework',
-                         'Framework', 'Framework', 'Framework', 'Methodology', 'Tool', 'Web Technology', 'Web Technology', 'Technology', 'Tool', 'Programming Language']
+            'variation': [
+                # Programmeringssprog
+                'python', 'python programming', 'py', 'java', 'javascript', 'js', 'typescript', 'ts',
+                'c#', 'c sharp', 'c++', 'cpp', 'php', 'ruby', 'ruby on rails', 'rails', 'golang', 'go language', 'swift', 'kotlin',
+                'scala', 'r language', 'r programming', 'matlab', 'perl', 'powershell', 'bash', 'shell scripting', 'sql', 'structured query language',
+                'pl/sql', 'tsql', 't-sql',
+                # Web Teknologier & Frameworks (Frontend)
+                'html', 'html5', 'css', 'css3', 'sass', 'scss', 'less',
+                'react', 'react.js', 'reactjs', 'angular', 'angular.js', 'angularjs', 'vue', 'vue.js', 'vuejs',
+                'jquery', 'bootstrap', 'tailwind css', 'redux', 'mobx', 'next.js', 'nuxtjs', 'gatsby',
+                # Web Teknologier & Frameworks (Backend)
+                'node.js', 'nodejs', 'express.js', 'django', 'flask', 'spring', 'spring boot', 'asp.net', 'asp.net core',
+                '.net core', 'laravel', 'symfony', 'fastapi',
+                # Databaser & Databehandling
+                'mysql', 'postgresql', 'postgres', 'microsoft sql server', 'ms sql', 'oracle db', 'mongodb', 'nosql',
+                'redis', 'elasticsearch', 'cassandra', 'sqlite', 'big data', 'hadoop', 'spark', 'apache spark', 'kafka', 'apache kafka',
+                'data warehousing', 'etl', 'data pipelines', 'data modeling', 'pandas', 'numpy', 'scipy', 'data analysis',
+                # Cloud & DevOps
+                'aws', 'amazon web services', 'azure', 'microsoft azure', 'gcp', 'google cloud platform', 'docker', 'kubernetes', 'k8s',
+                'terraform', 'ansible', 'jenkins', 'git', 'github', 'gitlab', 'ci/cd', 'continuous integration', 'continuous deployment',
+                'serverless', 'aws lambda', 'azure functions', 'google cloud functions', 'microservices', 'infrastructure as code', 'iac',
+                # AI & Machine Learning
+                'machine learning', 'ml', 'deep learning', 'dl', 'artificial intelligence', 'ai', 'natural language processing', 'nlp',
+                'computer vision', 'tensorflow', 'keras', 'pytorch', 'scikit-learn', 'reinforcement learning', 'neural networks',
+                'data science', 'statistical analysis', 'data visualization', 'tableau', 'power bi',
+                # Mobiludvikling
+                'ios development', 'android development', 'swiftui', 'objective-c', 'react native', 'flutter', 'xamarin',
+                # Test & QA
+                'software testing', 'qa', 'quality assurance', 'selenium', 'junit', 'pytest', 'jest', 'cypress', 'test automation',
+                # Projektledelse & Metoder
+                'project management', 'project mgmt', 'agile', 'agile methodologies', 'scrum', 'kanban', 'lean',
+                'product management', 'stakeholder management', 'risk management', 'jira', 'confluence',
+                # Forretningsanalyse & Design
+                'business analysis', 'requirements gathering', 'use cases', 'user stories', 'uml', 'system design',
+                'ui design', 'user interface design', 'ux design', 'user experience design', 'figma', 'adobe xd', 'sketch',
+                # Operativsystemer & Netværk
+                'linux', 'unix', 'windows server', 'macos', 'networking', 'tcp/ip', 'dns', 'http', 'rest apis', 'graphql',
+                # Cybersikkerhed
+                'cybersecurity', 'information security', 'network security', 'penetration testing', 'siem', 'encryption',
+                # Bløde færdigheder (eksempler)
+                'communication', 'teamwork', 'problem-solving', 'analytical skills', 'critical thinking', 'leadership',
+                'collaboration', 'creativity', 'adaptability', 'time management', 'attention to detail'
+            ],
+            'canonical_skill': [
+                # Programmeringssprog
+                'Python', 'Python', 'Python', 'Java', 'JavaScript', 'JavaScript', 'TypeScript', 'TypeScript',
+                'C#', 'C#', 'C++', 'C++', 'PHP', 'Ruby', 'Ruby on Rails', 'Ruby on Rails', 'Go', 'Go', 'Swift', 'Kotlin',
+                'Scala', 'R', 'R', 'MATLAB', 'Perl', 'PowerShell', 'Bash', 'Shell Scripting', 'SQL', 'SQL',
+                'PL/SQL', 'T-SQL', 'T-SQL',
+                # Web Teknologier & Frameworks (Frontend)
+                'HTML', 'HTML5', 'CSS', 'CSS3', 'Sass', 'SCSS', 'LESS',
+                'React', 'React', 'React', 'Angular', 'Angular', 'Angular', 'Vue.js', 'Vue.js', 'Vue.js',
+                'jQuery', 'Bootstrap', 'Tailwind CSS', 'Redux', 'MobX', 'Next.js', 'Nuxt.js', 'Gatsby',
+                # Web Teknologier & Frameworks (Backend)
+                'Node.js', 'Node.js', 'Express.js', 'Django', 'Flask', 'Spring Framework', 'Spring Boot', 'ASP.NET', 'ASP.NET Core',
+                '.NET Core', 'Laravel', 'Symfony', 'FastAPI',
+                # Databaser & Databehandling
+                'MySQL', 'PostgreSQL', 'PostgreSQL', 'Microsoft SQL Server', 'Microsoft SQL Server', 'Oracle Database', 'MongoDB', 'NoSQL Databases',
+                'Redis', 'Elasticsearch', 'Apache Cassandra', 'SQLite', 'Big Data', 'Apache Hadoop', 'Apache Spark', 'Apache Spark', 'Apache Kafka', 'Apache Kafka',
+                'Data Warehousing', 'ETL Development', 'Data Pipelines', 'Data Modeling', 'Pandas', 'NumPy', 'SciPy', 'Data Analysis',
+                # Cloud & DevOps
+                'AWS', 'AWS', 'Microsoft Azure', 'Microsoft Azure', 'Google Cloud Platform', 'Google Cloud Platform', 'Docker', 'Kubernetes', 'Kubernetes',
+                'Terraform', 'Ansible', 'Jenkins', 'Git', 'GitHub', 'GitLab', 'CI/CD', 'Continuous Integration', 'Continuous Deployment',
+                'Serverless Architecture', 'AWS Lambda', 'Azure Functions', 'Google Cloud Functions', 'Microservices Architecture', 'Infrastructure as Code (IaC)', 'Infrastructure as Code (IaC)',
+                # AI & Machine Learning
+                'Machine Learning', 'Machine Learning', 'Deep Learning', 'Deep Learning', 'Artificial Intelligence', 'Artificial Intelligence', 'Natural Language Processing (NLP)', 'Natural Language Processing (NLP)',
+                'Computer Vision', 'TensorFlow', 'Keras', 'PyTorch', 'Scikit-learn', 'Reinforcement Learning', 'Neural Networks',
+                'Data Science', 'Statistical Analysis', 'Data Visualization', 'Tableau', 'Microsoft Power BI',
+                # Mobiludvikling
+                'iOS Development', 'Android Development', 'SwiftUI', 'Objective-C', 'React Native', 'Flutter', 'Xamarin',
+                # Test & QA
+                'Software Testing', 'Quality Assurance (QA)', 'Quality Assurance (QA)', 'Selenium', 'JUnit', 'PyTest', 'Jest', 'Cypress', 'Test Automation',
+                # Projektledelse & Metoder
+                'Project Management', 'Project Management', 'Agile Methodologies', 'Agile Methodologies', 'Scrum', 'Kanban', 'Lean Methodologies',
+                'Product Management', 'Stakeholder Management', 'Risk Management', 'Jira', 'Confluence',
+                # Forretningsanalyse & Design
+                'Business Analysis', 'Requirements Gathering', 'Use Case Development', 'User Story Mapping', 'UML', 'System Design',
+                'UI Design', 'User Interface (UI) Design', 'UX Design', 'User Experience (UX) Design', 'Figma', 'Adobe XD', 'Sketch',
+                # Operativsystemer & Netværk
+                'Linux', 'Unix', 'Windows Server', 'macOS', 'Network Administration', 'TCP/IP', 'DNS Management', 'HTTP', 'REST APIs', 'GraphQL',
+                # Cybersikkerhed
+                'Cybersecurity', 'Information Security', 'Network Security', 'Penetration Testing', 'SIEM Solutions', 'Encryption Technologies',
+                # Bløde færdigheder (eksempler)
+                'Communication Skills', 'Teamwork', 'Problem-Solving Skills', 'Analytical Skills', 'Critical Thinking', 'Leadership Skills',
+                'Collaboration Skills', 'Creativity', 'Adaptability', 'Time Management', 'Attention to Detail'
+            ],
+            # 'category' kolonnen er bevidst holdt simpel her, kan udvides efter behov
+            'category': [
+                'Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language',
+                'Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Programming Language','Scripting','Scripting','Scripting','Database','Database',
+                'Database','Database','Database',
+                'Web Technology','Web Technology','Web Technology','Web Technology','CSS Preprocessor','CSS Preprocessor','CSS Preprocessor',
+                'JavaScript Framework','JavaScript Framework','JavaScript Framework','JavaScript Framework','JavaScript Framework','JavaScript Framework','JavaScript Framework','JavaScript Framework','JavaScript Framework',
+                'JavaScript Library','CSS Framework','CSS Framework','State Management','State Management','JavaScript Framework','JavaScript Framework','Static Site Generator',
+                'Web Framework','Web Framework','Web Framework','Web Framework','Web Framework','Web Framework','Web Framework','Web Framework','Web Framework',
+                '.NET Framework','Web Framework','Web Framework','Web Framework',
+                'Database','Database','Database','Database','Database','Database','Database','Database',
+                'Database Cache','Search Engine','Database','Database','Big Data Technology','Big Data Technology','Big Data Technology','Big Data Technology','Messaging System','Messaging System',
+                'Data Storage','Data Processing','Data Engineering','Data Modeling','Data Analysis Library','Data Analysis Library','Data Analysis Library','Data Analysis',
+                'Cloud Platform','Cloud Platform','Cloud Platform','Cloud Platform','Cloud Platform','Cloud Platform','Containerization','Orchestration','Orchestration',
+                'IaC Tool','Configuration Management','CI/CD Tool','Version Control','Version Control Platform','Version Control Platform','DevOps Practice','DevOps Practice','DevOps Practice',
+                'Cloud Computing Model','Serverless Platform','Serverless Platform','Serverless Platform','Software Architecture','DevOps Practice','DevOps Practice',
+                'AI/ML','AI/ML','AI/ML','AI/ML','AI/ML','AI/ML','AI/ML','AI/ML',
+                'AI/ML','AI/ML Framework','AI/ML Framework','AI/ML Framework','AI/ML Library','AI/ML','AI/ML',
+                'Data Science','Statistical Method','Data Visualization','BI Tool','BI Tool',
+                'Mobile Development','Mobile Development','Mobile UI Framework','Programming Language','Mobile Framework','Mobile Framework','Mobile Framework',
+                'Software Development Practice','Software Development Practice','Software Development Practice','Testing Tool','Testing Framework','Testing Framework','Testing Framework','Testing Tool','Software Development Practice',
+                'Methodology','Methodology','Methodology','Methodology','Methodology','Methodology','Methodology',
+                'Role/Discipline','Project Management Skill','Project Management Skill','Project Management Tool','Project Management Tool',
+                'Role/Discipline','Business Analysis Skill','Business Analysis Skill','Business Analysis Skill','Modeling Language','Software Development Practice',
+                'Design Skill','Design Skill','Design Skill','Design Skill','Design Tool','Design Tool','Design Tool',
+                'Operating System','Operating System','Operating System','Operating System','IT Skill','Networking Protocol','Networking Service','Networking Protocol','API Style','API Style',
+                'Security Domain','Security Domain','Security Domain','Security Practice','Security Tool','Security Technology',
+                'Soft Skill','Soft Skill','Soft Skill','Soft Skill','Soft Skill','Soft Skill',
+                'Soft Skill','Soft Skill','Soft Skill','Soft Skill','Soft Skill'
+            ]
         }
+        # Sikrer at alle lister har samme længde for DataFrame konvertering
+        # Dette er en simpel måde at gøre det på for dummy data.
+        max_len = max(len(dummy_taxonomy_data['variation']), len(dummy_taxonomy_data['canonical_skill']), len(dummy_taxonomy_data['category']))
+        for key in dummy_taxonomy_data:
+            dummy_taxonomy_data[key].extend([None] * (max_len - len(dummy_taxonomy_data[key])))
+
         pd.DataFrame(dummy_taxonomy_data).to_csv(TAXONOMY_PATH, index=False)
-        logger.info(f"Dummy taksonomifil {TAXONOMY_PATH} oprettet med eksempeldata.")
+        logger.info(f"Udvidet dummy taksonomifil {TAXONOMY_PATH} oprettet med eksempeldata.")
         
     main() 
