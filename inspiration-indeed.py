@@ -327,8 +327,8 @@ if __name__ == "__main__":
     # Ensure IndeedScraper class is defined before this block or imported if in a different scope
     test_params = {
         'keywords': "software engineer",
-        'location': "New York", # Using a US location as per current script capabilities
-        'country': IndeedScraper.Country.USA, 
+        'location': "Copenhagen", # Using a US location as per current script capabilities
+        'country': IndeedScraper.Country.DENMARK, 
         'sort_by': IndeedScraper.SortBy.DATE,
         'radius': 25
     }
