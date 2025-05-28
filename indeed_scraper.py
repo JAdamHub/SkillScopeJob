@@ -2,12 +2,7 @@ import sqlite3
 import logging
 import pandas as pd
 from typing import List
-
-try:
-    from jobspy import scrape_jobs
-except ImportError:
-    print("JobSpy not installed. Please run: pip install -U python-jobspy")
-    exit(1)
+from jobspy import scrape_jobs
 
 # configuration parameters
 JOB_TITLES = [
@@ -17,6 +12,7 @@ JOB_TITLES = [
     "marketing manager",
     "data analyst"
 ]
+
 LOCATION = "copenhagen, denmark"
 RESULTS_WANTED = 100  # per job title
 HOURS_OLD = 168  # 1 week
