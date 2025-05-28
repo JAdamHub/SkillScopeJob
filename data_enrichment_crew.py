@@ -53,14 +53,14 @@ class JobRecord:
 
 # Initialize TogetherAI LLM
 llm = Together(
-    model="meta-llama/Llama-2-70b-chat-hf",
+    model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
     together_api_key=TOGETHER_API_KEY,
     temperature=0.1,
     max_tokens=1024
 )
 
 @tool
-def get_incomplete_records(batch_size: int = 10) -> str:
+def get_incomplete_records(batch_size: int = 20) -> str:
     """Get job records with missing data from database."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -91,7 +91,7 @@ def get_incomplete_records(batch_size: int = 10) -> str:
                 'title': job.title,
                 'company': job.company,
                 'location': job.location,
-                'description': job.description[:500] + "..." if len(job.description) > 500 else job.description,
+                'description': job.description[:800] + "..." if len(job.description) > 800 else job.description,
                 'company_industry': job.company_industry,
                 'company_description': job.company_description,
                 'missing_fields': []
@@ -116,46 +116,72 @@ def get_incomplete_records(batch_size: int = 10) -> str:
         conn.close()
 
 @tool
-def update_job_record(job_id: int, updates: str) -> str:
-    """Update job record with enriched data."""
+def update_multiple_job_records(updates_batch: str) -> str:
+    """Update multiple job records with enriched data in batch."""
     try:
-        update_data = json.loads(updates)
+        batch_updates = json.loads(updates_batch)
+        
+        if not isinstance(batch_updates, list):
+            return "Updates must be provided as a list of records"
         
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
-        set_clauses = []
-        values = []
+        updated_count = 0
+        errors = []
         
-        for field, value in update_data.items():
-            if field in ['company', 'company_industry', 'company_description'] and value:
-                set_clauses.append(f"{field} = ?")
-                values.append(value.strip())
+        for update_item in batch_updates:
+            try:
+                job_id = update_item.get('id')
+                updates = update_item.get('updates', {})
+                
+                if not job_id or not updates:
+                    errors.append(f"Invalid update format for record: {update_item}")
+                    continue
+                
+                set_clauses = []
+                values = []
+                
+                for field, value in updates.items():
+                    if field in ['company', 'company_industry', 'company_description'] and value:
+                        set_clauses.append(f"{field} = ?")
+                        values.append(value.strip())
+                
+                if not set_clauses:
+                    errors.append(f"No valid updates for job {job_id}")
+                    continue
+                
+                values.append(job_id)
+                query = f"UPDATE {TABLE_NAME} SET {', '.join(set_clauses)} WHERE id = ?"
+                
+                cursor.execute(query, values)
+                
+                if cursor.rowcount > 0:
+                    updated_count += 1
+                    logging.info(f"Updated job record {job_id} with: {list(updates.keys())}")
+                else:
+                    errors.append(f"No record found with id {job_id}")
+                    
+            except Exception as e:
+                errors.append(f"Error updating job {job_id}: {e}")
+                continue
         
-        if not set_clauses:
-            return "No valid updates provided"
-        
-        values.append(job_id)
-        query = f"UPDATE {TABLE_NAME} SET {', '.join(set_clauses)} WHERE id = ?"
-        
-        cursor.execute(query, values)
         conn.commit()
         
-        if cursor.rowcount > 0:
-            logging.info(f"Updated job record {job_id} with: {list(update_data.keys())}")
-            return f"Successfully updated job {job_id}"
-        else:
-            return f"No record found with id {job_id}"
+        result = f"Successfully updated {updated_count} records"
+        if errors:
+            result += f". Errors: {'; '.join(errors[:3])}"  # Limit error messages
+            
+        return result
             
     except json.JSONDecodeError:
-        return "Invalid JSON format for updates"
+        return "Invalid JSON format for batch updates"
     except Exception as e:
-        logging.error(f"Error updating record {job_id}: {e}")
+        logging.error(f"Error in batch update: {e}")
         return f"Error: {e}"
     finally:
         conn.close()
 
-# Define Agents
 data_analyst_agent = Agent(
     role='Data Quality Analyst',
     goal='Identify missing or incomplete data in job records and determine what information can be extracted from existing fields',
@@ -170,18 +196,17 @@ data_analyst_agent = Agent(
 
 data_enrichment_agent = Agent(
     role='Data Enrichment Specialist',
-    goal='Extract missing company information from job descriptions and enrich incomplete records',
+    goal='Extract missing company information from job descriptions and enrich incomplete records in batches',
     backstory="""You are a data enrichment specialist with expertise in analyzing job descriptions 
     to extract company names, industries, and company descriptions. You can identify company information 
     even when it's embedded within job descriptions. You understand business terminology and can 
-    categorize companies into appropriate industries.""",
+    categorize companies into appropriate industries. You excel at processing multiple records efficiently.""",
     verbose=True,
     allow_delegation=False,
     llm=llm,
-    tools=[update_job_record]
+    tools=[update_multiple_job_records]
 )
 
-# Define Tasks
 data_analysis_task = Task(
     description="""
     Analyze the job records database to identify records with missing data. Focus on:
@@ -197,7 +222,7 @@ data_analysis_task = Task(
 
 data_enrichment_task = Task(
     description="""
-    Based on the analysis of incomplete records, enrich the data by:
+    Based on the analysis of incomplete records, enrich ALL records in the batch by:
     
     1. **Company Name Extraction**: If company field is empty, carefully analyze the job description to find the company name. Look for patterns like:
        - "We are [Company Name]"
@@ -209,24 +234,35 @@ data_enrichment_task = Task(
        - Job description content
        - Company name (if known)
        - Job responsibilities and requirements
-       - Use standard industry categories like: Technology, Healthcare, Finance, Retail, Manufacturing, Consulting, etc.
+       - Use standard industry categories like: Technology, Healthcare, Finance, Retail, Manufacturing, Consulting, Education, Government, etc.
     
     3. **Company Description**: Extract or create a brief company description based on:
        - Information provided in the job description about the company
        - Company mission, values, or business description mentioned
        - Keep it concise (1-2 sentences)
     
-    For each record, return the enriched data in JSON format with only the fields that need updating.
-    Be conservative - only fill fields where you're confident about the accuracy.
+    **IMPORTANT**: Process ALL records in the batch and return updates for ALL of them in this format:
+    [
+        {
+            "id": record_id,
+            "updates": {
+                "company": "Company Name (only if missing)",
+                "company_industry": "Industry Category",
+                "company_description": "Brief company description"
+            }
+        },
+        ... (for each record in the batch)
+    ]
     
-    Process each record individually and update them one by one.
+    Only include fields in "updates" that were actually missing and you could determine.
+    Be conservative - only fill fields where you're confident about the accuracy.
+    Process the entire batch at once for efficiency.
     """,
     agent=data_enrichment_agent,
-    expected_output="Updated job records with enriched company information where missing data has been successfully identified and filled.",
+    expected_output="A JSON array with updates for all records in the batch, containing only the fields that need to be updated for each record.",
     context=[data_analysis_task]
 )
 
-# Define Crew
 enrichment_crew = Crew(
     agents=[data_analyst_agent, data_enrichment_agent],
     tasks=[data_analysis_task, data_enrichment_task],
@@ -309,7 +345,8 @@ def main():
     
     # Run enrichment batches
     batch_count = 0
-    max_batches = 10  # Limit batches to avoid excessive API calls
+    max_batches = 20  # Increased since we're processing more efficiently
+    total_processed = 0
     
     while batch_count < max_batches:
         batch_count += 1
@@ -319,6 +356,8 @@ def main():
             logging.error(f"Batch {batch_count} failed")
             break
         
+        total_processed += 20  # Batch size
+        
         # Check if there's more work to do
         current_stats = get_database_stats()
         if current_stats and (current_stats['missing_company'] == 0 and 
@@ -327,9 +366,11 @@ def main():
             logging.info("All missing data has been enriched!")
             break
         
+        logging.info(f"Processed {total_processed} records so far...")
+        
         # Small delay between batches
         import time
-        time.sleep(2)
+        time.sleep(3)  # Slightly longer delay for batch processing
     
     # Get final stats
     final_stats = get_database_stats()
