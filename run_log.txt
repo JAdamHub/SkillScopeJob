@@ -1,0 +1,53 @@
+2025-05-28 12:07:48 | INFO     | skill_analyzer:setup_logging:30 - Logging initialiseret.
+2025-05-28 12:07:48 | INFO     | skill_analyzer:setup_logging:31 - Gemmer detaljeret log til: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/run_log.txt
+2025-05-28 12:07:48 | INFO     | skill_analyzer:main:304 - Starter Job Market Skill Demand Analysis pipeline...
+2025-05-28 12:07:48 | INFO     | skill_analyzer:load_job_postings:38 - Indlæser jobopslag fra databasen: job_postings.db
+2025-05-28 12:07:48 | SUCCESS  | skill_analyzer:load_job_postings:48 - Indlæst 45 jobopslag fra 'job_postings.db'. Kolonner: ['id', 'description']
+2025-05-28 12:07:48 | ERROR    | skill_analyzer:load_job_postings:50 - Database tabel mangler påkrævede kolonner 'ID' eller 'description'.
+2025-05-28 12:07:48 | ERROR    | skill_analyzer:load_job_postings:57 - Uventet fejl under indlæsning af jobopslag: Database tabel mangler påkrævede kolonner 'ID' eller 'description'.
+2025-05-28 12:07:48 | CRITICAL | skill_analyzer:main:346 - Dataproblem: Database tabel mangler påkrævede kolonner 'ID' eller 'description'.. Afslutter.
+2025-05-28 12:07:48 | INFO     | skill_analyzer:main:350 - Pipeline afslutning.
+2025-05-28 12:11:00 | INFO     | skill_analyzer:setup_logging:30 - Logging initialiseret.
+2025-05-28 12:11:00 | INFO     | skill_analyzer:setup_logging:31 - Gemmer detaljeret log til: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/run_log.txt
+2025-05-28 12:11:00 | INFO     | skill_analyzer:main:304 - Starter Job Market Skill Demand Analysis pipeline...
+2025-05-28 12:11:00 | INFO     | skill_analyzer:load_job_postings:38 - Indlæser jobopslag fra databasen: job_postings.db
+2025-05-28 12:11:00 | SUCCESS  | skill_analyzer:load_job_postings:48 - Indlæst 45 jobopslag fra 'job_postings.db'. Kolonner: ['id', 'description']
+2025-05-28 12:11:00 | INFO     | skill_analyzer:main:315 - MLOps: Anvender færdighedstaksonomi fra: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/skill_taxonomy.csv
+2025-05-28 12:11:00 | INFO     | skill_analyzer:load_skill_taxonomy:64 - Indlæser færdighedstaksonomi fra: skill_taxonomy.csv
+2025-05-28 12:11:00 | SUCCESS  | skill_analyzer:load_skill_taxonomy:80 - Indlæst 22 unikke færdighedsvariationer fra taksonomien.
+2025-05-28 12:11:00 | INFO     | skill_analyzer:initialize_nlp_model:89 - Initialiserer spaCy NLP-model: en_core_web_lg
+2025-05-28 12:11:01 | SUCCESS  | skill_analyzer:initialize_nlp_model:93 - spaCy model 'en_core_web_lg' version '3.8.2 (model: core_web_lg v3.8.0)' indlæst succesfuldt.
+2025-05-28 12:11:01 | INFO     | skill_analyzer:initialize_nlp_model:95 - MLOps: Anvender spaCy model: en_core_web_lg, Version: 3.8.2 (model: core_web_lg v3.8.0)
+2025-05-28 12:11:01 | INFO     | skill_analyzer:process_all_jobs_for_skills:166 - Starter færdighedsekstraktion for 45 jobbeskrivelser...
+2025-05-28 12:11:01 | CRITICAL | skill_analyzer:main:348 - En uventet kritisk fejl opstod i main pipeline: 'spacy.vocab.Vocab' object has no attribute 'tokenizer'
+2025-05-28 12:11:01 | INFO     | skill_analyzer:main:350 - Pipeline afslutning.
+2025-05-28 12:12:53 | INFO     | skill_analyzer:setup_logging:30 - Logging initialiseret.
+2025-05-28 12:12:53 | INFO     | skill_analyzer:setup_logging:31 - Gemmer detaljeret log til: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/run_log.txt
+2025-05-28 12:12:53 | INFO     | skill_analyzer:main:304 - Starter Job Market Skill Demand Analysis pipeline...
+2025-05-28 12:12:53 | INFO     | skill_analyzer:load_job_postings:38 - Indlæser jobopslag fra databasen: job_postings.db
+2025-05-28 12:12:53 | SUCCESS  | skill_analyzer:load_job_postings:48 - Indlæst 45 jobopslag fra 'job_postings.db'. Kolonner: ['id', 'description']
+2025-05-28 12:12:53 | INFO     | skill_analyzer:main:315 - MLOps: Anvender færdighedstaksonomi fra: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/skill_taxonomy.csv
+2025-05-28 12:12:53 | INFO     | skill_analyzer:load_skill_taxonomy:64 - Indlæser færdighedstaksonomi fra: skill_taxonomy.csv
+2025-05-28 12:12:53 | SUCCESS  | skill_analyzer:load_skill_taxonomy:80 - Indlæst 22 unikke færdighedsvariationer fra taksonomien.
+2025-05-28 12:12:53 | INFO     | skill_analyzer:initialize_nlp_model:89 - Initialiserer spaCy NLP-model: en_core_web_lg
+2025-05-28 12:12:55 | SUCCESS  | skill_analyzer:initialize_nlp_model:93 - spaCy model 'en_core_web_lg' version '3.8.2 (model: core_web_lg v3.8.0)' indlæst succesfuldt.
+2025-05-28 12:12:55 | INFO     | skill_analyzer:initialize_nlp_model:95 - MLOps: Anvender spaCy model: en_core_web_lg, Version: 3.8.2 (model: core_web_lg v3.8.0)
+2025-05-28 12:12:55 | INFO     | skill_analyzer:process_all_jobs_for_skills:166 - Starter færdighedsekstraktion for 45 jobbeskrivelser...
+2025-05-28 12:12:55 | INFO     | skill_analyzer:build_phrase_matcher:112 - PhraseMatcher bygget med 22 mønstre.
+2025-05-28 12:12:55 | INFO     | skill_analyzer:process_all_jobs_for_skills:183 - Oprettet logfil for potentielle nye færdigheder: potential_new_skills_log.csv
+2025-05-28 12:12:58 | SUCCESS  | skill_analyzer:process_all_jobs_for_skills:215 - Færdighedsekstraktion fuldført for 45 jobopslag.
+2025-05-28 12:12:58 | INFO     | skill_analyzer:process_all_jobs_for_skills:216 - Potentielle nye færdigheder logget til: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/potential_new_skills_log.csv
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:233 - Starter analyse af færdighedstendenser...
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:248 - MLOps: Total antal jobbeskrivelser behandlet: 45
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:249 - MLOps: Total antal unikke kanoniske færdigheder identificeret: 5
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:260 - MLOps: Top 5 mest efterspurgte færdigheder:
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:262 -   1. SQL: 6 jobs (13.33%)
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:262 -   2. Project Management: 6 jobs (13.33%)
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:262 -   3. Agile Methodologies: 3 jobs (6.67%)
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:262 -   4. Python: 3 jobs (6.67%)
+2025-05-28 12:12:58 | INFO     | skill_analyzer:analyze_skill_trends:262 -   5. Machine Learning: 1 jobs (2.22%)
+2025-05-28 12:12:58 | SUCCESS  | skill_analyzer:analyze_skill_trends:284 - Analyse af færdighedstendenser fuldført.
+2025-05-28 12:12:58 | INFO     | skill_analyzer:save_trend_report:290 - Gemmer færdighedstrendrapport til: skill_trend_report.json
+2025-05-28 12:12:58 | SUCCESS  | skill_analyzer:save_trend_report:294 - Trendrapport gemt succesfuldt: /Users/markushenriksson/Desktop/AAU/Kandidat/2nd Semester Project/PROJECT/SkillScopeJob/skill_trend_report.json
+2025-05-28 12:12:58 | SUCCESS  | skill_analyzer:main:341 - Job Market Skill Demand Analysis pipeline fuldført succesfuldt!
+2025-05-28 12:12:58 | INFO     | skill_analyzer:main:350 - Pipeline afslutning.
