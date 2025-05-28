@@ -33,3 +33,6 @@ streamlit
 plotly
 python-jobspy
 sqlite3
+crewai
+crewai-tools
+langchain-community
