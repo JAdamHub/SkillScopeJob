@@ -1,0 +1,65 @@
+{
+    "metadata": {
+        "total_job_postings_processed": 45,
+        "total_unique_canonical_skills": 5,
+        "top_n_count": 20
+    },
+    "all_skill_frequencies": [
+        {
+            "skill": "SQL",
+            "frequency": 6
+        },
+        {
+            "skill": "Project Management",
+            "frequency": 6
+        },
+        {
+            "skill": "Agile Methodologies",
+            "frequency": 3
+        },
+        {
+            "skill": "Python",
+            "frequency": 3
+        },
+        {
+            "skill": "Machine Learning",
+            "frequency": 1
+        }
+    ],
+    "top_n_skills": [
+        {
+            "skill": "SQL",
+            "frequency": 6,
+            "percentage": 13.33
+        },
+        {
+            "skill": "Project Management",
+            "frequency": 6,
+            "percentage": 13.33
+        },
+        {
+            "skill": "Agile Methodologies",
+            "frequency": 3,
+            "percentage": 6.67
+        },
+        {
+            "skill": "Python",
+            "frequency": 3,
+            "percentage": 6.67
+        },
+        {
+            "skill": "Machine Learning",
+            "frequency": 1,
+            "percentage": 2.22
+        }
+    ],
+    "skill_cooccurrence_counts": [
+        {
+            "pair": [
+                "Python",
+                "SQL"
+            ],
+            "count": 3
+        }
+    ]
+}
