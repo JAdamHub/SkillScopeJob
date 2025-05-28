@@ -27,4 +27,5 @@ urllib3
 websockets
 wsproto
 python-dotenv
-undetected-chromedriver
+spacy
+loguru
