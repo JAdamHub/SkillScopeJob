@@ -1,0 +1,36 @@
+# 🐍 virtual environment
+venv/
+.env/
+.venv/
+
+# 📦 Python cachefiles
+__pycache__/
+*.py[cod]
+*.pyo
+
+# 🔍 scraping stuff
+scraper.log
+output.csv
+*.sqlite
+*.db
+
+# 💻 editorfiles
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# 📊 notebook checkpoints
+.ipynb_checkpoints/
+
+# 🧪 test/output/random data files
+*.log
+*.tmp
+*.bak
+
+# 🚫 OS-files
+.DS_Store
+Thumbs.db
+
+# 📦 PIP environment lock files if present
+pip-log.txt

@@ -321,3 +321,34 @@ def main(max_pages=15, dont_search=False, dont_update_job_descriptions=False, **
                     row['job_unique_id'], job_markdown)
         scraper.close_browser()
         print('All job postings updated.')
+
+if __name__ == "__main__":
+    # Default parameters for a quick test run
+    # Ensure IndeedScraper class is defined before this block or imported if in a different scope
+    test_params = {
+        'keywords': "software engineer",
+        'location': "New York", # Using a US location as per current script capabilities
+        'country': IndeedScraper.Country.USA, 
+        'sort_by': IndeedScraper.SortBy.DATE,
+        'radius': 25
+    }
+    print("Starting test run of Indeed Scraper...")
+    print(f"Test parameters: {test_params}")
+    
+    # Initialize scraper instance here if necessary, or ensure main() does
+    # scraper_instance = IndeedScraper(browser=Browsers.FIREFOX, use_database=False) 
+    # The main function already initializes the scraper.
+
+    try:
+        # Setting max_pages to 1 for a quick test
+        # Setting dont_update_job_descriptions=True to minimize DB interactions post-search
+        main(max_pages=1, dont_search=False, dont_update_job_descriptions=True, **test_params)
+        print("Test run completed (or at least the main function finished).")
+    except ImportError as e:
+        print(f"An ImportError occurred: {e}")
+        print("This might be due to missing 'database_tools' or 'selenium_base' modules.")
+        print("Ensure these files are in the same directory or accessible via PYTHONPATH.")
+    except Exception as e:
+        print(f"An error occurred during the test run: {e}")
+        import traceback
+        traceback.print_exc()
