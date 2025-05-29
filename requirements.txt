@@ -1,37 +1,29 @@
+# Core Streamlit and data handling
+streamlit>=1.28.0
+pandas>=2.0.0
+
+# Document parsing libraries
+PyPDF2>=3.0.0
+pdfplumber>=0.7.6
+python-docx>=0.8.11
+
+# AI/LLM Integration
+together>=1.0.0
+
+# Utility libraries
+python-dotenv
+
+# Other existing dependencies
 attrs
 beautifulsoup4
 certifi
 charset-normalizer
-exceptiongroup
-h11
-idna
-lxml
-numpy
-outcome
-pandas
-PySocks
-python-dateutil
-pytz
 requests
-selenium
-selenium-stealth
-six
-sniffio
-sortedcontainers
-soupsieve
-trio
-trio-websocket
-tzdata
-undetected-chromedriver
-urllib3
-websockets
-wsproto
-python-dotenv
-spacy
 loguru
-streamlit
 plotly
-python-jobspy
-crewai
-crewai-tools
-langchain-community
+
+# Optional: Keep existing job scraping if needed
+# python-jobspy
+# crewai
+# crewai-tools
+# langchain-community
