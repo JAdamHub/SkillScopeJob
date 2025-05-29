@@ -7,7 +7,12 @@ import json
 
 # Set page config at the top level, only once
 if 'page_config_set' not in st.session_state:
-    st.set_page_config(page_title="🎯 Advanced Career Profile", layout="wide")
+    st.set_page_config(
+        page_title="🎯 Advanced Career Profile",
+        page_icon="🌟",  # Example: Use an emoji or a URL to an image
+        layout="wide",
+        initial_sidebar_state="expanded", # Or "collapsed" or "auto"
+    )
     st.session_state.page_config_set = True
 
 # Import LLM-based CV extraction functionality
@@ -104,7 +109,7 @@ def log_user_profile(data: dict):
     log_headers = [
         "submission_timestamp", "user_session_id", "user_id_input",
         "target_roles_industries_selected", "target_roles_industries_custom",
-        "overall_field", "personal_description",
+        "overall_field", "personal_description", "job_title_keywords",
         "current_skills_selected", "current_skills_custom",
         "education_entries", "total_experience", "work_experience_entries", 
         "job_languages", "job_types", "preferred_locations_dk",
@@ -206,6 +211,7 @@ def run_app():
                                 'target_roles': suggestions.get('target_roles', []),
                                 'total_experience': suggestions.get('total_experience', 'None'),
                                 'skills': cv_data.get('skills', {}).get('all', []),
+                                'job_title_keywords': cv_data.get('suggested_job_title_keywords', []),
                                 'contact_info': {
                                     'name': cv_data.get('name', ''),
                                     'email': cv_data.get('email', ''),
@@ -290,16 +296,6 @@ def run_app():
     user_session_id_for_run = st.session_state.user_id if st.session_state.user_id else st.session_state.session_id
     st.sidebar.info(f"ID: `{user_session_id_for_run}`")
 
-    # --- Buttons to add entries (OUTSIDE FORM) ---
-    col_add1, col_add2 = st.columns(2)
-    with col_add1:
-        st.subheader("🎓 Education Section")
-        st.button("➕ Add Education", on_click=add_education_entry_callback, key="add_education_main_btn", use_container_width=True)
-    with col_add2:
-        st.subheader("💼 Work Experience Section")
-        st.button("➕ Add Work Experience", on_click=add_experience_entry_callback, key="add_experience_main_btn", use_container_width=True)
-    st.markdown("---")
-
     # --- FORM STARTS HERE ---
     with st.form(key="profile_form"):
         # Auto-populate with CV suggestions if available
@@ -376,8 +372,14 @@ def run_app():
         current_skills_custom = st.text_area("Other Skills (custom, comma-separated):", height=75)
 
         st.header("5. 🎓 Educational Background")
+        
+        # Add education button inside form
+        edu_cols = st.columns([3, 1])
+        with edu_cols[1]:
+            add_education = st.form_submit_button("➕ Add Education", help="Add a new education entry")
+        
         if not st.session_state.education_entries:
-            st.caption("No education entries added. Click '➕ Add Education' above the form.")
+            st.info("No education entries added. Click '➕ Add Education' to get started.")
 
         for i, edu_entry in enumerate(st.session_state.education_entries):
             with st.container(border=True):
@@ -418,6 +420,11 @@ def run_app():
 
         st.header("6. 💼 Work Experience")
         
+        # Add work experience button inside form
+        exp_cols = st.columns([3, 1])
+        with exp_cols[1]:
+            add_experience = st.form_submit_button("➕ Add Work Experience", help="Add a new work experience entry")
+        
         # Pre-select total experience from CV if available
         cv_total_exp = cv_suggestions.get('total_experience', 'None')
         total_exp_options = ["None", "0-1 year", "1-3 years", "3-5 years", "5-10 years", "10-15 years", "15+ years"]
@@ -433,7 +440,7 @@ def run_app():
         )
         
         if not st.session_state.experience_entries:
-            st.caption("No experience entries added. Click '➕ Add Work Experience' above the form.")
+            st.info("No experience entries added. Click '➕ Add Work Experience' to get started.")
         for i, exp_entry in enumerate(st.session_state.experience_entries):
             with st.container(border=True):
                 st.markdown(f"**💼 Work Experience #{i+1}**")
@@ -462,24 +469,68 @@ def run_app():
                 exp_entry["skills_responsibilities"] = exp_cols_2[1].text_area("Key Skills/Responsibilities (comma-separated)", value=exp_entry.get("skills_responsibilities", ""), key=f"exp_skills_{exp_entry['id']}", height=75)
                 exp_entry["marked_for_removal"] = exp_cols_2[2].checkbox("🗑️ Remove", key=f"exp_remove_cb_{exp_entry['id']}", help="Mark for removal")
 
-        # Add AI extraction info display if available
-        if cv_suggestions.get('contact_info'):
-            # Show contact info if available
-            if cv_suggestions.get('contact_info'):
-                st.subheader("📞 Contact Information")
-                contact_info = cv_suggestions['contact_info']
-                col1, col2 = st.columns(2)
-                
-                if contact_info.get('name'):
-                    col1.info(f"**Name:** {contact_info['name']}")
-                if contact_info.get('email'):
-                    col1.info(f"**Email:** {contact_info['email']}")
-                if contact_info.get('phone'):
-                    col2.info(f"**Phone:** {contact_info['phone']}")
-                if contact_info.get('linkedin'):
-                    col2.info(f"**LinkedIn:** {contact_info['linkedin']}")
+        st.header("7. 🔍 Job Search Keywords")
+        st.markdown("*These keywords will be used to search for relevant job postings*")
+        
+        # Get AI-suggested keywords
+        ai_suggested_keywords = cv_suggestions.get('job_title_keywords', [])
+        
+        # Initialize session state for keywords if not exists or if we have new CV suggestions
+        if 'job_title_keywords' not in st.session_state or (ai_suggested_keywords and not st.session_state.job_title_keywords):
+            st.session_state.job_title_keywords = ai_suggested_keywords[:5]  # Max 5 keywords
+        
+        # Display current keywords and allow editing
+        st.markdown("**Current Job Title Search Keywords:**")
+        
+        # Create columns for keyword management
+        keyword_cols = st.columns([3, 1])
+        
+        with keyword_cols[0]:
+            # Allow user to edit keywords as comma-separated text
+            keywords_text = st.text_area(
+                "Edit your job search keywords (comma-separated, max 5):",
+                value=", ".join(st.session_state.job_title_keywords),
+                height=100,
+                help="Enter job titles that recruiters might use when posting relevant positions. Examples: 'software developer', 'python engineer', 'data analyst'",
+                placeholder="software developer, python engineer, backend developer, web developer, full stack developer"
+            )
+            
+            # Parse and update keywords
+            if keywords_text.strip():
+                new_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
+                # Limit to 5 keywords
+                new_keywords = new_keywords[:5]
+                st.session_state.job_title_keywords = new_keywords
+        
+        with keyword_cols[1]:
+            st.markdown("**AI Suggestions:**")
+            if ai_suggested_keywords:
+                st.markdown("*From your CV:*")
+                for i, keyword in enumerate(ai_suggested_keywords[:5]):
+                    if st.button(f"+ {keyword}", key=f"add_keyword_{i}", help="Add this keyword"):
+                        current_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
+                        if keyword not in current_keywords and len(current_keywords) < 5:
+                            current_keywords.append(keyword)
+                            st.session_state.job_title_keywords = current_keywords[:5]
+                            st.rerun()
+            else:
+                if cv_suggestions:  # If we have CV suggestions but no keywords
+                    st.info("No keywords extracted from CV")
+                else:
+                    st.info("Upload CV for AI suggestions")
+        
+        # Display current keywords as tags
+        if st.session_state.job_title_keywords:
+            st.markdown("**Selected Keywords:**")
+            keyword_tags = " • ".join([f"`{kw}`" for kw in st.session_state.job_title_keywords])
+            st.markdown(keyword_tags)
+            
+            if len(st.session_state.job_title_keywords) >= 5:
+                st.warning("⚠️ Maximum 5 keywords allowed")
+        else:
+            st.warning("⚠️ Please add at least one job search keyword")
 
-        st.header("7. 🌍 Location & Analysis Preferences")
+        st.header("8. 🌍 Location & Analysis Preferences")
         location_options_dk = [
             "All of Denmark", "Greater Copenhagen", "Aarhus Area", "Odense Area", "Aalborg Area", 
             "Triangle Region (Vejle, Kolding, Fredericia)", "Zealand (outside Greater Copenhagen)", 
@@ -492,10 +543,42 @@ def run_app():
         analysis_options = ["Quick scan (guidance)", "Deep Analysis (comprehensive)"]
         analysis_preference = st.selectbox("📊 Analysis Preference:", options=analysis_options, index=1, key="analysis_select")
 
+        # Add AI extraction info display if available
+        if cv_suggestions.get('contact_info'):
+            # Show contact info if available
+            st.subheader("📞 Contact Information")
+            contact_info = cv_suggestions['contact_info']
+            col1, col2 = st.columns(2)
+            
+            if contact_info.get('name'):
+                col1.info(f"**Name:** {contact_info['name']}")
+            if contact_info.get('email'):
+                col1.info(f"**Email:** {contact_info['email']}")
+            if contact_info.get('phone'):
+                col2.info(f"**Phone:** {contact_info['phone']}")
+            if contact_info.get('linkedin'):
+                col2.info(f"**LinkedIn:** {contact_info['linkedin']}")
+
         st.markdown("&nbsp;")
         submitted = st.form_submit_button("🚀 Save Profile and Continue")
 
     # --- Handle form submission ---
+    if add_education:
+        # Add new education entry
+        st.session_state.education_entries.append({
+            "degree": "", "field_of_study": "", "institution": "", "graduation_year": "", 
+            "id": str(uuid.uuid4()), "marked_for_removal": False
+        })
+        st.rerun()
+    
+    if add_experience:
+        # Add new work experience entry
+        st.session_state.experience_entries.append({
+            "job_title": "", "company": "", "years_in_role": "0", "skills_responsibilities": "", 
+            "id": str(uuid.uuid4()), "marked_for_removal": False
+        })
+        st.rerun()
+
     if submitted:
         # Step 1: Handle removals
         education_removed_flag = False
@@ -528,6 +611,8 @@ def run_app():
             st.error("Please select at least one preferred job location in Denmark."); validation_passed = False
         if not personal_description.strip():
             st.error("Please write a personal description."); validation_passed = False
+        if not st.session_state.job_title_keywords:
+            st.error("Please add at least one job search keyword."); validation_passed = False
 
         for edu_entry in st.session_state.education_entries:
             if not edu_entry["degree"].strip() or not edu_entry["field_of_study"].strip() or not edu_entry["institution"].strip():
@@ -546,6 +631,7 @@ def run_app():
                 "target_roles_industries_custom": [r.strip() for r in target_roles_custom.split(',') if r.strip()],
                 "overall_field": overall_field,
                 "personal_description": personal_description.strip(),
+                "job_title_keywords": st.session_state.job_title_keywords,
                 "current_skills_selected": current_skills_selected,
                 "current_skills_custom": [s.strip() for s in current_skills_custom.split(',') if s.strip()],
                 "education_entries": [{k: v for k, v in edu.items() if k != 'marked_for_removal'} for edu in st.session_state.education_entries],
@@ -600,6 +686,13 @@ def run_app():
                 st.json(languages)
             else:
                 st.info("No languages extracted")
+            
+            st.subheader("🔍 Job Search Keywords")
+            keywords = st.session_state.cv_suggestions.get('job_title_keywords', [])
+            if keywords:
+                st.json(keywords)
+            else:
+                st.info("No job keywords extracted")
         
         with col2:
             st.subheader("🤖 AI Suggestions")

@@ -158,9 +158,15 @@ class LLMCVExtractor:
                     "items": {"type": "string"},
                     "description": "Spoken languages"
                 },
+                "suggested_job_title_keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of 3-5 relevant job title search keywords that would help find similar positions (e.g., 'software developer', 'python engineer', 'backend developer')",
+                    "maxItems": 5
+                },
                 "suggested_overall_field": {
                     "type": "string",
-                    "description": "Suggested primary field based on background (e.g., 'Softwareudvikling', 'Data Science & AI', 'Projektledelse')"
+                    "description": "Suggested primary field based on background (e.g., 'Software Development', 'Data Science & AI', 'Project Management')"
                 },
                 "suggested_roles": {
                     "type": "array",
@@ -172,7 +178,7 @@ class LLMCVExtractor:
                     "description": "Total years of professional experience"
                 }
             },
-            "required": ["name", "education_entries", "experience_entries", "skills", "languages", "personal_summary"]
+            "required": ["name", "education_entries", "experience_entries", "skills", "languages", "personal_summary", "suggested_job_title_keywords"]
         }
         
         # Check library availability on initialization
@@ -315,8 +321,9 @@ Please extract structured information from the following CV/resume text and retu
 5. Suggest appropriate overall field (choose from: "Data Science & AI", "Software Development", "Project Management", "UX/UI Design", "Marketing & Sales", "Finance & Economics", "Engineering", "Healthcare", "International Business")
 6. Suggest target roles based on experience and skills
 7. Create a brief professional summary (2-3 sentences in English) that describes the person's background, key strengths, and professional profile
-8. If information is missing, use empty strings or empty arrays as appropriate
-9. Ensure all required fields are present
+8. Generate 3-5 relevant job title search keywords that would help find similar positions (e.g., for a Python developer: ["software developer", "python engineer", "backend developer", "web developer"])
+9. If information is missing, use empty strings or empty arrays as appropriate
+10. Ensure all required fields are present
 
 **JSON Schema to follow:**
 {json.dumps(self.cv_schema, indent=2)}
@@ -414,6 +421,7 @@ Please extract structured information from the following CV/resume text and retu
                 'all': []
             },
             'languages': [],
+            'suggested_job_title_keywords': [],
             'total_experience_years': 0,
             'suggested_overall_field': '',
             'suggested_roles': [],
@@ -422,7 +430,6 @@ Please extract structured information from the following CV/resume text and retu
             'raw_text_preview': ''
         }
 
-    # ...existing code for file text extraction methods...
     def _extract_pdf_text(self, file_path: Path) -> str:
         """Extract text from PDF file using multiple strategies with better error handling"""
         if not PDF_AVAILABLE:
@@ -512,19 +519,19 @@ Please extract structured information from the following CV/resume text and retu
         # Calculate total experience from LLM data
         total_years = cv_data.get('total_experience_years', 0)
         if total_years == 0:
-            suggestions['total_experience'] = 'Ingen'
+            suggestions['total_experience'] = 'None'
         elif total_years <= 1:
-            suggestions['total_experience'] = '0-1 år'
+            suggestions['total_experience'] = '0-1 year'
         elif total_years <= 3:
-            suggestions['total_experience'] = '1-3 år'
+            suggestions['total_experience'] = '1-3 years'
         elif total_years <= 5:
-            suggestions['total_experience'] = '3-5 år'
+            suggestions['total_experience'] = '3-5 years'
         elif total_years <= 10:
-            suggestions['total_experience'] = '5-10 år'
+            suggestions['total_experience'] = '5-10 years'
         elif total_years <= 15:
-            suggestions['total_experience'] = '10-15 år'
+            suggestions['total_experience'] = '10-15 years'
         else:
-            suggestions['total_experience'] = '15+ år'
+            suggestions['total_experience'] = '15+ years'
         
         return suggestions
 
