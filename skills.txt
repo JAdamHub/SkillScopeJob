@@ -1,0 +1,96 @@
+# Programming Languages
+python
+javascript
+java
+c++
+c#
+ruby
+php
+swift
+kotlin
+go
+rust
+typescript
+
+# Web Technologies
+html
+css
+react
+angular
+vue.js
+node.js
+express.js
+django
+flask
+asp.net
+jquery
+
+# Databases
+sql
+mysql
+postgresql
+mongodb
+redis
+elasticsearch
+oracle
+ms sql server
+
+# Cloud & Infrastructure
+aws infrastructure
+azure
+google cloud
+docker
+kubernetes
+terraform
+ansible
+jenkins
+gitlab ci
+github actions
+
+# Data Science & AI
+machine learning
+deep learning
+tensorflow
+pytorch
+pandas
+numpy
+scikit-learn
+nlp techniques
+computer vision
+data analytics
+power bi
+tableau
+
+# Development Tools
+git
+jira
+confluence
+vs code
+intellij
+eclipse
+postman
+swagger
+
+# Microsoft Office
+ms office
+excel
+powerpoint
+word
+outlook
+
+# Common Software/Platforms
+salesforce
+sap
+oracle erp
+matlab
+autocad
+photoshop
+illustrator
+
+# Found by LLM
+3d geological and geophysical modelling
+electrical resistivity
+ground penetrating radar
+financial modelling
+data tools
+software for sales analysis
