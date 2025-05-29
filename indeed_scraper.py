@@ -2,12 +2,7 @@ import sqlite3
 import logging
 import pandas as pd
 from typing import List
-
-try:
-    from jobspy import scrape_jobs
-except ImportError:
-    print("JobSpy not installed. Please run: pip install -U python-jobspy")
-    exit(1)
+from jobspy import scrape_jobs
 
 # configuration parameters
 JOB_TITLES = [
@@ -17,6 +12,7 @@ JOB_TITLES = [
     "marketing manager",
     "data analyst"
 ]
+
 LOCATION = "copenhagen, denmark"
 RESULTS_WANTED = 100  # per job title
 HOURS_OLD = 168  # 1 week
@@ -49,21 +45,11 @@ def init_database():
         company_url TEXT,
         job_url TEXT UNIQUE,
         location TEXT,
-        city TEXT,
-        state TEXT,
-        country TEXT,
         is_remote BOOLEAN,
         job_type TEXT,
         description TEXT,
-        salary_min REAL,
-        salary_max REAL,
-        salary_interval TEXT,
-        salary_currency TEXT,
         date_posted DATE,
         company_industry TEXT,
-        company_country TEXT,
-        company_employees_label TEXT,
-        company_revenue_label TEXT,
         company_description TEXT,
         company_logo TEXT,
         scraped_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -96,37 +82,15 @@ def convert_dataframe_to_records(df: pd.DataFrame, search_term: str, search_loca
                 'search_location': search_location
             }
             
-            # location information
-            location_data = row.get('location', {})
-            if isinstance(location_data, dict):
-                record['city'] = location_data.get('city', '')
-                record['state'] = location_data.get('state', '')
-                record['country'] = location_data.get('country', '')
-                record['location'] = f"{record['city']}, {record['state']}, {record['country']}".strip(', ')
+            # location information - handle as string (København, D84, DK format)
+            location_data = row.get('location', '')
+            if location_data:
+                record['location'] = str(location_data).strip()
             else:
-                record['location'] = str(location_data) if location_data else ''
-                record['city'] = ''
-                record['state'] = ''
-                record['country'] = ''
+                record['location'] = ''
             
-            # compensation information
-            compensation_data = row.get('compensation', {})
-            if isinstance(compensation_data, dict):
-                record['salary_min'] = compensation_data.get('min_amount', None)
-                record['salary_max'] = compensation_data.get('max_amount', None)
-                record['salary_interval'] = compensation_data.get('interval', '')
-                record['salary_currency'] = compensation_data.get('currency', '')
-            else:
-                record['salary_min'] = None
-                record['salary_max'] = None
-                record['salary_interval'] = ''
-                record['salary_currency'] = ''
-            
-            # indeed specific fields
+            # indeed specific fields (only ones that typically have data)
             record['company_industry'] = row.get('company_industry', '')
-            record['company_country'] = row.get('company_country', '')
-            record['company_employees_label'] = row.get('company_employees_label', '')
-            record['company_revenue_label'] = row.get('company_revenue_label', '')
             record['company_description'] = row.get('company_description', '')
             record['company_logo'] = row.get('company_logo', '')
             
@@ -152,24 +116,18 @@ def insert_job_records(records: List[dict]) -> int:
         try:
             cursor.execute(f"""
             INSERT OR IGNORE INTO {TABLE_NAME} (
-                title, company, company_url, job_url, location, city, state, country,
-                is_remote, job_type, description, salary_min, salary_max,
-                salary_interval, salary_currency, date_posted, company_industry,
-                company_country, company_employees_label, company_revenue_label,
+                title, company, company_url, job_url, location,
+                is_remote, job_type, description, date_posted, company_industry,
                 company_description, company_logo, search_term, search_location
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
             """, (
                 record['title'], record['company'], record['company_url'],
-                record['job_url'], record['location'], record['city'], record['state'],
-                record['country'], record['is_remote'], record['job_type'],
-                record['description'], record['salary_min'], record['salary_max'],
-                record['salary_interval'], record['salary_currency'], record['date_posted'],
-                record['company_industry'], record['company_country'],
-                record['company_employees_label'], record['company_revenue_label'],
-                record['company_description'], record['company_logo'],
-                record['search_term'], record['search_location']
+                record['job_url'], record['location'], record['is_remote'], 
+                record['job_type'], record['description'], record['date_posted'],
+                record['company_industry'], record['company_description'], 
+                record['company_logo'], record['search_term'], record['search_location']
             ))
             
             if cursor.rowcount > 0:
@@ -279,6 +237,9 @@ def get_database_stats():
         cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE description IS NOT NULL AND description != ''")
         jobs_with_descriptions = cursor.fetchone()[0]
         
+        cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE location IS NOT NULL AND location != ''")
+        jobs_with_location = cursor.fetchone()[0]
+        
         cursor.execute(f"SELECT AVG(LENGTH(description)) FROM {TABLE_NAME} WHERE description IS NOT NULL AND description != ''")
         avg_desc_length = cursor.fetchone()[0]
         
@@ -286,6 +247,7 @@ def get_database_stats():
         logging.info(f"  total jobs: {total_jobs}")
         logging.info(f"  jobs scraped today: {today_jobs}")
         logging.info(f"  jobs with descriptions: {jobs_with_descriptions}/{total_jobs}")
+        logging.info(f"  jobs with location: {jobs_with_location}/{total_jobs}")
         if avg_desc_length:
             logging.info(f"  average description length: {avg_desc_length:.0f} characters")
             
@@ -302,7 +264,7 @@ def check_description_quality():
     try:
         # get sample descriptions for quality check
         cursor.execute(f"""
-        SELECT title, company, LENGTH(description) as desc_length, 
+        SELECT title, company, location, LENGTH(description) as desc_length, 
                SUBSTR(description, 1, 100) as desc_sample
         FROM {TABLE_NAME} 
         WHERE description IS NOT NULL AND description != ''
@@ -313,8 +275,8 @@ def check_description_quality():
         samples = cursor.fetchall()
         
         logging.info("=== description quality samples ===")
-        for title, company, length, sample in samples:
-            logging.info(f"{title} at {company}")
+        for title, company, location, length, sample in samples:
+            logging.info(f"{title} at {company} ({location})")
             logging.info(f"  length: {length} chars")
             logging.info(f"  sample: {sample}...")
             logging.info("")

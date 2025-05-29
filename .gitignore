@@ -2,6 +2,7 @@
 venv/
 .env/
 .venv/
+.env
 
 # 📦 Python cachefiles
 __pycache__/
@@ -12,7 +13,6 @@ __pycache__/
 scraper.log
 output.csv
 *.sqlite
-*.db
 
 # 💻 editorfiles
 .vscode/

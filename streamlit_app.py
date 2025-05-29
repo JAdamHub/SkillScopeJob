@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 try:
     from indeed_scraper import scrape_indeed_jobs, init_database, get_database_stats, DB_NAME, TABLE_NAME
 except ImportError:
-    st.error("Could not import indeed_scraper    pip install streamlit plotly.py. Make sure it's in the same directory.")
+    st.error("Could not import indeed_scraper.py. Make sure it's in the same directory.")
 
 st.set_page_config(page_title="Job Scraper Dashboard", page_icon="🔍", layout="wide")
 
