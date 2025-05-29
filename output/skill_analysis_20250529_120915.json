@@ -1,0 +1,888 @@
+[
+  {
+    "job_id": 1,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "sales strategi",
+      "data tools",
+      "rapportering",
+      "promotion",
+      "data",
+      "pris",
+      "category growth",
+      "category management",
+      "market dynamics",
+      "sales analysis",
+      "negotiation",
+      "fmcg",
+      "assortment",
+      "space"
+    ],
+    "final_skills": [
+      "sales strategi",
+      "promotion",
+      "data",
+      "data tools",
+      "rapportering",
+      "fmcg",
+      "negotiation",
+      "pris",
+      "category management",
+      "sales analysis",
+      "market dynamics",
+      "category growth",
+      "assortment",
+      "space"
+    ]
+  },
+  {
+    "job_id": 2,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder."
+    ],
+    "final_skills": [
+      "ingen nye færdigheder."
+    ]
+  },
+  {
+    "job_id": 3,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ms office"
+    ],
+    "final_skills": [
+      "ms office"
+    ]
+  },
+  {
+    "job_id": 4,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye tekniske færdigheder",
+      "værktøjer eller teknologier nævnt i jobbeskrivelsen."
+    ],
+    "final_skills": [
+      "ingen nye tekniske færdigheder",
+      "værktøjer eller teknologier nævnt i jobbeskrivelsen."
+    ]
+  },
+  {
+    "job_id": 5,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "electrical resistivity",
+      "3d geological and geophysical modelling",
+      "land-based em methods",
+      "shallow reflection/refraction seismic",
+      "air-borne em methods",
+      "ground penetrating radar"
+    ],
+    "final_skills": [
+      "electrical resistivity",
+      "3d geological and geophysical modelling",
+      "land-based em methods",
+      "shallow reflection/refraction seismic",
+      "air-borne em methods",
+      "ground penetrating radar"
+    ]
+  },
+  {
+    "job_id": 6,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "biochemistry",
+      "molecular biology",
+      "rapid molecular methods",
+      "cgmp",
+      "microbiology"
+    ],
+    "final_skills": [
+      "biochemistry",
+      "molecular biology",
+      "rapid molecular methods",
+      "cgmp",
+      "microbiology"
+    ]
+  },
+  {
+    "job_id": 7,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye tekniske færdigheder",
+      "værktøjer eller teknologier nævnt i jobbeskrivelsen."
+    ],
+    "final_skills": [
+      "ingen nye tekniske færdigheder",
+      "værktøjer eller teknologier nævnt i jobbeskrivelsen."
+    ]
+  },
+  {
+    "job_id": 8,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "crm",
+      "saas"
+    ],
+    "final_skills": [
+      "crm",
+      "saas"
+    ]
+  },
+  {
+    "job_id": 9,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder"
+    ],
+    "final_skills": [
+      "ingen nye færdigheder"
+    ]
+  },
+  {
+    "job_id": 10,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "gainsight",
+      "navisworks",
+      "unity editor",
+      "max",
+      "revit",
+      "sketchup",
+      "pixyz",
+      "asset manager",
+      "maya",
+      "c#"
+    ],
+    "final_skills": [
+      "gainsight",
+      "navisworks",
+      "unity editor",
+      "max",
+      "revit",
+      "sketchup",
+      "pixyz",
+      "asset manager",
+      "maya",
+      "c#"
+    ]
+  },
+  {
+    "job_id": 11,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "microsoft office",
+      "gfk",
+      "nielsen"
+    ],
+    "final_skills": [
+      "nielsen",
+      "gfk",
+      "microsoft office"
+    ]
+  },
+  {
+    "job_id": 12,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "account-based marketing (abm)",
+      "crm tools",
+      "marketing automation"
+    ],
+    "final_skills": [
+      "account-based marketing (abm)",
+      "crm tools",
+      "marketing automation"
+    ]
+  },
+  {
+    "job_id": 13,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "kystsikring",
+      "stormflod",
+      "projektledelse",
+      "hydraulic modelling",
+      "spildevandsplanlægning",
+      "klimatilpasning",
+      "kvalitetsstyring",
+      "planlægning",
+      "skybrudshåndtering"
+    ],
+    "final_skills": [
+      "kystsikring",
+      "stormflod",
+      "projektledelse",
+      "hydraulic modelling",
+      "spildevandsplanlægning",
+      "klimatilpasning",
+      "kvalitetsstyring",
+      "planlægning",
+      "skybrudshåndtering"
+    ]
+  },
+  {
+    "job_id": 14,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "performance marketing",
+      "data",
+      "linkedin",
+      "meta",
+      "ai",
+      "crm-systemer",
+      "google",
+      "hubspot"
+    ],
+    "final_skills": [
+      "performance marketing",
+      "data",
+      "linkedin",
+      "meta",
+      "ai",
+      "crm-systemer",
+      "google",
+      "hubspot"
+    ]
+  },
+  {
+    "job_id": 15,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "b2b saas",
+      "linkedin"
+    ],
+    "final_skills": [
+      "b2b saas",
+      "linkedin"
+    ]
+  },
+  {
+    "job_id": 16,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder."
+    ],
+    "final_skills": [
+      "ingen nye færdigheder."
+    ]
+  },
+  {
+    "job_id": 17,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "excel",
+      "microsoft office"
+    ],
+    "final_skills": [
+      "excel",
+      "microsoft office"
+    ]
+  },
+  {
+    "job_id": 18,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "b2b",
+      "bamboohr",
+      "english",
+      "saas"
+    ],
+    "final_skills": [
+      "b2b",
+      "bamboohr",
+      "english",
+      "saas"
+    ]
+  },
+  {
+    "job_id": 19,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "crm",
+      "powerpoint",
+      "excel"
+    ],
+    "final_skills": [
+      "crm",
+      "powerpoint",
+      "excel"
+    ]
+  },
+  {
+    "job_id": 20,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "gc-ms",
+      "toc",
+      "icp ms",
+      "dsc",
+      "coulter counters",
+      "afm",
+      "ngs",
+      "hplc",
+      "ftir",
+      "saxs",
+      "dls",
+      "q-pcr",
+      "itc",
+      "lc-ms",
+      "aas",
+      "nmr",
+      "fia"
+    ],
+    "final_skills": [
+      "gc-ms",
+      "toc",
+      "icp ms",
+      "coulter counters",
+      "dsc",
+      "afm",
+      "ngs",
+      "hplc",
+      "ftir",
+      "saxs",
+      "dls",
+      "q-pcr",
+      "itc",
+      "lc-ms",
+      "aas",
+      "nmr",
+      "fia"
+    ]
+  },
+  {
+    "job_id": 21,
+    "matched_skills": [
+      "python"
+    ],
+    "llm_suggested_skills": [
+      "cst",
+      "matlab",
+      "comsol multiphysics"
+    ],
+    "final_skills": [
+      "matlab",
+      "cst",
+      "python",
+      "comsol multiphysics"
+    ]
+  },
+  {
+    "job_id": 22,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "digital learning",
+      "gps360",
+      "sales enablement"
+    ],
+    "final_skills": [
+      "digital learning",
+      "gps360",
+      "sales enablement"
+    ]
+  },
+  {
+    "job_id": 23,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "gmp",
+      "qc",
+      "cmc",
+      "aseptic manufacturing science and",
+      "amsat"
+    ],
+    "final_skills": [
+      "gmp",
+      "qc",
+      "cmc",
+      "aseptic manufacturing science and",
+      "amsat"
+    ]
+  },
+  {
+    "job_id": 24,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "investigator pack (ip)",
+      "cdas",
+      "informed consent form (icf)"
+    ],
+    "final_skills": [
+      "investigator pack (ip)",
+      "cdas",
+      "informed consent form (icf)"
+    ]
+  },
+  {
+    "job_id": 25,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "mass spectrometry",
+      "masspektrometri"
+    ],
+    "final_skills": [
+      "mass spectrometry",
+      "masspektrometri"
+    ]
+  },
+  {
+    "job_id": 26,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "bioinformatics",
+      "proteomics",
+      "biorxiv",
+      "microscopy",
+      "mass spectrometry",
+      "biochemistry",
+      "crispr",
+      "optical tweezers",
+      "super-resolution microscopy",
+      "cryo-electron microscopy",
+      "structural biology"
+    ],
+    "final_skills": [
+      "bioinformatics",
+      "proteomics",
+      "biorxiv",
+      "mass spectrometry",
+      "microscopy",
+      "biochemistry",
+      "crispr",
+      "optical tweezers",
+      "super-resolution microscopy",
+      "cryo-electron microscopy",
+      "structural biology"
+    ]
+  },
+  {
+    "job_id": 27,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "quality risk management",
+      "capas",
+      "deviation",
+      "ms office",
+      "veeva quality",
+      "change control"
+    ],
+    "final_skills": [
+      "quality risk management",
+      "capas",
+      "deviation",
+      "ms office",
+      "veeva quality",
+      "change control"
+    ]
+  },
+  {
+    "job_id": 29,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder."
+    ],
+    "final_skills": [
+      "ingen nye færdigheder."
+    ]
+  },
+  {
+    "job_id": 30,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder kunne identificeres i jobbeskrivelsen",
+      "da den primært fokuserer på faglige kompetencer og personlige egenskaber inden for farmaceutisk videnskab og industri."
+    ],
+    "final_skills": [
+      "ingen nye færdigheder kunne identificeres i jobbeskrivelsen",
+      "da den primært fokuserer på faglige kompetencer og personlige egenskaber inden for farmaceutisk videnskab og industri."
+    ]
+  },
+  {
+    "job_id": 31,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "bim",
+      "fat",
+      "sat",
+      "gmp"
+    ],
+    "final_skills": [
+      "bim",
+      "fat",
+      "sat",
+      "gmp"
+    ]
+  },
+  {
+    "job_id": 32,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "bim",
+      "p&ids",
+      "pfd",
+      "gmp"
+    ],
+    "final_skills": [
+      "bim",
+      "p&ids",
+      "pfd",
+      "gmp"
+    ]
+  },
+  {
+    "job_id": 33,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ms office",
+      "project management tools"
+    ],
+    "final_skills": [
+      "ms office",
+      "project management tools"
+    ]
+  },
+  {
+    "job_id": 34,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "scrum",
+      "ci/cd",
+      "tmap",
+      "test automation frameworks",
+      "istqb"
+    ],
+    "final_skills": [
+      "scrum",
+      "ci/cd",
+      "tmap",
+      "test automation frameworks",
+      "istqb"
+    ]
+  },
+  {
+    "job_id": 35,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "trackside survey tools",
+      "technical drawings review",
+      "microsoft office"
+    ],
+    "final_skills": [
+      "trackside survey tools",
+      "technical drawings review",
+      "microsoft office"
+    ]
+  },
+  {
+    "job_id": 36,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder"
+    ],
+    "final_skills": [
+      "ingen nye færdigheder"
+    ]
+  },
+  {
+    "job_id": 37,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder fundet."
+    ],
+    "final_skills": [
+      "ingen nye færdigheder fundet."
+    ]
+  },
+  {
+    "job_id": 38,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "gmp",
+      "injection moulding",
+      "robotics",
+      "part decoration processes",
+      "additive manufacturing"
+    ],
+    "final_skills": [
+      "gmp",
+      "injection moulding",
+      "robotics",
+      "part decoration processes",
+      "additive manufacturing"
+    ]
+  },
+  {
+    "job_id": 39,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "nanofabrication",
+      "mesoscopic elektrontransport",
+      "eksperimentel faststof kvantum informationsvidenskab",
+      "epitaxial semiconductor-superconductor hybridmaterialer",
+      "cryofree dilution refrigerator",
+      "low-noise og high-frequency elektriske måleteknikker",
+      "kondenseret stof fysik",
+      "superledende qubit eksperimenter",
+      "dataanalyse"
+    ],
+    "final_skills": [
+      "nanofabrication",
+      "mesoscopic elektrontransport",
+      "eksperimentel faststof kvantum informationsvidenskab",
+      "epitaxial semiconductor-superconductor hybridmaterialer",
+      "cryofree dilution refrigerator",
+      "low-noise og high-frequency elektriske måleteknikker",
+      "kondenseret stof fysik",
+      "superledende qubit eksperimenter",
+      "dataanalyse"
+    ]
+  },
+  {
+    "job_id": 41,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ecrs",
+      "boms",
+      "enovia",
+      "ecos",
+      "safe"
+    ],
+    "final_skills": [
+      "ecrs",
+      "boms",
+      "enovia",
+      "ecos",
+      "safe"
+    ]
+  },
+  {
+    "job_id": 42,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "agile",
+      "customs it applications",
+      "waterfall"
+    ],
+    "final_skills": [
+      "agile",
+      "customs it applications",
+      "waterfall"
+    ]
+  },
+  {
+    "job_id": 43,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ai",
+      "machine learning"
+    ],
+    "final_skills": [
+      "ai",
+      "machine learning"
+    ]
+  },
+  {
+    "job_id": 44,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "descript",
+      "gpt",
+      "photoshop",
+      "capcut",
+      "later",
+      "hubspot",
+      "midjourney",
+      "opus clip",
+      "canva",
+      "figma",
+      "metricool",
+      "monday",
+      "eleven labs",
+      "synthesio",
+      "slack",
+      "mention",
+      "premiere pro",
+      "manychat",
+      "runway",
+      "brand24"
+    ],
+    "final_skills": [
+      "descript",
+      "gpt",
+      "photoshop",
+      "capcut",
+      "later",
+      "hubspot",
+      "midjourney",
+      "opus clip",
+      "canva",
+      "figma",
+      "metricool",
+      "monday",
+      "eleven labs",
+      "synthesio",
+      "slack",
+      "mention",
+      "premiere pro",
+      "manychat",
+      "runway",
+      "brand24"
+    ]
+  },
+  {
+    "job_id": 45,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "prince2",
+      "jira",
+      "sap pi/po",
+      "sap btp",
+      "fiori",
+      "sap ecc",
+      "sap s/4hana",
+      "sap solution manager",
+      "pmp",
+      "cpi",
+      "ms project",
+      "sap activate"
+    ],
+    "final_skills": [
+      "jira",
+      "sap pi/po",
+      "sap btp",
+      "fiori",
+      "sap s/4hana",
+      "sap solution manager",
+      "pmp",
+      "cpi",
+      "prince2",
+      "sap activate",
+      "ms project",
+      "sap ecc"
+    ]
+  },
+  {
+    "job_id": 46,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "biotechnology",
+      "pharmaceutical production",
+      "manufacturing execution",
+      "life science",
+      "mes",
+      "agile",
+      "engineering"
+    ],
+    "final_skills": [
+      "life science",
+      "pharmaceutical production",
+      "biotechnology",
+      "manufacturing execution",
+      "mes",
+      "agile",
+      "engineering"
+    ]
+  },
+  {
+    "job_id": 47,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder."
+    ],
+    "final_skills": [
+      "ingen nye færdigheder."
+    ]
+  },
+  {
+    "job_id": 48,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder"
+    ],
+    "final_skills": [
+      "ingen nye færdigheder"
+    ]
+  },
+  {
+    "job_id": 49,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "crm",
+      "salesforce"
+    ],
+    "final_skills": [
+      "crm",
+      "salesforce"
+    ]
+  },
+  {
+    "job_id": 50,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "crm",
+      "computer science"
+    ],
+    "final_skills": [
+      "crm",
+      "computer science"
+    ]
+  },
+  {
+    "job_id": 51,
+    "matched_skills": [
+      "docker"
+    ],
+    "llm_suggested_skills": [
+      "app",
+      "jira",
+      "microservices",
+      "confluence",
+      "trello",
+      "rest apis",
+      "scripting",
+      "notion",
+      "network communication",
+      "ocpp",
+      "release management",
+      "java er ikke nævnt men kan være en del af backend eller full-stack",
+      "agile",
+      "så jeg vil nøjes med følgende liste: \nmicroservices",
+      "iso-15118",
+      "aws",
+      "ocpi",
+      "linux/unix"
+    ],
+    "final_skills": [
+      "docker",
+      "aws",
+      "linux/unix",
+      "microservices",
+      "confluence",
+      "rest apis",
+      "scripting",
+      "network communication",
+      "java er ikke nævnt men kan være en del af backend eller full-stack",
+      "release management",
+      "app",
+      "ocpi",
+      "jira",
+      "trello",
+      "notion",
+      "ocpp",
+      "så jeg vil nøjes med følgende liste: \nmicroservices",
+      "agile",
+      "iso-15118"
+    ]
+  },
+  {
+    "job_id": 52,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye færdigheder"
+    ],
+    "final_skills": [
+      "ingen nye færdigheder"
+    ]
+  }
+]
