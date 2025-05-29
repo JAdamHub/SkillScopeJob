@@ -1,0 +1,90 @@
+[
+  {
+    "job_id": 1,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "data tools",
+      "software for sales analysis and reporting"
+    ],
+    "final_skills": [
+      "data tools",
+      "software for sales analysis and reporting"
+    ],
+    "processing_times": {
+      "ner_time": 0.09,
+      "llm_time": 2.64
+    }
+  },
+  {
+    "job_id": 2,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ebitda",
+      "profit and loss",
+      "financial modelling",
+      "npv"
+    ],
+    "final_skills": [
+      "ebitda",
+      "profit and loss",
+      "financial modelling",
+      "npv"
+    ],
+    "processing_times": {
+      "ner_time": 0.1,
+      "llm_time": 6.86
+    }
+  },
+  {
+    "job_id": 3,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ms office"
+    ],
+    "final_skills": [
+      "ms office"
+    ],
+    "processing_times": {
+      "ner_time": 0.11,
+      "llm_time": 6.66
+    }
+  },
+  {
+    "job_id": 4,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "ingen nye tekniske færdigheder fundet."
+    ],
+    "final_skills": [
+      "ingen nye tekniske færdigheder fundet."
+    ],
+    "processing_times": {
+      "ner_time": 0.08,
+      "llm_time": 1.25
+    }
+  },
+  {
+    "job_id": 5,
+    "matched_skills": [],
+    "llm_suggested_skills": [
+      "air-borne em methods",
+      "ground penetrating radar",
+      "electrical resistivity",
+      "3d geological and geophysical modelling",
+      "shallow reflection/refraction seismic",
+      "land-based em methods"
+    ],
+    "final_skills": [
+      "shallow reflection/refraction seismic",
+      "ground penetrating radar",
+      "electrical resistivity",
+      "3d geological and geophysical modelling",
+      "air-borne em methods",
+      "land-based em methods"
+    ],
+    "processing_times": {
+      "ner_time": 0.09,
+      "llm_time": 3.08
+    }
+  }
+]
