@@ -13,6 +13,7 @@ __pycache__/
 scraper.log
 output.csv
 *.sqlite
+advanced_user_profile_log.csv
 
 # 💻 editorfiles
 .vscode/
