@@ -117,6 +117,13 @@ def initialize_session_state():
         st.session_state.user_id = ""
     if 'session_id' not in st.session_state:
         st.session_state.session_id = str(uuid.uuid4())
+    # Initialize job search state variables
+    if 'job_search_started' not in st.session_state:
+        st.session_state.job_search_started = False
+    if 'job_search_completed' not in st.session_state:
+        st.session_state.job_search_completed = False
+    if 'job_search_results' not in st.session_state:
+        st.session_state.job_search_results = None
 
 # --- Functions to handle dynamic input fields (education, experience) ---
 def add_education_entry_callback():
@@ -164,6 +171,7 @@ def log_user_profile(data: dict):
 # --- Streamlit App UI ---
 def run_app():
     st.title("🎯 Advanced Career Profile & Goal Setting")
+    # The particle canvas is already added globally above, so it should appear here.
     st.markdown("Define your detailed profile for precise career insights. 🚀")
 
     initialize_session_state()
@@ -171,7 +179,12 @@ def run_app():
     # --- CV Upload Section with LLM ---
     if CV_EXTRACTION_AVAILABLE:
         st.header("🤖 AI-Powered CV Upload & Auto-Fill")
-        with st.expander("📄 Upload your CV for intelligent profile completion", expanded=False):
+        
+        # Determine if expander should be expanded based on extraction status
+        cv_extracted = st.session_state.get('cv_suggestions') is not None
+        expander_expanded = not cv_extracted  # Open if no CV extracted yet, closed if CV already extracted
+        
+        with st.expander("📄 Upload your CV for intelligent profile completion", expanded=expander_expanded):
             # API Key configuration
             st.markdown("### 🔑 AI Configuration")
             api_key = st.text_input(
@@ -251,6 +264,7 @@ def run_app():
                             
                             # Show extraction results without nested expanders
                             st.success("✅ AI has successfully analyzed your CV and filled in the fields!")
+                            st.info("💡 The CV upload section will now close automatically. You can reopen it if needed.")
                             st.balloons()
                             st.rerun()
                         else:
@@ -290,6 +304,10 @@ def run_app():
                     del st.session_state.cv_suggestions
                 st.success("🗑️ All fields have been cleared!")
                 st.rerun()
+        
+        # Show a small indicator if CV has been extracted
+        if cv_extracted:
+            st.success("✅ CV data has been extracted and auto-filled in the form below")
         
         st.markdown("---")
     else:
@@ -705,13 +723,14 @@ def run_app():
                 st.session_state.saved_profile_data = profile_data
                 st.session_state.profile_saved = True
                 
-                st.subheader("📊 Collected Profile Data:")
-                st.json(profile_data)
-                st.caption(f"Data has been added to `{USER_PROFILE_LOG_FILE}`.")
+                # Hide the detailed profile data display
+                # st.subheader("📊 Collected Profile Data:")
+                # st.json(profile_data)
+                # st.caption(f"Data has been added to `{USER_PROFILE_LOG_FILE}`.")
+                
+                st.info(f"📋 Profile data saved to {USER_PROFILE_LOG_FILE}")
             else:
                 st.error("Error logging profile.")
-        else:
-            st.warning("Please review the form for errors.")
 
     # Job Search Section - Outside the form but with session state management
     if st.session_state.get('profile_saved', False) and JOB_MATCHING_AVAILABLE:
@@ -792,24 +811,24 @@ def run_app():
                 
                 st.success(f"✅ Job search completed! Found {search_results['total_jobs_found']} new relevant positions.")
                 
-                # Show search summary
-                with st.expander("📊 Search Summary", expanded=True):
-                    st.json(search_results['profile_summary'])
-                    
-                    if search_results['searches_performed']:
-                        st.subheader("Searches Performed:")
-                        success_count = 0;
-                        error_count = 0;
-                        
-                        for search in search_results['searches_performed']:
-                            if 'error' not in search:
-                                st.write(f"✅ {search['job_title']} in {search['location']}: {search['jobs_found']} jobs")
-                                success_count += 1
-                            else:
-                                st.write(f"❌ {search['job_title']} in {search['location']}: Error - {search['error']}")
-                                error_count += 1
-                        
-                        st.info(f"Summary: {success_count} successful searches, {error_count} errors")
+                # Hide the detailed search summary - just show basic info
+                # with st.expander("📊 Search Summary", expanded=True):
+                #     st.json(search_results['profile_summary'])
+                #     
+                #     if search_results['searches_performed']:
+                #         st.subheader("Searches Performed:")
+                #         success_count = 0;
+                #         error_count = 0;
+                #         
+                #         for search in search_results['searches_performed']:
+                #             if 'error' not in search:
+                #                 st.write(f"✅ {search['job_title']} in {search['location']}: {search['jobs_found']} jobs")
+                #                 success_count += 1
+                #             else:
+                #                 st.write(f"❌ {search['job_title']} in {search['location']}: Error - {search['error']}")
+                #                 error_count += 1
+                #         
+                #         st.info(f"Summary: {success_count} successful searches, {error_count} errors")
                 
                 # Show job matches if found
                 if search_results['total_jobs_found'] > 0:
@@ -879,64 +898,293 @@ def run_app():
         st.markdown("To enable job matching:")
         st.code("pip install python-jobspy")
 
+    # Hide the "Latest Extracted CV Data" section completely
     # Show extracted data outside the main expander and form
-    if CV_EXTRACTION_AVAILABLE and st.session_state.get('cv_suggestions'):
-        st.markdown("---")
-        st.header("📊 Latest Extracted CV Data")
+    # if CV_EXTRACTION_AVAILABLE and st.session_state.get('cv_suggestions'):
+    #     st.markdown("---")
+    #     st.header("📊 Latest Extracted CV Data")
+    #     
+    #     # Show personal summary prominently if available
+    #     if st.session_state.cv_suggestions.get('personal_summary'):
+    #         st.subheader("📝 AI-Generated Professional Description")
+    #         st.markdown(f"*{st.session_state.cv_suggestions['personal_summary']}*")
+    #         st.markdown("---")
+    #     
+    #     col1, col2 = st.columns(2)
+    #     
+    #     with col1:
+    #         st.subheader("📞 Contact Info")
+    #         contact_info = st.session_state.cv_suggestions.get('contact_info', {})
+    #         if any(contact_info.values()):
+    #             st.json({
+    #                 "name": contact_info.get('name', ''),
+    #                 "email": contact_info.get('email', ''),
+    #                 "phone": contact_info.get('phone', ''),
+    #                 "linkedin": contact_info.get('linkedin', '')
+    #             })
+    #         else:
+    #             st.info("No contact info extracted")
+    #         
+    #         st.subheader("🌍 Languages")
+    #         languages = st.session_state.cv_suggestions.get('languages', [])
+    #         if languages:
+    #             st.json(languages)
+    #         else:
+    #             st.info("No languages extracted")
+    #         
+    #         st.subheader("🔍 Job Search Keywords")
+    #         keywords = st.session_state.cv_suggestions.get('job_title_keywords', [])
+    #         if keywords:
+    #             st.json(keywords)
+    #         else:
+    #             st.info("No job keywords extracted")
+    #     
+    #     with col2:
+    #         st.subheader("🤖 AI Suggestions")
+    #         st.json({
+    #             "Suggested field": st.session_state.cv_suggestions.get('overall_field', ''),
+    #             "Suggested roles": st.session_state.cv_suggestions.get('target_roles', []),
+    #             "Experience": st.session_state.cv_suggestions.get('total_experience', '')
+    #         })
+    #         
+    #         st.subheader("🛠️ Skills")
+    #         skills = st.session_state.cv_suggestions.get('skills', [])
+    #         if skills:
+    #             # Show first 10 skills to avoid overwhelming display
+    #             display_skills = skills[:10]
+    #             if len(skills) > 10:
+    #                 display_skills.append(f"... and {len(skills) - 10} more")
+    #             st.json(display_skills)
+    #         else:
+    #             st.info("No skills extracted")
+
+    # Add CV-Job Evaluation Section
+    if (CV_EVALUATION_AVAILABLE and 
+        st.session_state.get('job_search_completed', False) and 
+        st.session_state.get('job_search_results')):
         
-        # Show personal summary prominently if available
-        if st.session_state.cv_suggestions.get('personal_summary'):
-            st.subheader("📝 AI-Generated Professional Description")
-            st.markdown(f"*{st.session_state.cv_suggestions['personal_summary']}*")
+        search_results = st.session_state.job_search_results
+        
+        if search_results.get('total_jobs_found', 0) > 0:
             st.markdown("---")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("📞 Contact Info")
-            contact_info = st.session_state.cv_suggestions.get('contact_info', {})
-            if any(contact_info.values()):
-                st.json({
-                    "name": contact_info.get('name', ''),
-                    "email": contact_info.get('email', ''),
-                    "phone": contact_info.get('phone', ''),
-                    "linkedin": contact_info.get('linkedin', '')
-                })
-            else:
-                st.info("No contact info extracted")
+            st.subheader("🎯 AI-Powered CV-Job Match Analysis")
+            st.markdown("*Get detailed feedback on how well your profile matches available positions*")
             
-            st.subheader("🌍 Languages")
-            languages = st.session_state.cv_suggestions.get('languages', [])
-            if languages:
-                st.json(languages)
-            else:
-                st.info("No languages extracted")
+            # Initialize evaluation state
+            if 'cv_evaluation_started' not in st.session_state:
+                st.session_state.cv_evaluation_started = False
+            if 'cv_evaluation_completed' not in st.session_state:
+                st.session_state.cv_evaluation_completed = False
+            if 'cv_evaluation_results' not in st.session_state:
+                st.session_state.cv_evaluation_results = None
+
+            col1, col2, col3 = st.columns([2, 1, 1])
             
-            st.subheader("🔍 Job Search Keywords")
-            keywords = st.session_state.cv_suggestions.get('job_title_keywords', [])
-            if keywords:
-                st.json(keywords)
-            else:
-                st.info("No job keywords extracted")
-        
-        with col2:
-            st.subheader("🤖 AI Suggestions")
-            st.json({
-                "Suggested field": st.session_state.cv_suggestions.get('overall_field', ''),
-                "Suggested roles": st.session_state.cv_suggestions.get('target_roles', []),
-                "Experience": st.session_state.cv_suggestions.get('total_experience', '')
-            })
+            with col1:
+                if not st.session_state.cv_evaluation_started:
+                    start_evaluation = st.button("🤖 Analyze CV vs Jobs with AI", type="primary", key="start_cv_eval")
+                elif st.session_state.cv_evaluation_started and not st.session_state.cv_evaluation_completed:
+                    st.info("🤖 AI is analyzing your CV against job postings... Please wait.")
+                    start_evaluation = False
+                else:
+                    st.success("✅ CV-Job analysis completed!")
+                    start_evaluation = False
             
-            st.subheader("🛠️ Skills")
-            skills = st.session_state.cv_suggestions.get('skills', [])
-            if skills:
-                # Show first 10 skills to avoid overwhelming display
-                display_skills = skills[:10]
-                if len(skills) > 10:
-                    display_skills.append(f"... and {len(skills) - 10} more")
-                st.json(display_skills)
-            else:
-                st.info("No skills extracted")
+            with col2:
+                if st.session_state.cv_evaluation_completed:
+                    if st.button("🔄 Re-analyze", key="reanalyze_cv"):
+                        st.session_state.cv_evaluation_started = False
+                        st.session_state.cv_evaluation_completed = False
+                        st.session_state.cv_evaluation_results = None
+                        st.rerun()
+            
+            with col3:
+                if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
+                    show_improvement_plan = st.button("📈 Get Improvement Plan", key="show_improvement_plan")
+            
+            # Handle evaluation execution
+            if start_evaluation:
+                st.session_state.cv_evaluation_started = True
+                st.rerun()
+            
+            # Execute evaluation if started but not completed
+            if st.session_state.cv_evaluation_started and not st.session_state.cv_evaluation_completed:
+                with st.spinner("🤖 AI is analyzing your CV against job postings... This may take a moment."):
+                    try:
+                        evaluation_results = evaluate_user_cv_matches(user_session_id_for_run, max_jobs=10)
+                        st.session_state.cv_evaluation_results = evaluation_results
+                        st.session_state.cv_evaluation_completed = True
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error during CV evaluation: {str(e)}")
+                        st.session_state.cv_evaluation_started = False
+                        
+                        with st.expander("🔍 Error Details"):
+                            st.code(str(e))
+                            st.markdown("**Possible solutions:**")
+                            st.markdown("""
+                            - Check your Together AI API key
+                            - Ensure you have job matches in the database
+                            - Try reducing the number of jobs to analyze
+                            - Verify your profile data is complete
+                            """)
+            
+            # Display evaluation results
+            if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
+                evaluation_results = st.session_state.cv_evaluation_results
+                
+                if "error" in evaluation_results:
+                    st.error(f"❌ CV evaluation failed: {evaluation_results['error']}")
+                else:
+                    st.success(f"✅ CV analysis completed! Analyzed {evaluation_results.get('jobs_evaluated', 0)} job postings.")
+                    
+                    # Show summary metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    summary = evaluation_results.get('summary', {})
+                    avg_score = summary.get('average_match_score', 0)
+                    
+                    with col1:
+                        st.metric("Average Match Score", f"{avg_score}%", 
+                                 delta=f"{avg_score - 60}%" if avg_score >= 60 else f"{avg_score - 60}%")
+                    with col2:
+                        st.metric("Jobs Analyzed", evaluation_results.get('jobs_evaluated', 0))
+                    with col3:
+                        best_matches = summary.get('best_matches', [])
+                        best_score = best_matches[0].get('match_score', 0) if best_matches else 0
+                        st.metric("Best Match", f"{best_score}%")
+                    with col4:
+                        high_likelihood = sum(1 for eval in evaluation_results.get('evaluations', []) 
+                                            if eval.get('likelihood', '').lower() == 'high')
+                        st.metric("High Interview Likelihood", high_likelihood)
+                    
+                    # Show best matches
+                    if best_matches:
+                        st.subheader("🏆 Your Best Job Matches")
+                        for i, match in enumerate(best_matches[:3], 1):
+                            with st.container(border=True):
+                                col1, col2 = st.columns([3, 1])
+                                with col1:
+                                    st.markdown(f"**#{i} {match['job_title']}**")
+                                    st.markdown(f"🏢 {match['company']}")
+                                    st.markdown(f"🎯 Overall Fit: **{match['overall_fit']}**")
+                                with col2:
+                                    score_color = "🟢" if match['match_score'] >= 80 else "🟡" if match['match_score'] >= 60 else "🔴"
+                                    st.markdown(f"### {score_color} {match['match_score']}%")
+                    
+                    # Show detailed evaluations
+                    st.subheader("📊 Detailed Job Evaluations")
+                    
+                    evaluations = evaluation_results.get('evaluations', [])
+                    if evaluations:
+                        # Add tabs for different views
+                        tab1, tab2, tab3 = st.tabs(["📋 All Evaluations", "💪 Strengths Summary", "🎯 Improvement Areas"])
+                        
+                        with tab1:
+                            for eval in evaluations:
+                                with st.expander(f"{eval.get('job_title', 'Unknown')} at {eval.get('company', 'Unknown')} - {eval.get('match_score', 0)}%"):
+                                    col1, col2 = st.columns(2)
+                                    
+                                    with col1:
+                                        st.markdown(f"**Match Score:** {eval.get('match_score', 0)}%")
+                                        st.markdown(f"**Overall Fit:** {eval.get('overall_fit', 'N/A')}")
+                                        st.markdown(f"**Interview Likelihood:** {eval.get('likelihood', 'N/A')}")
+                                        
+                                        if eval.get('job_url'):
+                                            st.link_button("View Job Posting", eval['job_url'])
+                                    
+                                    with col2:
+                                        st.markdown(f"**Location:** {eval.get('location', 'N/A')}")
+                                    
+                                    st.markdown("**💪 Your Strengths for this Role:**")
+                                    st.write(eval.get('strengths', 'None identified'))
+                                    
+                                    st.markdown("**🎯 Areas for Improvement:**")
+                                    st.write(eval.get('gaps', 'None identified'))
+                                    
+                                    st.markdown("**📈 Recommendations:**")
+                                    st.write(eval.get('recommendations', 'None provided'))
+                        
+                        with tab2:
+                            st.markdown("### 🌟 Common Strengths Across Evaluations")
+                            all_strengths = []
+                            for eval in evaluations:
+                                if eval.get('strengths'):
+                                    all_strengths.append(eval['strengths'])
+                            
+                            if all_strengths:
+                                st.write("Based on the AI analysis, your key strengths include:")
+                                for strength in all_strengths[:5]:  # Show top 5
+                                    st.write(f"• {strength}")
+                            else:
+                                st.info("No common strengths identified across evaluations.")
+                        
+                        with tab3:
+                            st.markdown("### 🎯 Priority Improvement Areas")
+                            common_gaps = summary.get('common_gaps', [])
+                            top_recommendations = summary.get('top_recommendations', [])
+                            
+                            if common_gaps:
+                                st.markdown("**Most Common Skill Gaps:**")
+                                for gap in common_gaps[:5]:
+                                    st.write(f"• {gap}")
+                            
+                            if top_recommendations:
+                                st.markdown("**Top Recommendations:**")
+                                for rec in top_recommendations[:5]:
+                                    st.write(f"• {rec}")
+                            
+                            if not common_gaps and not top_recommendations:
+                                st.info("No specific improvement areas identified.")
+                
+                # Handle improvement plan generation
+                if (st.session_state.cv_evaluation_completed and 
+                    st.session_state.cv_evaluation_results and 
+                    'show_improvement_plan' in locals() and show_improvement_plan):
+                    
+                    with st.spinner("🤖 Generating personalized improvement plan..."):
+                        try:
+                            improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
+                            
+                            if "error" in improvement_plan:
+                                st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
+                            else:
+                                st.success("✅ Personalized improvement plan generated!")
+                                
+                                st.markdown("---")
+                                st.subheader("📈 Your Personalized Career Improvement Plan")
+                                st.markdown("*Based on AI analysis of your CV vs available job opportunities*")
+                                
+                                # Display the improvement plan
+                                st.markdown(improvement_plan.get('improvement_plan', 'Plan not available'))
+                                
+                                # Add download option
+                                plan_text = f"""
+PERSONALIZED CAREER IMPROVEMENT PLAN
+Generated: {improvement_plan.get('generated_timestamp', 'Unknown')}
+User: {user_session_id_for_run}
+
+{improvement_plan.get('improvement_plan', '')}
+
+---
+Generated by SkillScope Career Analysis AI
+Based on evaluation from: {improvement_plan.get('based_on_evaluation', 'Unknown')}
+"""
+                                st.download_button(
+                                    label="📥 Download Improvement Plan",
+                                    data=plan_text,
+                                    file_name=f"career_improvement_plan_{user_session_id_for_run}_{datetime.now().strftime('%Y%m%d')}.txt",
+                                    mime="text/plain"
+                                )
+                                
+                        except Exception as e:
+                            st.error(f"❌ Error generating improvement plan: {str(e)}")
+            
+            elif not CV_EVALUATION_AVAILABLE:
+                st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")
+                st.markdown("To enable CV evaluation:")
+                st.code("pip install langchain-together")
 
 if __name__ == "__main__":
     run_app()
