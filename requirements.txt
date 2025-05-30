@@ -21,9 +21,4 @@ charset-normalizer
 requests
 loguru
 plotly
-
-# Optional: Keep existing job scraping if needed
-# python-jobspy
-# crewai
-# crewai-tools
-# langchain-community
+python-jobspy
