@@ -287,6 +287,12 @@ class ProfileJobMatcher:
             
             title_condition_sql = " OR ".join(title_conditions)
             
+            # Add parameters for description matching - need to add them for each title condition too
+            skill_pattern = f"%{' '.join(profile_data.get('current_skills_selected', [])[:3]).lower()}%"
+            
+            # Create complete parameter list: title params, skill pattern, title params again, skill pattern again, limit
+            complete_params = params + [skill_pattern] + params + [skill_pattern, limit]
+            
             query = f"""
             SELECT *, 
                    CASE 
@@ -301,11 +307,7 @@ class ProfileJobMatcher:
             LIMIT ?
             """
             
-            # Add parameters for description matching
-            skill_pattern = f"%{' '.join(profile_data.get('current_skills_selected', [])[:3]).lower()}%"
-            params.extend([skill_pattern, skill_pattern, limit])
-            
-            cursor.execute(query, params)
+            cursor.execute(query, complete_params)
             jobs = cursor.fetchall()
             
             # Convert to dictionaries
@@ -316,6 +318,8 @@ class ProfileJobMatcher:
             
         except Exception as e:
             logger.error(f"Error getting job matches: {e}")
+            logger.error(f"Query: {query if 'query' in locals() else 'Query not constructed'}")
+            logger.error(f"Params: {complete_params if 'complete_params' in locals() else 'Params not constructed'}")
             return []
         finally:
             conn.close()
