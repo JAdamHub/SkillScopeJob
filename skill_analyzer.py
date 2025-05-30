@@ -234,7 +234,26 @@ async def process_job(job_id: int, description: str, matcher, nlp) -> Dict:
         }
     }
 
-async def analyze_jobs(limit: Optional[int] = None, batch_size: int = 10):
+def aggregate_skills(results: List[Dict]) -> Dict[str, List[str]]:
+    """Samler alle unikke færdigheder fra alle jobs i én liste."""
+    all_skills = {
+        "ner_skills": set(),
+        "llm_skills": set(),
+        "combined_skills": set()
+    }
+    
+    for result in results:
+        all_skills["ner_skills"].update(result["matched_skills"])
+        all_skills["llm_skills"].update(result["llm_suggested_skills"])
+        all_skills["combined_skills"].update(result["final_skills"])
+    
+    return {
+        "ner_skills": sorted(list(all_skills["ner_skills"])),
+        "llm_skills": sorted(list(all_skills["llm_skills"])),
+        "combined_skills": sorted(list(all_skills["combined_skills"]))
+    }
+
+async def analyze_jobs(limit: Optional[int] = None, batch_size: int = 50):
     """Hovedfunktion der analyserer jobs i databasen.
     
     Args:
@@ -246,9 +265,10 @@ async def analyze_jobs(limit: Optional[int] = None, batch_size: int = 10):
     nlp = initialize_spacy()
     matcher = build_matcher(nlp, skills)
     
-    # Opret output fil
+    # Opret output filer
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = OUTPUT_DIR / f"skill_analysis_{timestamp}.json"
+    detailed_output = OUTPUT_DIR / f"detailed_analysis_{timestamp}.json"
+    aggregated_output = OUTPUT_DIR / f"aggregated_skills_{timestamp}.json"
     
     try:
         # Opret database forbindelse
@@ -263,7 +283,6 @@ async def analyze_jobs(limit: Optional[int] = None, batch_size: int = 10):
         
         jobs = cursor.fetchall()
         results = []
-        current_batch = []
         
         # Opret tasks for alle jobs
         tasks = [process_job(job_id, description, matcher, nlp) for job_id, description in jobs]
@@ -272,18 +291,22 @@ async def analyze_jobs(limit: Optional[int] = None, batch_size: int = 10):
         for i in range(0, len(tasks), batch_size):
             batch_tasks = tasks[i:i + batch_size]
             batch_results = await asyncio.gather(*batch_tasks)
-            
             results.extend(batch_results)
-            current_batch.extend(batch_results)
+            logger.info(f"Behandlet {len(results)}/{len(jobs)} jobs...")
             
-            logger.info(f"Behandlet {len(results)} jobs...")
-            
-            # Gem den aktuelle batch
-            with open(output_file, 'w', encoding='utf-8') as f:
+            # Gem detaljerede resultater
+            with open(detailed_output, 'w', encoding='utf-8') as f:
                 json.dump(results, f, indent=2, ensure_ascii=False)
-            current_batch = []
             
-        logger.info(f"Analyse færdig. Behandlet {len(results)} jobs. Resultater gemt i {output_file}")
+            # Aggreger og gem samlede færdigheder
+            aggregated_skills = aggregate_skills(results)
+            with open(aggregated_output, 'w', encoding='utf-8') as f:
+                json.dump(aggregated_skills, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"""Analyse færdig:
+        - Behandlet {len(results)} jobs
+        - Detaljerede resultater gemt i {detailed_output}
+        - Aggregerede færdigheder gemt i {aggregated_output}""")
         
     except Exception as e:
         logger.error(f"Kritisk fejl under jobanalyse: {str(e)}")
