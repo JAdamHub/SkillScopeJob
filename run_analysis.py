@@ -1,23 +1,21 @@
-import subprocess
-import sys
-from skill_analyzer import set_api_key, analyze_jobs
 import asyncio
+from skill_analyzer import analyze_jobs, set_api_key
+import os
+from config import TOGETHER_API_KEY, DEFAULT_BATCH_SIZE
 
-def install_dependencies():
-    """Installerer nødvendige Python packages."""
-    dependencies = ["aiofiles"]
-    for dep in dependencies:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", dep])
-
-# Konfiguration for Llama API
-API_KEY = "f7f98865262e753df89a8ac3b7bc474ff5eb2e86416e78550148a64d061e36ed"  # Erstat med din rigtige API nøgle
+async def main():
+    # Brug miljøvariabel hvis tilgængelig, ellers brug config værdi
+    api_key = os.getenv('TOGETHER_API_KEY', TOGETHER_API_KEY)
+    if api_key:
+        set_api_key(api_key)
+        print("API nøgle sat succesfuldt")
+    else:
+        print("ADVARSEL: Ingen API nøgle fundet. LLM analyse vil blive sprunget over.")
+    
+    # Kør analyse på alle jobs med konfigureret batch størrelse
+    print("Starter analyse af alle jobs...")
+    await analyze_jobs(batch_size=DEFAULT_BATCH_SIZE)
+    print("Analyse færdig!")
 
 if __name__ == "__main__":
-    # Installer dependencies
-    install_dependencies()
-    
-    # Sæt API nøglen
-    set_api_key(API_KEY)
-    
-    # Kør analysen på kun 5 jobs for at teste hastighed
-    asyncio.run(analyze_jobs(limit=5, batch_size=5)) 
+    asyncio.run(main()) 
