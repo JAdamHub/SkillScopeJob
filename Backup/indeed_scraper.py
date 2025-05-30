@@ -15,7 +15,7 @@ JOB_TITLES = [
 
 LOCATION = "copenhagen, denmark"
 RESULTS_WANTED = 100  # per job title
-HOURS_OLD = 168  # 1 week - NOTE: this parameter may not be supported in current jobspy version
+HOURS_OLD = 168  # 1 week
 COUNTRY = "denmark"
 
 # database setup
@@ -150,26 +150,17 @@ def scrape_indeed_jobs(search_term: str, location: str) -> int:
     logging.info(f"starting indeed job scrape for '{search_term}' in '{location}'")
     
     try:
-        # Build parameters dictionary to handle version differences
-        scrape_params = {
-            "site_name": ["indeed"],
-            "search_term": search_term,
-            "location": location,
-            "results_wanted": RESULTS_WANTED,
-            "country_indeed": COUNTRY,
-            "verbose": 1,
-            "description_format": "markdown"
-        }
-        
-        # Try to add hours_old parameter, but handle if not supported
-        try:
-            jobs_df = scrape_jobs(**scrape_params, hours_old=HOURS_OLD)
-        except TypeError as e:
-            if "hours_old" in str(e):
-                logging.warning("hours_old parameter not supported, scraping without time filter")
-                jobs_df = scrape_jobs(**scrape_params)
-            else:
-                raise e
+        # scrape jobs using jobspy - indeed only
+        jobs_df = scrape_jobs(
+            site_name=["indeed"],
+            search_term=search_term,
+            location=location,
+            results_wanted=RESULTS_WANTED,
+            hours_old=HOURS_OLD,
+            country_indeed=COUNTRY,
+            verbose=1,
+            description_format="markdown"
+        )
         
         logging.info(f"scraped {len(jobs_df)} jobs from indeed")
         
@@ -203,146 +194,6 @@ def scrape_indeed_jobs(search_term: str, location: str) -> int:
     except Exception as e:
         logging.error(f"error during job scraping: {e}")
         return 0
-
-def scrape_indeed_jobs_with_profile(search_term: str, location: str, job_type: str = None, 
-                                   is_remote: bool = None, max_results: int = 50) -> int:
-    """Enhanced scraper that accepts profile-specific parameters"""
-    
-    logging.info(f"starting profile-based indeed job scrape for '{search_term}' in '{location}'")
-    if job_type:
-        logging.info(f"job type filter: {job_type}")
-    if is_remote is not None:
-        logging.info(f"remote filter: {is_remote}")
-    
-    try:
-        # Build scrape_jobs parameters with safer parameter handling
-        scrape_params = {
-            "site_name": ["indeed"],
-            "search_term": search_term,
-            "location": location,
-            "results_wanted": max_results,
-            "country_indeed": COUNTRY,
-            "verbose": 1,
-            "description_format": "markdown"
-        }
-        
-        # Add profile-specific filters if supported
-        if job_type:
-            scrape_params["job_type"] = job_type
-        if is_remote is not None:
-            scrape_params["is_remote"] = is_remote
-        
-        # Try with different parameter combinations to handle version differences
-        try:
-            # First try with hours_old parameter
-            jobs_df = scrape_jobs(**scrape_params, hours_old=HOURS_OLD)
-        except TypeError as e:
-            if "hours_old" in str(e):
-                logging.warning("hours_old parameter not supported, trying without it")
-                try:
-                    jobs_df = scrape_jobs(**scrape_params)
-                except TypeError as e2:
-                    # If still failing, try with minimal parameters
-                    logging.warning(f"Some parameters not supported: {e2}")
-                    minimal_params = {
-                        "site_name": ["indeed"],
-                        "search_term": search_term,
-                        "location": location,
-                        "results_wanted": max_results
-                    }
-                    jobs_df = scrape_jobs(**minimal_params)
-            else:
-                raise e
-        
-        logging.info(f"scraped {len(jobs_df)} jobs from indeed with profile filters")
-        
-        if jobs_df.empty:
-            logging.warning("no jobs found with current filters")
-            return 0
-        
-        # Log description statistics
-        jobs_with_descriptions = jobs_df['description'].notna().sum()
-        logging.info(f"jobs with descriptions: {jobs_with_descriptions}/{len(jobs_df)}")
-        
-        # convert to database records with search metadata
-        records = convert_dataframe_to_records(jobs_df, search_term, location)
-        
-        # Add profile search metadata to records
-        for record in records:
-            record['search_job_type'] = job_type
-            record['search_is_remote'] = is_remote
-        
-        logging.info(f"converted {len(records)} records for database insertion")
-        
-        if not records:
-            logging.error("no records created from dataframe")
-            return 0
-        
-        # insert into database
-        inserted_count = insert_job_records_enhanced(records)
-        logging.info(f"successfully inserted {inserted_count} new job postings")
-        
-        return inserted_count
-        
-    except Exception as e:
-        logging.error(f"error during profile-based job scraping: {e}")
-        logging.error(f"error details: {type(e).__name__}: {str(e)}")
-        return 0
-
-def insert_job_records_enhanced(records: List[dict]) -> int:
-    """Enhanced insert function that handles additional profile search metadata"""
-    if not records:
-        return 0
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Add columns for profile search metadata if they don't exist
-    try:
-        cursor.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN search_job_type TEXT")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    
-    try:
-        cursor.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN search_is_remote BOOLEAN")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    
-    inserted_count = 0
-    
-    for record in records:
-        try:
-            cursor.execute(f"""
-            INSERT OR IGNORE INTO {TABLE_NAME} (
-                title, company, company_url, job_url, location,
-                is_remote, job_type, description, date_posted, company_industry,
-                company_description, company_logo, search_term, search_location,
-                search_job_type, search_is_remote
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            """, (
-                record['title'], record['company'], record['company_url'],
-                record['job_url'], record['location'], record['is_remote'], 
-                record['job_type'], record['description'], record['date_posted'],
-                record['company_industry'], record['company_description'], 
-                record['company_logo'], record['search_term'], record['search_location'],
-                record.get('search_job_type'), record.get('search_is_remote')
-            ))
-            
-            if cursor.rowcount > 0:
-                inserted_count += 1
-                logging.info(f"inserted: {record['title']} at {record['company']}")
-            
-        except sqlite3.Error as e:
-            logging.error(f"database error inserting record: {e}")
-        except Exception as e:
-            logging.error(f"unexpected error inserting record: {e}")
-    
-    conn.commit()
-    conn.close()
-    
-    return inserted_count
 
 def test_database_connection():
     """test database connection and table creation."""
@@ -434,62 +285,6 @@ def check_description_quality():
         logging.error(f"error checking description quality: {e}")
     finally:
         conn.close()
-
-def test_jobspy_parameters():
-    """Test what parameters jobspy actually supports"""
-    logging.info("Testing jobspy parameters...")
-    
-    try:
-        # Test basic scraping with minimal parameters
-        test_df = scrape_jobs(
-            site_name=["indeed"],
-            search_term="data analyst",
-            location="copenhagen, denmark",
-            results_wanted=5
-        )
-        logging.info(f"Basic scraping works - found {len(test_df)} jobs")
-        
-        # Test with country parameter
-        try:
-            test_df = scrape_jobs(
-                site_name=["indeed"],
-                search_term="data analyst", 
-                location="copenhagen, denmark",
-                results_wanted=5,
-                country_indeed="denmark"
-            )
-            logging.info("country_indeed parameter works")
-        except Exception as e:
-            logging.warning(f"country_indeed parameter failed: {e}")
-        
-        # Test with job_type parameter
-        try:
-            test_df = scrape_jobs(
-                site_name=["indeed"],
-                search_term="data analyst",
-                location="copenhagen, denmark", 
-                results_wanted=5,
-                job_type="fulltime"
-            )
-            logging.info("job_type parameter works")
-        except Exception as e:
-            logging.warning(f"job_type parameter failed: {e}")
-            
-        # Test with hours_old parameter
-        try:
-            test_df = scrape_jobs(
-                site_name=["indeed"],
-                search_term="data analyst",
-                location="copenhagen, denmark",
-                results_wanted=5,
-                hours_old=168
-            )
-            logging.info("hours_old parameter works")
-        except Exception as e:
-            logging.warning(f"hours_old parameter failed: {e}")
-            
-    except Exception as e:
-        logging.error(f"Basic jobspy test failed: {e}")
 
 def main():
     """main execution function."""
