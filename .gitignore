@@ -8,6 +8,7 @@ venv/
 __pycache__/
 *.py[cod]
 *.pyo
+*$py.class
 
 # 🔍 scraping stuff
 scraper.log
@@ -35,3 +36,13 @@ Thumbs.db
 
 # 📦 PIP environment lock files if present
 pip-log.txt
+
+# Konfigurationsfiler
+config.py
+
+# Output filer
+output/
+cache/
+
+# Database
+*.db
