@@ -254,7 +254,7 @@ class ProfileJobMatcher:
 
     def get_profile_job_matches(self, user_session_id: str, limit: int = 50) -> List[Dict]:
         """
-        Get job matches for a specific user profile with relevance scoring
+        Get job matches for a specific user profile with relevance scoring using enriched data
         """
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -273,41 +273,254 @@ class ProfileJobMatcher:
             
             profile_data = json.loads(profile_row[0])
             job_titles = profile_data.get('job_title_keywords', [])
+            user_skills = profile_data.get('current_skills_selected', []) + profile_data.get('current_skills_custom', [])
+            overall_field = profile_data.get('overall_field', '')
             
             if not job_titles:
                 return []
             
-            # Build query to find relevant jobs
+            # Build comprehensive matching query using enriched data
             title_conditions = []
             params = []
             
+            # Add title matching conditions
             for title in job_titles:
                 title_conditions.append("LOWER(title) LIKE ?")
                 params.append(f"%{title.lower()}%")
             
             title_condition_sql = " OR ".join(title_conditions)
             
-            # Add parameters for description matching - need to add them for each title condition too
-            skill_pattern = f"%{' '.join(profile_data.get('current_skills_selected', [])[:3]).lower()}%"
+            # Create skills pattern for description matching
+            skill_keywords = " ".join(user_skills[:5]).lower() if user_skills else ""
             
-            # Create complete parameter list: title params, skill pattern, title params again, skill pattern again, limit
-            complete_params = params + [skill_pattern] + params + [skill_pattern, limit]
+            # Create industry pattern matching
+            industry_pattern = f"%{overall_field.lower()}%" if overall_field else "%"
             
             query = f"""
             SELECT *, 
                    CASE 
-                       WHEN ({title_condition_sql}) THEN 3
-                       WHEN LOWER(description) LIKE ? THEN 2
+                       WHEN ({title_condition_sql}) THEN 5
+                       WHEN LOWER(company_industry) LIKE ? THEN 4
+                       WHEN LOWER(description) LIKE ? THEN 3
+                       WHEN LOWER(company_description) LIKE ? THEN 2
                        ELSE 1
-                   END as relevance_score
+                   END as relevance_score,
+                   CASE 
+                       WHEN company_industry IS NOT NULL AND company_industry != '' THEN 1
+                       ELSE 0
+                   END as has_enriched_data
             FROM {TABLE_NAME}
             WHERE ({title_condition_sql})
+               OR LOWER(company_industry) LIKE ?
                OR LOWER(description) LIKE ?
-            ORDER BY relevance_score DESC, scraped_timestamp DESC
+               OR LOWER(company_description) LIKE ?
+            ORDER BY relevance_score DESC, has_enriched_data DESC, scraped_timestamp DESC
             LIMIT ?
             """
             
+            # Build complete parameter list:
+            # 1. Title conditions (for relevance scoring)
+            # 2. Industry pattern (for relevance scoring)  
+            # 3. Skills pattern (for relevance scoring)
+            # 4. Skills pattern (for company description relevance scoring)
+            # 5. Title conditions again (for WHERE clause)
+            # 6. Industry pattern (for WHERE clause)
+            # 7. Skills pattern (for WHERE clause)
+            # 8. Skills pattern (for company description WHERE clause)
+            # 9. Limit
+            complete_params = (
+                params +  # Title conditions for CASE
+                [industry_pattern] +  # Industry for CASE
+                [f"%{skill_keywords}%"] +  # Skills for description CASE
+                [f"%{skill_keywords}%"] +  # Skills for company_description CASE
+                params +  # Title conditions for WHERE
+                [industry_pattern] +  # Industry for WHERE
+                [f"%{skill_keywords}%"] +  # Skills for description WHERE
+                [f"%{skill_keywords}%"] +  # Skills for company_description WHERE
+                [limit]
+            )
+            
             cursor.execute(query, complete_params)
+            jobs = cursor.fetchall()
+            
+            # Convert to dictionaries
+            columns = [description[0] for description in cursor.description]
+            job_matches = [dict(zip(columns, job)) for job in jobs]
+            
+            # Log matching statistics
+            enriched_count = sum(1 for job in job_matches if job.get('has_enriched_data'))
+            logger.info(f"Found {len(job_matches)} job matches for user {user_session_id}")
+            logger.info(f"Jobs with enriched data: {enriched_count}/{len(job_matches)}")
+            
+            return job_matches
+            
+        except Exception as e:
+            logger.error(f"Error getting job matches: {e}")
+            logger.error(f"Profile data keys: {list(profile_data.keys()) if 'profile_data' in locals() else 'Profile not loaded'}")
+            return []
+        finally:
+            conn.close()
+
+    def get_database_enrichment_status(self) -> Dict:
+        """
+        Get statistics about database enrichment status
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            # Total records
+            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            total_records = cursor.fetchone()[0]
+            
+            # Records with enriched company info
+            cursor.execute(f"""
+            SELECT COUNT(*) FROM {TABLE_NAME} 
+            WHERE company_industry IS NOT NULL AND company_industry != ''
+            """)
+            enriched_industry = cursor.fetchone()[0]
+            
+            cursor.execute(f"""
+            SELECT COUNT(*) FROM {TABLE_NAME} 
+            WHERE company_description IS NOT NULL AND company_description != ''
+            """)
+            enriched_description = cursor.fetchone()[0]
+            
+            # Records with company info
+            cursor.execute(f"""
+            SELECT COUNT(*) FROM {TABLE_NAME} 
+            WHERE company IS NOT NULL AND company != ''
+            """)
+            has_company = cursor.fetchone()[0]
+            
+            # Recent scraping activity
+            cursor.execute(f"""
+            SELECT COUNT(*) FROM {TABLE_NAME} 
+            WHERE date(scraped_timestamp) >= date('now', '-7 days')
+            """)
+            recent_jobs = cursor.fetchone()[0]
+            
+            return {
+                'total_records': total_records,
+                'has_company': has_company,
+                'enriched_industry': enriched_industry,
+                'enriched_description': enriched_description,
+                'enrichment_percentage': round((enriched_industry / total_records * 100) if total_records > 0 else 0, 1),
+                'recent_jobs_7_days': recent_jobs
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting enrichment status: {e}")
+            return {}
+        finally:
+            conn.close()
+
+    def get_enhanced_job_matches(self, user_session_id: str, limit: int = 50, 
+                                filter_enriched_only: bool = False) -> List[Dict]:
+        """
+        Get job matches with enhanced filtering options for enriched data
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            # Get user profile
+            cursor.execute("""
+            SELECT profile_data FROM user_profiles 
+            WHERE user_session_id = ? 
+            ORDER BY last_search_timestamp DESC LIMIT 1
+            """, (user_session_id,))
+            
+            profile_row = cursor.fetchone()
+            if not profile_row:
+                return []
+            
+            profile_data = json.loads(profile_row[0])
+            job_titles = profile_data.get('job_title_keywords', [])
+            user_skills = profile_data.get('current_skills_selected', []) + profile_data.get('current_skills_custom', [])
+            overall_field = profile_data.get('overall_field', '')
+            target_roles = profile_data.get('target_roles_industries_selected', []) + profile_data.get('target_roles_industries_custom', [])
+            
+            if not job_titles:
+                return []
+            
+            # Build enhanced query
+            where_conditions = []
+            params = []
+            
+            # Title matching
+            title_conditions = []
+            for title in job_titles:
+                title_conditions.append("LOWER(title) LIKE ?")
+                params.append(f"%{title.lower()}%")
+            
+            if title_conditions:
+                where_conditions.append(f"({' OR '.join(title_conditions)})")
+            
+            # Industry matching using enriched data
+            if overall_field:
+                where_conditions.append("LOWER(company_industry) LIKE ?")
+                params.append(f"%{overall_field.lower()}%")
+            
+            # Target roles matching
+            if target_roles:
+                role_conditions = []
+                for role in target_roles:
+                    role_conditions.append("(LOWER(title) LIKE ? OR LOWER(company_industry) LIKE ?)")
+                    params.extend([f"%{role.lower()}%", f"%{role.lower()}%"])
+                if role_conditions:
+                    where_conditions.append(f"({' OR '.join(role_conditions)})")
+            
+            # Skills matching in description
+            if user_skills:
+                skill_condition = " OR ".join(["LOWER(description) LIKE ?" for _ in user_skills[:3]])
+                where_conditions.append(f"({skill_condition})")
+                params.extend([f"%{skill.lower()}%" for skill in user_skills[:3]])
+            
+            # Filter for enriched data only if requested
+            if filter_enriched_only:
+                where_conditions.append("company_industry IS NOT NULL AND company_industry != ''")
+            
+            where_clause = " OR ".join(where_conditions) if where_conditions else "1=1"
+            
+            # Enhanced relevance scoring
+            query = f"""
+            SELECT *, 
+                   CASE 
+                       WHEN LOWER(title) LIKE ? THEN 10
+                       WHEN LOWER(company_industry) = LOWER(?) THEN 8
+                       WHEN LOWER(company_industry) LIKE ? THEN 6
+                       WHEN LOWER(description) LIKE ? THEN 4
+                       WHEN LOWER(company_description) LIKE ? THEN 3
+                       ELSE 1
+                   END as relevance_score,
+                   CASE 
+                       WHEN company_industry IS NOT NULL AND company_industry != '' 
+                            AND company_description IS NOT NULL AND company_description != '' THEN 2
+                       WHEN company_industry IS NOT NULL AND company_industry != '' THEN 1
+                       ELSE 0
+                   END as enrichment_level
+            FROM {TABLE_NAME}
+            WHERE {where_clause}
+            ORDER BY relevance_score DESC, enrichment_level DESC, scraped_timestamp DESC
+            LIMIT ?
+            """
+            
+            # Parameters for relevance scoring
+            primary_title = job_titles[0] if job_titles else ""
+            skill_pattern = f"%{' '.join(user_skills[:3]).lower()}%" if user_skills else "%"
+            
+            relevance_params = [
+                f"%{primary_title.lower()}%",  # Title exact match
+                overall_field,  # Industry exact match
+                f"%{overall_field.lower()}%",  # Industry partial match
+                skill_pattern,  # Skills in description
+                skill_pattern   # Skills in company description
+            ]
+            
+            all_params = relevance_params + params + [limit]
+            
+            cursor.execute(query, all_params)
             jobs = cursor.fetchall()
             
             # Convert to dictionaries
@@ -317,9 +530,7 @@ class ProfileJobMatcher:
             return job_matches
             
         except Exception as e:
-            logger.error(f"Error getting job matches: {e}")
-            logger.error(f"Query: {query if 'query' in locals() else 'Query not constructed'}")
-            logger.error(f"Params: {complete_params if 'complete_params' in locals() else 'Params not constructed'}")
+            logger.error(f"Error getting enhanced job matches: {e}")
             return []
         finally:
             conn.close()
@@ -339,3 +550,17 @@ def get_user_job_matches(user_session_id: str, limit: int = 50) -> List[Dict]:
     """
     matcher = ProfileJobMatcher()
     return matcher.get_profile_job_matches(user_session_id, limit)
+
+def get_enhanced_user_job_matches(user_session_id: str, limit: int = 50, filter_enriched_only: bool = False) -> List[Dict]:
+    """
+    Convenience function to get enhanced job matches for a user
+    """
+    matcher = ProfileJobMatcher()
+    return matcher.get_enhanced_job_matches(user_session_id, limit, filter_enriched_only)
+
+def get_database_enrichment_status() -> Dict:
+    """
+    Convenience function to get database enrichment status
+    """
+    matcher = ProfileJobMatcher()
+    return matcher.get_database_enrichment_status()

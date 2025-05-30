@@ -42,6 +42,14 @@ except ImportError as e:
     JOB_MATCHING_AVAILABLE = False
     JOB_MATCHING_ERROR = str(e)
 
+# Import CV-job evaluation functionality
+try:
+    from cv_job_evaluator import evaluate_user_cv_matches, get_user_latest_evaluation, generate_user_improvement_plan
+    CV_EVALUATION_AVAILABLE = True
+except ImportError as e:
+    CV_EVALUATION_AVAILABLE = False
+    CV_EVALUATION_ERROR = str(e)
+
 # --- Constants for file names ---
 ROLES_INDUSTRIES_ONTOLOGY_FILE = "roles_industries_ontology.csv"
 SKILL_ONTOLOGY_FILE = "skill_ontology.csv"
@@ -790,8 +798,8 @@ def run_app():
                     
                     if search_results['searches_performed']:
                         st.subheader("Searches Performed:")
-                        success_count = 0
-                        error_count = 0
+                        success_count = 0;
+                        error_count = 0;
                         
                         for search in search_results['searches_performed']:
                             if 'error' not in search:

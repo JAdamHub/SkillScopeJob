@@ -14,6 +14,7 @@ together>=1.0.0
 python-dotenv
 
 # Other existing dependencies
+langchain_together
 attrs
 beautifulsoup4
 certifi
