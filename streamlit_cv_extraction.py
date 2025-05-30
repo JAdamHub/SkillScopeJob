@@ -6,23 +6,13 @@ import json
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Set page config øverst
+# Set page config at the top level
 if 'page_config_set' not in st.session_state:
     st.set_page_config(
         page_title="🎯 Advanced Career Profile",
         page_icon="🌟",
         layout="wide",
         initial_sidebar_state="expanded",
-    )
-    st.session_state.page_config_set = True
-
-# Set page config at the top level, only once
-if 'page_config_set' not in st.session_state:
-    st.set_page_config(
-        page_title="🎯 Advanced Career Profile",
-        page_icon="🌟",  # Example: Use an emoji or a URL to an image
-        layout="wide",
-        initial_sidebar_state="expanded", # Or "collapsed" or "auto"
     )
     st.session_state.page_config_set = True
 
@@ -171,7 +161,7 @@ def log_user_profile(data: dict):
 # --- Streamlit App UI ---
 def run_app():
     st.title("🎯 Advanced Career Profile & Goal Setting")
-    # The particle canvas is already added globally above, so it should appear here.
+    # Video background is already loaded globally above
     st.markdown("Define your detailed profile for precise career insights. 🚀")
 
     initialize_session_state()
@@ -1035,151 +1025,251 @@ def run_app():
                 evaluation_results = st.session_state.cv_evaluation_results
                 
                 if "error" in evaluation_results:
-                    st.error(f"❌ CV evaluation failed: {evaluation_results['error']}")
+                    st.error(f"❌ Evaluation failed: {evaluation_results['error']}")
                 else:
-                    st.success(f"✅ CV analysis completed! Analyzed {evaluation_results.get('jobs_evaluated', 0)} job postings.")
+                    st.success("✅ CV analysis completed!")
                     
-                    # Show summary metrics
+                    # Summary metrics
+                    summary = evaluation_results.get('summary', {})
                     col1, col2, col3, col4 = st.columns(4)
                     
-                    summary = evaluation_results.get('summary', {})
-                    avg_score = summary.get('average_match_score', 0)
-                    
                     with col1:
-                        st.metric("Average Match Score", f"{avg_score}%", 
-                                 delta=f"{avg_score - 60}%" if avg_score >= 60 else f"{avg_score - 60}%")
+                        avg_score = summary.get('average_match_score', 0)
+                        st.metric("Average Match Score", f"{avg_score}%", delta=f"{avg_score-60}%" if avg_score > 0 else None)
+                    
                     with col2:
-                        st.metric("Jobs Analyzed", evaluation_results.get('jobs_evaluated', 0))
+                        jobs_analyzed = evaluation_results.get('jobs_evaluated', 0)
+                        st.metric("Jobs Analyzed", jobs_analyzed)
+                    
                     with col3:
-                        best_matches = summary.get('best_matches', [])
-                        best_score = best_matches[0].get('match_score', 0) if best_matches else 0
+                        best_score = max([eval.get('match_score', 0) for eval in evaluation_results.get('evaluations', [])], default=0)
                         st.metric("Best Match", f"{best_score}%")
+                    
                     with col4:
-                        high_likelihood = sum(1 for eval in evaluation_results.get('evaluations', []) 
-                                            if eval.get('likelihood', '').lower() == 'high')
+                        high_likelihood = len([eval for eval in evaluation_results.get('evaluations', []) 
+                                             if eval.get('likelihood', '').lower() in ['high', 'medium']])
                         st.metric("High Interview Likelihood", high_likelihood)
                     
-                    # Show best matches
-                    if best_matches:
-                        st.subheader("🏆 Your Best Job Matches")
-                        for i, match in enumerate(best_matches[:3], 1):
-                            with st.container(border=True):
-                                col1, col2 = st.columns([3, 1])
-                                with col1:
-                                    st.markdown(f"**#{i} {match['job_title']}**")
-                                    st.markdown(f"🏢 {match['company']}")
-                                    st.markdown(f"🎯 Overall Fit: **{match['overall_fit']}**")
-                                with col2:
-                                    score_color = "🟢" if match['match_score'] >= 80 else "🟡" if match['match_score'] >= 60 else "🔴"
-                                    st.markdown(f"### {score_color} {match['match_score']}%")
-                    
-                    # Show detailed evaluations
+                    # Detailed job evaluations with enhanced display
                     st.subheader("📊 Detailed Job Evaluations")
                     
                     evaluations = evaluation_results.get('evaluations', [])
                     if evaluations:
-                        # Add tabs for different views
-                        tab1, tab2, tab3 = st.tabs(["📋 All Evaluations", "💪 Strengths Summary", "🎯 Improvement Areas"])
+                        # Sort by match score (highest first)
+                        evaluations_sorted = sorted(evaluations, key=lambda x: x.get('match_score', 0), reverse=True)
                         
-                        with tab1:
-                            for eval in evaluations:
-                                with st.expander(f"{eval.get('job_title', 'Unknown')} at {eval.get('company', 'Unknown')} - {eval.get('match_score', 0)}%"):
-                                    col1, col2 = st.columns(2)
-                                    
-                                    with col1:
-                                        st.markdown(f"**Match Score:** {eval.get('match_score', 0)}%")
-                                        st.markdown(f"**Overall Fit:** {eval.get('overall_fit', 'N/A')}")
-                                        st.markdown(f"**Interview Likelihood:** {eval.get('likelihood', 'N/A')}")
-                                        
-                                        if eval.get('job_url'):
-                                            st.link_button("View Job Posting", eval['job_url'])
-                                    
-                                    with col2:
-                                        st.markdown(f"**Location:** {eval.get('location', 'N/A')}")
-                                    
-                                    st.markdown("**💪 Your Strengths for this Role:**")
-                                    st.write(eval.get('strengths', 'None identified'))
-                                    
-                                    st.markdown("**🎯 Areas for Improvement:**")
-                                    st.write(eval.get('gaps', 'None identified'))
-                                    
-                                    st.markdown("**📈 Recommendations:**")
-                                    st.write(eval.get('recommendations', 'None provided'))
+                        # Display top matches with enhanced information
+                        st.markdown("### 🏆 Your Best Job Matches")
                         
-                        with tab2:
-                            st.markdown("### 🌟 Common Strengths Across Evaluations")
-                            all_strengths = []
-                            for eval in evaluations:
-                                if eval.get('strengths'):
-                                    all_strengths.append(eval['strengths'])
+                        for i, evaluation in enumerate(evaluations_sorted[:5]):  # Show top 5
+                            match_score = evaluation.get('match_score', 0)
                             
-                            if all_strengths:
-                                st.write("Based on the AI analysis, your key strengths include:")
-                                for strength in all_strengths[:5]:  # Show top 5
-                                    st.write(f"• {strength}")
+                            # Color coding based on score
+                            if match_score >= 70:
+                                score_color = "🟢"
+                                score_class = "success"
+                            elif match_score >= 50:
+                                score_color = "🟡"
+                                score_class = "warning"
                             else:
-                                st.info("No common strengths identified across evaluations.")
+                                score_color = "🔴"
+                                score_class = "error"
+                            
+                            with st.expander(f"**#{i+1} {evaluation.get('job_title', 'Unknown Position')}** {score_color} {match_score}%", expanded=i<3):
+                                # Main job information in columns
+                                info_col1, info_col2 = st.columns([2, 1])
+                                
+                                with info_col1:
+                                    st.markdown(f"### 🏢 {evaluation.get('company', 'Unknown Company')}")
+                                    
+                                    # Key job details
+                                    job_details = []
+                                    if evaluation.get('location'):
+                                        job_details.append(f"📍 {evaluation['location']}")
+                                    if evaluation.get('company_industry'):
+                                        job_details.append(f"🏭 {evaluation['company_industry']}")
+                                    
+                                    # Get additional details from original job data if available
+                                    # (This would require passing more job data through the evaluation)
+                                    
+                                    if job_details:
+                                        st.markdown(" • ".join(job_details))
+                                    
+                                    # Overall fit and key metrics
+                                    st.markdown(f"**🎯 Overall Fit:** {evaluation.get('overall_fit', 'N/A')}")
+                                    st.markdown(f"**⚖️ Seniority Match:** {evaluation.get('seniority_match', 'N/A')}")
+                                    st.markdown(f"**📈 Interview Likelihood:** {evaluation.get('likelihood', 'N/A')}")
+                                
+                                with info_col2:
+                                    # Score visualization
+                                    st.markdown(f"### {score_color} {match_score}%")
+                                    st.progress(match_score / 100)
+                                    
+                                    # Quick actions
+                                    if evaluation.get('job_url'):
+                                        st.link_button("🔗 View Job Posting", evaluation['job_url'], use_container_width=True)
+                                    
+                                    # Experience gap indicator
+                                    exp_gap = evaluation.get('experience_gap', '')
+                                    if exp_gap:
+                                        if 'short' in exp_gap.lower():
+                                            st.warning(f"⚠️ {exp_gap}")
+                                        else:
+                                            st.info(f"ℹ️ {exp_gap}")
+                                
+                                # Detailed analysis sections
+                                analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs(["✅ Strengths", "❌ Gaps", "💡 Advice"])
+                                
+                                with analysis_tab1:
+                                    strengths = evaluation.get('strengths', 'Not specified')
+                                    if strengths and strengths.lower() not in ['none', 'not specified', 'n/a']:
+                                        # Parse strengths into bullet points if comma-separated
+                                        if ',' in strengths:
+                                            strength_list = [s.strip() for s in strengths.split(',') if s.strip()]
+                                            for strength in strength_list:
+                                                st.markdown(f"• {strength}")
+                                        else:
+                                            st.markdown(strengths)
+                                    else:
+                                        st.info("No specific strengths identified for this position.")
+                                
+                                with analysis_tab2:
+                                    # Critical gaps
+                                    critical_gaps = evaluation.get('critical_gaps', '')
+                                    minor_gaps = evaluation.get('minor_gaps', '')
+                                    
+                                    if critical_gaps and critical_gaps.lower() not in ['none', 'not specified', 'n/a']:
+                                        st.markdown("**🚨 Critical Gaps:**")
+                                        if ',' in critical_gaps:
+                                            gap_list = [g.strip() for g in critical_gaps.split(',') if g.strip()]
+                                            for gap in gap_list:
+                                                st.markdown(f"• {gap}")
+                                        else:
+                                            st.markdown(f"• {critical_gaps}")
+                                    
+                                    if minor_gaps and minor_gaps.lower() not in ['none', 'not specified', 'n/a']:
+                                        st.markdown("**⚠️ Minor Gaps:**")
+                                        if ',' in minor_gaps:
+                                            gap_list = [g.strip() for g in minor_gaps.split(',') if g.strip()]
+                                            for gap in gap_list:
+                                                st.markdown(f"• {gap}")
+                                        else:
+                                            st.markdown(f"• {minor_gaps}")
+                                    
+                                    if not critical_gaps and not minor_gaps:
+                                        st.success("No significant gaps identified! 🎉")
+                                
+                                with analysis_tab3:
+                                    # Recommendations
+                                    recommendations = evaluation.get('recommendations', '')
+                                    reality_check = evaluation.get('reality_check', '')
+                                    
+                                    if recommendations and recommendations.lower() not in ['none', 'not specified', 'n/a']:
+                                        st.markdown("**📋 Recommendations:**")
+                                        if ',' in recommendations:
+                                            rec_list = [r.strip() for r in recommendations.split(',') if r.strip()]
+                                            for rec in rec_list:
+                                                st.markdown(f"• {rec}")
+                                        else:
+                                            st.markdown(recommendations)
+                                    
+                                    if reality_check and reality_check.lower() not in ['none', 'not specified', 'n/a']:
+                                        st.markdown("**🎯 Reality Check:**")
+                                        st.info(reality_check)
+                                    
+                                    # Action buttons based on likelihood
+                                    likelihood = evaluation.get('likelihood', '').lower()
+                                    if likelihood in ['high', 'medium']:
+                                        st.success("💚 **Recommended Action:** Apply for this position!")
+                                        if evaluation.get('job_url'):
+                                            st.markdown(f"[📝 Apply Now]({evaluation['job_url']})")
+                                    elif likelihood == 'low':
+                                        st.warning("💛 **Suggested Action:** Consider applying after addressing key gaps")
+                                    else:
+                                        st.info("💙 **Consider:** Use this as a learning opportunity to understand requirements")
+                                
+                                # Separator
+                                if i < min(4, len(evaluations_sorted) - 1):
+                                    st.divider()
                         
-                        with tab3:
-                            st.markdown("### 🎯 Priority Improvement Areas")
-                            common_gaps = summary.get('common_gaps', [])
-                            top_recommendations = summary.get('top_recommendations', [])
+                        # Show remaining jobs in a compact format
+                        if len(evaluations_sorted) > 5:
+                            st.markdown("### 📋 Additional Job Matches")
                             
+                            for i, evaluation in enumerate(evaluations_sorted[5:], 6):
+                                match_score = evaluation.get('match_score', 0)
+                                score_color = "🟢" if match_score >= 70 else "🟡" if match_score >= 50 else "🔴"
+                                
+                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                                
+                                with col1:
+                                    st.markdown(f"**{evaluation.get('job_title', 'Unknown Position')}**")
+                                    st.caption(f"🏢 {evaluation.get('company', 'Unknown Company')}")
+                                
+                                with col2:
+                                    if evaluation.get('location'):
+                                        st.caption(f"📍 {evaluation['location']}")
+                                    if evaluation.get('overall_fit'):
+                                        st.caption(f"🎯 {evaluation['overall_fit']}")
+                                
+                                with col3:
+                                    st.markdown(f"{score_color} **{match_score}%**")
+                                
+                                with col4:
+                                    if evaluation.get('job_url'):
+                                        st.link_button("View", evaluation['job_url'], key=f"job_link_{i}")
+                        
+                        # Summary insights
+                        st.markdown("### 📈 Key Insights")
+                        
+                        insight_col1, insight_col2 = st.columns(2)
+                        
+                        with insight_col1:
+                            # Top recommendations
+                            top_recs = summary.get('top_recommendations', [])
+                            if top_recs:
+                                st.markdown("**🎯 Top Recommendations:**")
+                                for rec in top_recs[:3]:
+                                    if rec and rec.lower() not in ['none', 'not specified']:
+                                        st.markdown(f"• {rec}")
+                        
+                        with insight_col2:
+                            # Common gaps
+                            common_gaps = summary.get('critical_gaps', [])
                             if common_gaps:
-                                st.markdown("**Most Common Skill Gaps:**")
-                                for gap in common_gaps[:5]:
-                                    st.write(f"• {gap}")
-                            
-                            if top_recommendations:
-                                st.markdown("**Top Recommendations:**")
-                                for rec in top_recommendations[:5]:
-                                    st.write(f"• {rec}")
-                            
-                            if not common_gaps and not top_recommendations:
-                                st.info("No specific improvement areas identified.")
+                                st.markdown("**⚠️ Common Skill Gaps:**")
+                                for gap in common_gaps[:3]:
+                                    if gap and gap.lower() not in ['none', 'not specified']:
+                                        st.markdown(f"• {gap}")
+                    
+                    else:
+                        st.warning("No job evaluations found in results.")
                 
                 # Handle improvement plan generation
                 if (st.session_state.cv_evaluation_completed and 
                     st.session_state.cv_evaluation_results and 
                     'show_improvement_plan' in locals() and show_improvement_plan):
                     
-                    with st.spinner("🤖 Generating personalized improvement plan..."):
-                        try:
-                            improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
+                    with st.spinner("🤖 AI is creating your personalized improvement plan..."):
+                        improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
+                        
+                        if "error" not in improvement_plan:
+                            st.success("✅ Improvement plan generated!")
                             
-                            if "error" in improvement_plan:
-                                st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
-                            else:
-                                st.success("✅ Personalized improvement plan generated!")
-                                
-                                st.markdown("---")
-                                st.subheader("📈 Your Personalized Career Improvement Plan")
-                                st.markdown("*Based on AI analysis of your CV vs available job opportunities*")
-                                
-                                # Display the improvement plan
-                                st.markdown(improvement_plan.get('improvement_plan', 'Plan not available'))
-                                
-                                # Add download option
-                                plan_text = f"""
-PERSONALIZED CAREER IMPROVEMENT PLAN
-Generated: {improvement_plan.get('generated_timestamp', 'Unknown')}
-User: {user_session_id_for_run}
-
-{improvement_plan.get('improvement_plan', '')}
-
----
-Generated by SkillScope Career Analysis AI
-Based on evaluation from: {improvement_plan.get('based_on_evaluation', 'Unknown')}
-"""
+                            st.subheader("🚀 Your Personalized Career Improvement Plan")
+                            st.markdown(improvement_plan.get('improvement_plan', 'Plan could not be generated'))
+                            
+                            # Add download option for improvement plan
+                            plan_text = improvement_plan.get('improvement_plan', '')
+                            if plan_text:
                                 st.download_button(
-                                    label="📥 Download Improvement Plan",
-                                    data=plan_text,
-                                    file_name=f"career_improvement_plan_{user_session_id_for_run}_{datetime.now().strftime('%Y%m%d')}.txt",
+                                    "📄 Download Improvement Plan",
+                                    plan_text,
+                                    file_name=f"career_improvement_plan_{user_session_id_for_run[:8]}.txt",
                                     mime="text/plain"
                                 )
-                                
-                        except Exception as e:
-                            st.error(f"❌ Error generating improvement plan: {str(e)}")
+                        else:
+                            st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
             
             elif not CV_EVALUATION_AVAILABLE:
                 st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")

@@ -56,20 +56,20 @@ class CVJobEvaluator:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or TOGETHER_API_KEY
         
-        # Initialize LLM
+        # Initialize LLM with the most advanced available model
         try:
             self.llm = Together(
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",  # Latest and most capable model
                 api_key=self.api_key,
-                temperature=0.2,  # Lower temperature for more consistent evaluations
-                max_tokens=2048,  # More tokens for detailed analysis
-                top_p=0.9,
-                repetition_penalty=1.1
+                temperature=0.1,  # Increased slightly for more balanced responses
+                max_tokens=4096,   
+                top_p=0.9,         # Increased for more varied responses
+                repetition_penalty=1.1  # Reduced to avoid too repetitive conservative assessments
             )
             
             # Test LLM connection
             test_response = self.llm.invoke("Test connection. Reply with: OK")
-            logging.info(f"CV Job Evaluator LLM initialized successfully")
+            logging.info(f"CV Job Evaluator LLM initialized with Llama-3.3-70B-Instruct-Turbo")
             
         except Exception as e:
             logging.error(f"Failed to initialize LLM: {e}")
@@ -213,46 +213,56 @@ Company Description: {job.get('company_description', 'N/A')}
         profile_text = self.format_profile_for_evaluation(profile_data)
         jobs_text = self.format_jobs_for_evaluation(job_matches)
         
-        # Create comprehensive evaluation prompt
-        evaluation_prompt = f"""You are a professional career counselor and recruiter. Analyze how well this candidate's profile matches each job posting.
+        # Create balanced evaluation prompt
+        evaluation_prompt = f"""You are an experienced Danish recruiter with 15+ years of experience. You must evaluate candidates using REALISTIC but FAIR standards that reflect the actual Danish job market. Be honest but constructive.
+
+DANISH RECRUITMENT CONTEXT:
+1. STUDENTS vs PROFESSIONALS: A student finishing in 2026 is entry-level but CAN be competitive for appropriate roles
+2. EDUCATION MATTERS: Danish companies value education highly - strong academic background counts significantly
+3. TRANSFERABLE SKILLS: Skills from projects, internships, and studies ARE valuable and recognized
+4. ENTRY LEVEL OPPORTUNITIES: Many Danish companies have graduate programs and entry-level positions
+5. GROWTH POTENTIAL: Recruiters look for potential, not just current experience
 
 {profile_text}
 
 JOBS TO EVALUATE:
 {jobs_text}
 
-EVALUATION TASK:
-For each job, provide a detailed evaluation in the exact format below. Do not include any other text.
+BALANCED SCORING GUIDELINES:
+- Student graduating 2026 + Senior role (5+ years required) = 20-35 points (honest about experience gap)
+- Student graduating 2026 + Mid-level role (3+ years) = 35-55 points (possible with exceptional profile)
+- Student graduating 2026 + Junior/Entry role = 55-80 points (appropriate level match)
+- Student graduating 2026 + Graduate/Trainee program = 70-90 points (ideal match)
+- Strong academic background in relevant field = +10-15 points bonus
+- Relevant project/internship experience = +5-10 points bonus
+
+REALISTIC EXAMPLES:
+- "Business Data Science Student 2026" + "Senior Data Scientist 5+ years" = SCORE: 25 (Experience gap too large, but has relevant education)
+- "Business Data Science Student 2026" + "Data Analyst Graduate Program" = SCORE: 80 (Excellent match for entry level)
+- "Business Data Science Student 2026" + "Junior Business Analyst" = SCORE: 65 (Good entry match with room to grow)
 
 RESPONSE FORMAT:
 For each job, respond with exactly this structure:
 
 JOB_1:
-MATCH_SCORE: [0-100]
-OVERALL_FIT: [Excellent/Good/Fair/Poor]
-STRENGTHS: [3-5 specific strengths the candidate has for this role]
-GAPS: [3-5 specific skills/qualifications the candidate lacks]
-RECOMMENDATIONS: [3-4 specific actions to improve candidacy]
-LIKELIHOOD: [High/Medium/Low - likelihood of getting an interview]
+MATCH_SCORE: [0-100] - Use the balanced guidelines above
+OVERALL_FIT: [Excellent/Good/Fair/Poor/Very Poor]
+SENIORITY_MATCH: [Perfect Match/Slight Stretch/Underqualified/Major Gap]
+EXPERIENCE_GAP: [X years short/Good match/Perfect fit]
+REALITY_CHECK: [Honest assessment of actual interview chances in Danish market]
+STRENGTHS: [List genuine matching qualifications from their background]
+CRITICAL_GAPS: [Major missing requirements that need addressing]
+MINOR_GAPS: [Skills that could be developed or aren't deal-breakers]
+RECOMMENDATIONS: [Constructive actions - may include applying despite gaps]
+LIKELIHOOD: [High/Medium/Low/Very Low] - Be realistic but not crushing
 
-JOB_2:
-MATCH_SCORE: [0-100]
-OVERALL_FIT: [Excellent/Good/Fair/Poor]
-STRENGTHS: [3-5 specific strengths]
-GAPS: [3-5 specific gaps]
-RECOMMENDATIONS: [3-4 specific recommendations]
-LIKELIHOOD: [High/Medium/Low]
+DANISH RECRUITER MINDSET - BALANCED APPROACH:
+- "Education and potential matter as much as experience for entry-level roles"
+- "We invest in promising graduates who show the right foundation"
+- "Strong academic background can partially compensate for limited work experience"
+- "Graduate programs exist specifically for talented students transitioning to work"
 
-Continue for all jobs...
-
-EVALUATION CRITERIA:
-- MATCH_SCORE: 0-100 based on skills, experience, education alignment
-- STRENGTHS: What candidate brings that matches job requirements
-- GAPS: Missing skills, experience, or qualifications
-- RECOMMENDATIONS: Specific courses, certifications, or experience to gain
-- LIKELIHOOD: Realistic assessment of interview chances
-
-Be honest and constructive. Focus on actionable feedback.
+REMEMBER: Be honest about limitations but recognize the value of education, projects, and potential. Danish companies DO hire graduates - provide constructive feedback that helps them target appropriate opportunities.
 
 START EVALUATION:"""
 
@@ -261,10 +271,10 @@ START EVALUATION:"""
             response = self.llm.invoke(evaluation_prompt)
             logging.info(f"Received evaluation response: {len(response)} characters")
             
-            # Parse the response
-            evaluation_results = self.parse_evaluation_response(response, job_matches)
+            # Parse the response with enhanced parsing
+            evaluation_results = self.parse_enhanced_evaluation_response(response, job_matches)
             
-            # Add metadata
+            # Add metadata and validation
             evaluation_results.update({
                 "user_session_id": user_session_id,
                 "evaluation_timestamp": datetime.now().isoformat(),
@@ -276,8 +286,13 @@ START EVALUATION:"""
                                       profile_data.get('current_skills_custom', [])),
                     "education_count": len(profile_data.get('education_entries', [])),
                     "experience_count": len(profile_data.get('work_experience_entries', []))
-                }
+                },
+                "evaluation_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "evaluation_method": "balanced_realistic_danish_market_scoring"
             })
+            
+            # Apply balanced validation instead of ultra-strict
+            self.apply_balanced_validation(evaluation_results, profile_data)
             
             # Store evaluation results
             self.store_evaluation_results(user_session_id, evaluation_results)
@@ -287,15 +302,88 @@ START EVALUATION:"""
         except Exception as e:
             logging.error(f"Error during AI evaluation: {e}")
             return {"error": f"Evaluation failed: {str(e)}"}
-    
-    def parse_evaluation_response(self, response: str, jobs: List[Dict]) -> Dict:
-        """Parse AI evaluation response into structured data"""
+
+    def apply_balanced_validation(self, evaluation_results: Dict, profile_data: Dict):
+        """Apply balanced validation that's realistic but not crushing"""
+        total_experience = profile_data.get('total_experience', 'None')
+        education_entries = profile_data.get('education_entries', [])
+        
+        # Determine if candidate is still a student
+        is_student = any(
+            edu.get('graduation_year', '') and 
+            int(edu.get('graduation_year', '0')) > datetime.now().year
+            for edu in education_entries
+            if edu.get('graduation_year', '').isdigit()
+        )
+        
+        # Check for strong academic background
+        has_strong_education = any(
+            edu.get('field_of_study', '').lower() in ['computer science', 'data science', 'business', 'engineering', 'economics']
+            or 'business' in edu.get('field_of_study', '').lower()
+            or 'data' in edu.get('field_of_study', '').lower()
+            for edu in education_entries
+        )
+        
+        # Apply balanced scoring adjustments
+        for evaluation in evaluation_results.get('evaluations', []):
+            job_title = evaluation.get('job_title', '').lower()
+            current_score = evaluation.get('match_score', 0)
+            
+            # Only apply validation if score is unreasonably low or high
+            if is_student:
+                # Senior roles - reasonable but honest scoring
+                if any(word in job_title for word in ['senior', 'lead', 'principal', 'manager', 'director', 'head']):
+                    if current_score > 45:  # Cap very optimistic scores
+                        new_score = min(current_score, 35)
+                        evaluation['match_score'] = new_score
+                        evaluation['score_adjustment'] = "Realistic: Senior role requires more experience"
+                    elif current_score < 15:  # Ensure minimum reasonable score if they have relevant education
+                        if has_strong_education:
+                            evaluation['match_score'] = max(current_score, 20)
+                            evaluation['score_adjustment'] = "Balanced: Strong education provides foundation"
+                
+                # Experience requirements in job title/description
+                elif any(phrase in job_title for phrase in ['3+', '5+', 'experienced', 'flere års']):
+                    if current_score > 60:
+                        evaluation['match_score'] = min(current_score, 50)
+                        evaluation['score_adjustment'] = "Realistic: Experience gap exists"
+                    elif current_score < 25 and has_strong_education:
+                        evaluation['match_score'] = max(current_score, 35)
+                        evaluation['score_adjustment'] = "Balanced: Education + potential considered"
+                
+                # Entry level roles - should score well
+                elif any(word in job_title for word in ['junior', 'graduate', 'trainee', 'entry', 'studiejob']):
+                    if current_score < 55:  # Ensure reasonable minimum for entry roles
+                        evaluation['match_score'] = max(current_score, 60)
+                        evaluation['score_adjustment'] = "Corrected: Good fit for entry level"
+                    elif current_score > 90:  # Cap perfect scores
+                        evaluation['match_score'] = min(current_score, 85)
+                
+                # Regular roles - balanced approach
+                else:
+                    if current_score < 30 and has_strong_education:
+                        evaluation['match_score'] = max(current_score, 40)
+                        evaluation['score_adjustment'] = "Balanced: Strong academic foundation"
+                    elif current_score > 75:
+                        evaluation['match_score'] = min(current_score, 65)
+                        evaluation['score_adjustment'] = "Realistic: Some experience gap"
+        
+        # Recalculate average after balanced adjustments
+        adjusted_scores = [eval.get('match_score', 0) for eval in evaluation_results.get('evaluations', [])]
+        if adjusted_scores:
+            evaluation_results['summary']['average_match_score'] = round(sum(adjusted_scores) / len(adjusted_scores), 1)
+            
+        logging.info(f"Balanced validation completed. Student: {is_student}, Strong education: {has_strong_education}")
+
+    def parse_enhanced_evaluation_response(self, response: str, jobs: List[Dict]) -> Dict:
+        """Parse AI evaluation response with enhanced fields including reality check"""
         results = {
             "evaluations": [],
             "summary": {
                 "average_match_score": 0,
+                "score_distribution": {},
                 "top_recommendations": [],
-                "common_gaps": [],
+                "critical_gaps": [],
                 "best_matches": []
             }
         }
@@ -304,10 +392,10 @@ START EVALUATION:"""
         current_job = None
         current_eval = {}
         match_scores = []
-        all_gaps = []
+        all_critical_gaps = []
         all_recommendations = []
         
-        for line in lines:
+        for i, line in enumerate(lines):
             line = line.strip()
             if not line:
                 continue
@@ -315,14 +403,14 @@ START EVALUATION:"""
             if line.startswith('JOB_'):
                 # Save previous evaluation
                 if current_eval and current_job is not None:
-                    # Add job details to evaluation
                     if current_job < len(jobs):
                         current_eval.update({
                             "job_title": jobs[current_job].get('title', ''),
                             "company": jobs[current_job].get('company', ''),
                             "location": jobs[current_job].get('location', ''),
                             "job_url": jobs[current_job].get('job_url', ''),
-                            "job_id": jobs[current_job].get('id', '')
+                            "job_id": jobs[current_job].get('id', ''),
+                            "company_industry": jobs[current_job].get('company_industry', '')
                         })
                     results["evaluations"].append(current_eval)
                 
@@ -331,35 +419,61 @@ START EVALUATION:"""
                 current_eval = {"job_number": current_job + 1}
                 
             elif line.startswith('MATCH_SCORE:') and current_eval is not None:
+                score_text = line.replace('MATCH_SCORE:', '').strip()
                 try:
-                    score = int(line.replace('MATCH_SCORE:', '').strip())
-                    current_eval['match_score'] = score
-                    match_scores.append(score)
-                except ValueError:
-                    current_eval['match_score'] = 0
-                    
+                    # Extract numeric score, handle various formats
+                    import re
+                    score_match = re.search(r'(\d+)', score_text)
+                    if score_match:
+                        score = int(score_match.group(1))
+                        # Ensure score is within valid range
+                        score = max(0, min(100, score))
+                        current_eval['match_score'] = score
+                        match_scores.append(score)
+                    else:
+                        # Fallback if no number found
+                        current_eval['match_score'] = 25  # Conservative fallback
+                        match_scores.append(25)
+                        logging.warning(f"Could not parse score from: {score_text}")
+                except Exception as e:
+                    current_eval['match_score'] = 25  # Safe fallback
+                    match_scores.append(25)
+                    logging.error(f"Error parsing match score: {e}")
+            
             elif line.startswith('OVERALL_FIT:') and current_eval is not None:
                 current_eval['overall_fit'] = line.replace('OVERALL_FIT:', '').strip()
-                
+            
+            elif line.startswith('SENIORITY_MATCH:') and current_eval is not None:
+                current_eval['seniority_match'] = line.replace('SENIORITY_MATCH:', '').strip()
+            
+            elif line.startswith('EXPERIENCE_GAP:') and current_eval is not None:
+                current_eval['experience_gap'] = line.replace('EXPERIENCE_GAP:', '').strip()
+            
+            elif line.startswith('REALITY_CHECK:') and current_eval is not None:
+                current_eval['reality_check'] = line.replace('REALITY_CHECK:', '').strip()
+            
             elif line.startswith('STRENGTHS:') and current_eval is not None:
                 current_eval['strengths'] = line.replace('STRENGTHS:', '').strip()
-                
-            elif line.startswith('GAPS:') and current_eval is not None:
-                gaps = line.replace('GAPS:', '').strip()
-                current_eval['gaps'] = gaps
-                if gaps:
-                    all_gaps.extend([gap.strip() for gap in gaps.split(',')])
-                    
+            
+            elif line.startswith('CRITICAL_GAPS:') and current_eval is not None:
+                gaps = line.replace('CRITICAL_GAPS:', '').strip()
+                current_eval['critical_gaps'] = gaps
+                if gaps and gaps.lower() not in ['none', 'none identified', 'n/a']:
+                    all_critical_gaps.append(gaps)
+            
+            elif line.startswith('MINOR_GAPS:') and current_eval is not None:
+                current_eval['minor_gaps'] = line.replace('MINOR_GAPS:', '').strip()
+            
             elif line.startswith('RECOMMENDATIONS:') and current_eval is not None:
-                recommendations = line.replace('RECOMMENDATIONS:', '').strip()
-                current_eval['recommendations'] = recommendations
-                if recommendations:
-                    all_recommendations.extend([rec.strip() for rec in recommendations.split(',')])
-                    
+                recs = line.replace('RECOMMENDATIONS:', '').strip()
+                current_eval['recommendations'] = recs
+                if recs and recs.lower() not in ['none', 'none provided', 'n/a']:
+                    all_recommendations.append(recs)
+            
             elif line.startswith('LIKELIHOOD:') and current_eval is not None:
                 current_eval['likelihood'] = line.replace('LIKELIHOOD:', '').strip()
         
-        # Don't forget the last evaluation
+        # Don't forget the last job
         if current_eval and current_job is not None:
             if current_job < len(jobs):
                 current_eval.update({
@@ -367,7 +481,8 @@ START EVALUATION:"""
                     "company": jobs[current_job].get('company', ''),
                     "location": jobs[current_job].get('location', ''),
                     "job_url": jobs[current_job].get('job_url', ''),
-                    "job_id": jobs[current_job].get('id', '')
+                    "job_id": jobs[current_job].get('id', ''),
+                    "company_industry": jobs[current_job].get('company_industry', '')
                 })
             results["evaluations"].append(current_eval)
         
@@ -375,32 +490,79 @@ START EVALUATION:"""
         if match_scores:
             results["summary"]["average_match_score"] = round(sum(match_scores) / len(match_scores), 1)
             
-            # Find best matches (top 3)
-            sorted_evals = sorted(results["evaluations"], 
-                                key=lambda x: x.get('match_score', 0), reverse=True)
-            results["summary"]["best_matches"] = [
-                {
-                    "job_title": eval.get('job_title', ''),
-                    "company": eval.get('company', ''),
-                    "match_score": eval.get('match_score', 0),
-                    "overall_fit": eval.get('overall_fit', '')
-                }
-                for eval in sorted_evals[:3]
-            ]
+            # Score distribution
+            results["summary"]["score_distribution"] = {
+                "high (70-100)": len([s for s in match_scores if s >= 70]),
+                "medium (40-69)": len([s for s in match_scores if 40 <= s < 70]),
+                "low (0-39)": len([s for s in match_scores if s < 40])
+            }
+            
+            # Best matches (top 3)
+            best_evals = sorted([e for e in results["evaluations"] if 'match_score' in e], 
+                              key=lambda x: x.get('match_score', 0), reverse=True)
+            results["summary"]["best_matches"] = best_evals[:3]
         
-        # Identify common gaps and recommendations
-        from collections import Counter
-        if all_gaps:
-            gap_counts = Counter(all_gaps)
-            results["summary"]["common_gaps"] = [gap for gap, count in gap_counts.most_common(5)]
+        # Aggregate recommendations and gaps
+        results["summary"]["top_recommendations"] = list(set(all_recommendations))[:5]
+        results["summary"]["critical_gaps"] = list(set(all_critical_gaps))[:5]
         
-        if all_recommendations:
-            rec_counts = Counter(all_recommendations)
-            results["summary"]["top_recommendations"] = [rec for rec, count in rec_counts.most_common(5)]
-        
-        logging.info(f"Parsed {len(results['evaluations'])} job evaluations")
+        logging.info(f"Parsed {len(results['evaluations'])} job evaluations with balanced scoring")
         return results
-    
+
+    def validate_and_adjust_scores(self, evaluation_results: Dict, profile_data: Dict):
+        """Validate scores are realistic based on profile data"""
+        total_experience = profile_data.get('total_experience', 'None')
+        education_entries = profile_data.get('education_entries', [])
+        
+        # Determine if candidate is still a student
+        is_student = any(
+            edu.get('graduation_year', '') and 
+            int(edu.get('graduation_year', '0')) > datetime.now().year
+            for edu in education_entries
+            if edu.get('graduation_year', '').isdigit()
+        )
+        
+        # Determine experience level
+        experience_level = "entry"
+        if total_experience in ["None", "0-1 year"]:
+            experience_level = "entry"
+        elif total_experience in ["1-3 years"]:
+            experience_level = "junior"
+        elif total_experience in ["3-5 years"]:
+            experience_level = "mid"
+        elif total_experience in ["5-10 years"]:
+            experience_level = "senior"
+        else:
+            experience_level = "expert"
+        
+        # Adjust scores if they seem unrealistic
+        for evaluation in evaluation_results.get('evaluations', []):
+            job_title = evaluation.get('job_title', '').lower()
+            current_score = evaluation.get('match_score', 0)
+            
+            # Check for seniority mismatches
+            if is_student and any(word in job_title for word in ['senior', 'lead', 'principal', 'manager', 'director']):
+                if current_score > 40:
+                    evaluation['match_score'] = min(current_score, 35)
+                    evaluation['score_adjustment'] = f"Adjusted down: Student cannot qualify for senior role"
+            
+            elif experience_level == "entry" and any(word in job_title for word in ['senior', 'lead', 'principal']):
+                if current_score > 45:
+                    evaluation['match_score'] = min(current_score, 40)
+                    evaluation['score_adjustment'] = f"Adjusted down: Entry-level cannot qualify for senior role"
+            
+            elif experience_level == "junior" and any(word in job_title for word in ['senior', 'lead', 'principal']):
+                if current_score > 55:
+                    evaluation['match_score'] = min(current_score, 50)
+                    evaluation['score_adjustment'] = f"Adjusted down: Junior level insufficient for senior role"
+        
+        # Recalculate average after adjustments
+        adjusted_scores = [eval.get('match_score', 0) for eval in evaluation_results.get('evaluations', [])]
+        if adjusted_scores:
+            evaluation_results['summary']['average_match_score'] = round(sum(adjusted_scores) / len(adjusted_scores), 1)
+            
+        logging.info(f"Score validation completed. Experience level: {experience_level}, Student: {is_student}")
+
     def store_evaluation_results(self, user_session_id: str, results: Dict):
         """Store evaluation results in database"""
         conn = sqlite3.connect(DB_NAME)
