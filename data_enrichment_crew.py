@@ -468,7 +468,7 @@ def main():
     # Run enrichment batches with smaller batch size for better consistency
     batch_count = 0
     max_batches = 15  # Increased since we're using smaller batches
-    batch_size = 8   # Reduced batch size for better LLM consistency
+    batch_size = 15   # Reduced batch size for better LLM consistency
     wait_time = 3
 
     logging.info(f"🚀 Starting enrichment with batch size: {batch_size}")
