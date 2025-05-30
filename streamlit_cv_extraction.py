@@ -1,9 +1,20 @@
-import streamlit as st
 import uuid
 import csv
 from datetime import datetime
 import os
 import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+# Set page config øverst
+if 'page_config_set' not in st.session_state:
+    st.set_page_config(
+        page_title="🎯 Advanced Career Profile",
+        page_icon="🌟",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+    st.session_state.page_config_set = True
 
 # Set page config at the top level, only once
 if 'page_config_set' not in st.session_state:
@@ -22,6 +33,14 @@ try:
 except ImportError as e:
     CV_EXTRACTION_AVAILABLE = False
     CV_EXTRACTION_ERROR = str(e)
+
+# Import job matching functionality
+try:
+    from profile_job_matcher import run_profile_job_search, get_user_job_matches
+    JOB_MATCHING_AVAILABLE = True
+except ImportError as e:
+    JOB_MATCHING_AVAILABLE = False
+    JOB_MATCHING_ERROR = str(e)
 
 # --- Constants for file names ---
 ROLES_INDUSTRIES_ONTOLOGY_FILE = "roles_industries_ontology.csv"
@@ -335,9 +354,6 @@ def run_app():
             help="Select one or more languages you are comfortable working in."
         )
         
-        job_type_options = ["Full-time", "Part-time", "Permanent", "Student job", "Volunteer work", "Internship", "New graduate", "Apprentice", "Temporary"]
-        job_types = st.multiselect("💼 Desired Job Types:", options=job_type_options, help="Select one or more relevant job types.")
-
         # Add personal description field
         st.header("2. ✍️ Personal Description")
         personal_description_default = cv_suggestions.get('personal_summary', '')
@@ -492,27 +508,21 @@ def run_app():
                 value=", ".join(st.session_state.job_title_keywords),
                 height=100,
                 help="Enter job titles that recruiters might use when posting relevant positions. Examples: 'software developer', 'python engineer', 'data analyst'",
-                placeholder="software developer, python engineer, backend developer, web developer, full stack developer"
+                placeholder="software developer, python engineer, backend developer, web developer, full stack developer",
+                key="keywords_textarea"
             )
             
-            # Parse and update keywords
-            if keywords_text.strip():
-                new_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
-                # Limit to 5 keywords
-                new_keywords = new_keywords[:5]
-                st.session_state.job_title_keywords = new_keywords
+            # Add update button to make it clear how to save changes
+            update_keywords_btn = st.form_submit_button("🔄 Update Keywords", help="Click to save your keyword changes")
         
         with keyword_cols[1]:
             st.markdown("**AI Suggestions:**")
             if ai_suggested_keywords:
                 st.markdown("*From your CV:*")
-                for i, keyword in enumerate(ai_suggested_keywords[:5]):
-                    if st.button(f"+ {keyword}", key=f"add_keyword_{i}", help="Add this keyword"):
-                        current_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
-                        if keyword not in current_keywords and len(current_keywords) < 5:
-                            current_keywords.append(keyword)
-                            st.session_state.job_title_keywords = current_keywords[:5]
-                            st.rerun()
+                # Display suggested keywords as text (no buttons in forms)
+                for keyword in ai_suggested_keywords[:5]:
+                    st.markdown(f"• `{keyword}`")
+                st.info("💡 Copy keywords from above and paste them into the text area, then click 'Update Keywords'")
             else:
                 if cv_suggestions:  # If we have CV suggestions but no keywords
                     st.info("No keywords extracted from CV")
@@ -532,11 +542,34 @@ def run_app():
 
         st.header("8. 🌍 Location & Analysis Preferences")
         location_options_dk = [
-            "All of Denmark", "Greater Copenhagen", "Aarhus Area", "Odense Area", "Aalborg Area", 
-            "Triangle Region (Vejle, Kolding, Fredericia)", "Zealand (outside Greater Copenhagen)", 
-            "Funen (outside Odense)", "North Jutland (outside Aalborg)", "Central Jutland (outside Aarhus)", 
-            "South Jutland", "West Jutland", "Bornholm"
+            "Danmark", "Hovedstaden", "Midtjylland", "Nordjylland",
+            "Sjælland", "Syddanmark",
+            
+            "Aabenraa kommune", "Aalborg kommune", "Aarhus kommune", "Albertslund kommune", "Allerød kommune",
+            "Assens kommune", "Ballerup kommune", "Billund kommune", "Bornholm kommune", "Brøndby kommune",
+            "Brønderslev kommune", "Dragør kommune", "Egedal kommune", "Esbjerg kommune", "Fanø kommune",
+            "Favrskov kommune", "Faxe kommune", "Fredensborg kommune", "Fredericia kommune", "Frederiksberg kommune",
+            "Frederikshavn kommune", "Frederikssund kommune", "Furesø kommune", "Faaborg-Midtfyn kommune", "Gentofte kommune",
+            "Gladsaxe kommune", "Glostrup kommune", "Greve kommune", "Gribskov kommune", "Guldborgsund kommune",
+            "Haderslev kommune", "Halsnæs kommune", "Hedensted kommune", "Helsingør kommune", "Herlev kommune",
+            "Herning kommune", "Hillerød kommune", "Hjørring kommune", "Holbæk kommune", "Holstebro kommune",
+            "Horsens kommune", "Hvidovre kommune", "Høje-Taastrup kommune", "Hørsholm kommune", "Ikast-Brande kommune",
+            "Ishøj kommune", "Jammerbugt kommune", "Kalundborg kommune", "Kerteminde kommune", "Kolding kommune",
+            "Københavns kommune", "København", "Køge kommune", "Langeland kommune", "Lejre kommune", "Lemvig kommune",
+            "Lolland kommune", "Lyngby-Taarbæk kommune", "Mariagerfjord kommune", "Middelfart kommune", "Morsø kommune",
+            "Næstved kommune", "Norddjurs kommune", "Nordfyns kommune", "Nyborg kommune", "Næstved kommune",
+            "Odder kommune", "Odense kommune", "Odsherred kommune", "Randers kommune", "Rebild kommune",
+            "Ringkøbing-Skjern kommune", "Ringsted kommune", "Roskilde kommune", "Rudersdal kommune", "Rødovre kommune",
+            "Samsø kommune", "Silkeborg kommune", "Skanderborg kommune", "Skive kommune", "Slagelse kommune",
+            "Solrød kommune", "Sorø kommune", "Stevns kommune", "Struer kommune", "Svendborg kommune",
+            "Syddjurs kommune", "Sønderborg kommune", "Thisted kommune", "Tønder kommune", "Tårnby kommune",
+            "Vallensbæk kommune", "Varde kommune", "Vejen kommune", "Vejle kommune", "Vesthimmerlands kommune",
+            "Viborg kommune", "Vordingborg kommune", "Ærø kommune", "Aarhus kommune", "Ødsherred kommune"
         ]
+
+        job_type_options = ["Full-time", "Part-time", "Permanent", "Student job", "Volunteer work", "Internship", "New graduate", "Apprentice", "Temporary"]
+        job_types = st.multiselect("💼 Desired Job Types:", options=job_type_options, help="Select one or more relevant job types.")
+
         preferred_locations_dk = st.multiselect("🗺️ Preferred Job Locations in Denmark:", options=location_options_dk)
         remote_options = ["Don't care", "Primarily On-site", "Primarily Hybrid", "Primarily Remote"]
         remote_openness = st.selectbox("🏠 Openness to Remote Work:", options=remote_options, key="remote_select")
@@ -562,7 +595,20 @@ def run_app():
         st.markdown("&nbsp;")
         submitted = st.form_submit_button("🚀 Save Profile and Continue")
 
-    # --- Handle form submission ---
+    if update_keywords_btn:
+        # Handle keyword updates
+        keywords_text = st.session_state.get("keywords_textarea", "")
+        if keywords_text.strip():
+            new_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
+            # Limit to 5 keywords
+            new_keywords = new_keywords[:5]
+            st.session_state.job_title_keywords = new_keywords
+            st.success(f"✅ Keywords updated! ({len(new_keywords)} keywords saved)")
+        else:
+            st.session_state.job_title_keywords = []
+            st.warning("⚠️ Keywords cleared")
+        st.rerun()
+
     if add_education:
         # Add new education entry
         st.session_state.education_entries.append({
@@ -646,6 +692,11 @@ def run_app():
             if log_user_profile(profile_data):
                 st.success("✅ Profile saved and logged successfully!")
                 st.balloons()
+                
+                # Store profile data in session state for job search
+                st.session_state.saved_profile_data = profile_data
+                st.session_state.profile_saved = True
+                
                 st.subheader("📊 Collected Profile Data:")
                 st.json(profile_data)
                 st.caption(f"Data has been added to `{USER_PROFILE_LOG_FILE}`.")
@@ -653,6 +704,172 @@ def run_app():
                 st.error("Error logging profile.")
         else:
             st.warning("Please review the form for errors.")
+
+    # Job Search Section - Outside the form but with session state management
+    if st.session_state.get('profile_saved', False) and JOB_MATCHING_AVAILABLE:
+        profile_data = st.session_state.get('saved_profile_data', {})
+        analysis_preference = profile_data.get('analysis_preference', '')
+        
+        if analysis_preference == "Deep Analysis (comprehensive)":
+            st.markdown("---")
+            st.subheader("🔍 Finding Relevant Job Opportunities")
+            st.markdown("*Search for jobs based on your profile data*")
+            
+            # Initialize job search state
+            if 'job_search_started' not in st.session_state:
+                st.session_state.job_search_started = False
+            if 'job_search_completed' not in st.session_state:
+                st.session_state.job_search_completed = False
+            if 'job_search_results' not in st.session_state:
+                st.session_state.job_search_results = None
+            
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                # Show job search button
+                if not st.session_state.job_search_started:
+                    start_search = st.button("🚀 Start Job Search Based on Your Profile", type="primary", key="start_job_search")
+                elif st.session_state.job_search_started and not st.session_state.job_search_completed:
+                    st.info("🔍 Job search in progress... Please wait.")
+                    start_search = False
+                else:
+                    st.success("✅ Job search completed!")
+                    start_search = False
+            
+            with col2:
+                if st.session_state.job_search_completed:
+                    if st.button("🔄 Search Again", key="search_again"):
+                        st.session_state.job_search_started = False
+                        st.session_state.job_search_completed = False
+                        st.session_state.job_search_results = None
+                        st.rerun()
+            
+            with col3:
+                if st.session_state.get('job_search_results'):
+                    if st.button("📊 View All Jobs", key="view_dashboard"):
+                        st.info("💡 Run the streamlit_app.py dashboard to view all scraped jobs")
+            
+            # Handle job search execution
+            if start_search:
+                st.session_state.job_search_started = True
+                st.rerun()
+            
+            # Execute search if started but not completed
+            if st.session_state.job_search_started and not st.session_state.job_search_completed:
+                with st.spinner("🔍 Searching for relevant jobs... This may take a few minutes."):
+                    try:
+                        search_results = run_profile_job_search(profile_data)
+                        st.session_state.job_search_results = search_results
+                        st.session_state.job_search_completed = True
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error during job search: {str(e)}")
+                        st.session_state.job_search_started = False
+                        
+                        # Show detailed error info
+                        with st.expander("🔍 Error Details"):
+                            st.code(str(e))
+                            st.markdown("**Possible solutions:**")
+                            st.markdown("""
+                            - Check your internet connection
+                            - Verify that indeed_scraper.py and profile_job_matcher.py are working
+                            - Try reducing the number of job search keywords
+                            - Check if Indeed is accessible from your location
+                            """)
+            
+            # Display results if completed
+            if st.session_state.job_search_completed and st.session_state.job_search_results:
+                search_results = st.session_state.job_search_results
+                
+                st.success(f"✅ Job search completed! Found {search_results['total_jobs_found']} new relevant positions.")
+                
+                # Show search summary
+                with st.expander("📊 Search Summary", expanded=True):
+                    st.json(search_results['profile_summary'])
+                    
+                    if search_results['searches_performed']:
+                        st.subheader("Searches Performed:")
+                        success_count = 0
+                        error_count = 0
+                        
+                        for search in search_results['searches_performed']:
+                            if 'error' not in search:
+                                st.write(f"✅ {search['job_title']} in {search['location']}: {search['jobs_found']} jobs")
+                                success_count += 1
+                            else:
+                                st.write(f"❌ {search['job_title']} in {search['location']}: Error - {search['error']}")
+                                error_count += 1
+                        
+                        st.info(f"Summary: {success_count} successful searches, {error_count} errors")
+                
+                # Show job matches if found
+                if search_results['total_jobs_found'] > 0:
+                    st.subheader("🎯 Your Job Matches")
+                    
+                    try:
+                        matches = get_user_job_matches(user_session_id_for_run, limit=20)
+                        
+                        if matches:
+                            # Add filter options
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                show_all = st.checkbox("Show all matches", value=False)
+                            with col2:
+                                min_relevance = st.selectbox("Minimum relevance score", [1, 2, 3], index=0)
+                            
+                            filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance]
+                            display_count = len(filtered_matches) if show_all else min(10, len(filtered_matches))
+                            
+                            st.write(f"Showing {display_count} of {len(matches)} total matches")
+                            
+                            for job in filtered_matches[:display_count]:
+                                with st.container(border=True):
+                                    col1, col2 = st.columns([3, 1])
+                                    with col1:
+                                        st.markdown(f"**{job['title']}**")
+                                        st.markdown(f"🏢 {job['company']} | 📍 {job['location']}")
+                                        if job.get('job_type'):
+                                            st.markdown(f"💼 {job['job_type']} | 🏠 {'Remote' if job.get('is_remote') else 'On-site'}")
+                                        if job['description']:
+                                            description_preview = job['description'][:200] + "..." if len(job['description']) > 200 else job['description']
+                                            st.markdown(f"*{description_preview}*")
+                                    with col2:
+                                        relevance_score = job.get('relevance_score', 1)
+                                        if relevance_score == 3:
+                                            st.success(f"🎯 Perfect Match!")
+                                        elif relevance_score == 2:
+                                            st.info(f"✨ Good Match")
+                                        else:
+                                            st.caption(f"📝 Relevant")
+                                        
+                                        if job.get('job_url'):
+                                            st.link_button("View Job", job['job_url'], use_container_width=True)
+                                        
+                                        if job.get('date_posted'):
+                                            st.caption(f"Posted: {job['date_posted']}")
+                        else:
+                            st.info("No job matches found. Try adjusting your search keywords or running the search again.")
+                    
+                    except Exception as e:
+                        st.error(f"Error loading job matches: {str(e)}")
+                        st.info("Job search completed but couldn't load matches. Check the dashboard for all jobs.")
+                
+                else:
+                    st.warning("No new jobs found. This might be because:")
+                    st.markdown("""
+                    - All relevant jobs for your keywords are already in the database
+                    - Your search keywords are too specific
+                    - No jobs match your location preferences
+                    - Indeed has limited results for your search terms
+                    """)
+                    st.info("💡 Try adjusting your job search keywords or running the general job dashboard.")
+    
+    elif st.session_state.get('profile_saved', False) and not JOB_MATCHING_AVAILABLE:
+        st.markdown("---")
+        st.info(f"🔍 Job matching not available: {JOB_MATCHING_ERROR}")
+        st.markdown("To enable job matching:")
+        st.code("pip install python-jobspy")
 
     # Show extracted data outside the main expander and form
     if CV_EXTRACTION_AVAILABLE and st.session_state.get('cv_suggestions'):
