@@ -128,6 +128,8 @@ class CVJobEvaluator:
         total_experience = profile_data.get('total_experience', 'None')
         target_roles = (profile_data.get('target_roles_industries_selected', []) + 
                        profile_data.get('target_roles_industries_custom', []))
+        job_types = profile_data.get('job_types', [])
+        job_keywords = profile_data.get('job_title_keywords', [])
         
         # Format education
         education_text = []
@@ -150,6 +152,8 @@ CANDIDATE PROFILE:
 Overall Field: {overall_field}
 Total Experience: {total_experience}
 Target Roles: {', '.join(target_roles) if target_roles else 'Not specified'}
+Desired Job Types: {', '.join(job_types) if job_types else 'Not specified'}
+Job Search Keywords: {', '.join(job_keywords) if job_keywords else 'Not specified'}
 
 SKILLS: {', '.join(skills) if skills else 'None listed'}
 
@@ -160,7 +164,8 @@ WORK EXPERIENCE:
 {chr(10).join(experience_text) if experience_text else 'None listed'}
 
 PERSONAL DESCRIPTION: {profile_data.get('personal_description', 'Not provided')}
-"""
+
+NOTE: Jobs found using enhanced search terms that may include modifiers like "student", "graduate", etc. based on job type preferences."""
         return profile_summary
     
     def format_jobs_for_evaluation(self, jobs: List[Dict]) -> str:
