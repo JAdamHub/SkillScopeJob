@@ -750,8 +750,6 @@ def run_app():
                 st.error("Please specify at least one current skill."); validation_passed = False
             if not overall_field:
                 st.error("Please select a primary field."); validation_passed = False
-            if not job_languages:
-                st.error("Please select at least one preferred job language."); validation_passed = False
             if not job_types:
                 st.error("Please select at least one desired job type."); validation_passed = False
             if not preferred_locations_dk:
