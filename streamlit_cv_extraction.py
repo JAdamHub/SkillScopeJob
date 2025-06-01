@@ -249,11 +249,43 @@ def run_app():
                         os.remove(temp_file_path)
                         
                         if cv_data.get('extraction_success', False):
+                            # Debug logging
+                            st.write("🔍 Debug: CV data received:")
+                            st.write(f"Education entries: {len(cv_data.get('education_entries', []))}")
+                            st.write(f"Experience entries: {len(cv_data.get('experience_entries', []))}")
+                            st.write(f"Languages: {cv_data.get('languages', [])}")
+                            st.write(f"Target roles: {suggestions.get('target_roles', [])}")
+                            
                             # Auto-populate session state with extracted data
                             if cv_data.get('education_entries'):
-                                st.session_state.education_entries = cv_data['education_entries']
+                                # Ensure proper format for education entries
+                                education_entries = []
+                                for edu in cv_data['education_entries']:
+                                    education_entries.append({
+                                        "degree": edu.get("degree", ""),
+                                        "field_of_study": edu.get("field_of_study", ""),
+                                        "institution": edu.get("institution", ""),
+                                        "graduation_year": edu.get("graduation_year", ""),
+                                        "id": edu.get("id", str(uuid.uuid4())),
+                                        "marked_for_removal": False
+                                    })
+                                st.session_state.education_entries = education_entries
+                                st.write(f"✅ Populated {len(education_entries)} education entries")
+                            
                             if cv_data.get('experience_entries'):
-                                st.session_state.experience_entries = cv_data['experience_entries']
+                                # Ensure proper format for experience entries
+                                experience_entries = []
+                                for exp in cv_data['experience_entries']:
+                                    experience_entries.append({
+                                        "job_title": exp.get("job_title", ""),
+                                        "company": exp.get("company", ""),
+                                        "years_in_role": str(exp.get("years_in_role", "0")),
+                                        "skills_responsibilities": exp.get("skills_responsibilities", ""),
+                                        "id": exp.get("id", str(uuid.uuid4())),
+                                        "marked_for_removal": False
+                                    })
+                                st.session_state.experience_entries = experience_entries
+                                st.write(f"✅ Populated {len(experience_entries)} experience entries")
                             
                             # Store suggestions for form pre-population
                             st.session_state.cv_suggestions = {
@@ -272,8 +304,23 @@ def run_app():
                                 'personal_summary': cv_data.get('personal_summary', '')
                             }
                             
-                            # Show extraction results without nested expanders
+                            st.write(f"✅ CV suggestions stored: {list(st.session_state.cv_suggestions.keys())}")
+                            
+                            # Show extraction results without nested expander
                             st.success("✅ AI has successfully analyzed your CV and filled in the fields!")
+                            
+                            # Show basic extraction info outside expander
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                skills_count = len(cv_data.get('skills', {}).get('all', []))
+                                languages_count = len(cv_data.get('languages', []))
+                                st.info(f"📊 Extracted: {skills_count} skills, {languages_count} languages")
+                            
+                            with col2:
+                                exp_count = len(st.session_state.experience_entries)
+                                edu_count = len(st.session_state.education_entries)
+                                st.info(f"🎯 Found: {exp_count} jobs, {edu_count} education entries")
+                            
                             st.info("💡 The CV upload section will now close automatically. You can reopen it if needed.")
                             st.balloons()
                             st.rerun()
@@ -282,11 +329,12 @@ def run_app():
                             st.error(f"❌ AI could not analyze the CV: {error_msg}")
                             
                             # Show debug info in a simple container
-                            st.markdown("**🔍 Debug Information:**")
-                            st.write("Model used:", selected_model)
-                            st.write("Error:", error_msg)
-                            if cv_data.get('raw_text_preview'):
-                                st.text_area("Extracted text (preview):", cv_data['raw_text_preview'], height=100)
+                            with st.container():
+                                st.markdown("**🔍 Debug Information:**")
+                                st.write("Model used:", selected_model)
+                                st.write("Error:", error_msg)
+                                if cv_data.get('raw_text_preview'):
+                                    st.text_area("Extracted text (preview):", cv_data['raw_text_preview'], height=100)
                             
                     except Exception as e:
                         st.error(f"❌ Error during AI processing: {str(e)}")
@@ -315,8 +363,47 @@ def run_app():
                 st.success("🗑️ All fields have been cleared!")
                 st.rerun()
         
-        # Show a small indicator if CV has been extracted
+        # Show a small indicator if CV has been extracted - OUTSIDE the expander
         if cv_extracted:
+            # Create a collapsible summary outside the main expander
+            with st.expander("🔍 View CV Extraction Summary", expanded=False):
+                cv_suggestions = st.session_state.get('cv_suggestions', {})
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Skills extracted:**")
+                    skills = cv_suggestions.get('skills', [])
+                    if skills:
+                        for skill in skills[:10]:
+                            st.markdown(f"• {skill}")
+                        if len(skills) > 10:
+                            st.markdown(f"• ... and {len(skills) - 10} more")
+                    else:
+                        st.markdown("*No skills extracted*")
+                    
+                    st.markdown("**Languages extracted:**")
+                    languages = cv_suggestions.get('languages', [])
+                    if languages:
+                        for lang in languages:
+                            st.markdown(f"• {lang}")
+                    else:
+                        st.markdown("*No languages extracted*")
+                
+                with col2:
+                    st.markdown("**Experience entries:**")
+                    if st.session_state.get('experience_entries'):
+                        for exp in st.session_state['experience_entries']:
+                            st.markdown(f"• {exp.get('job_title', 'N/A')} at {exp.get('company', 'N/A')}")
+                    else:
+                        st.markdown("*No experience extracted*")
+                    
+                    st.markdown("**Target roles suggested:**")
+                    target_roles = cv_suggestions.get('target_roles', [])
+                    if target_roles:
+                        for role in target_roles:
+                            st.markdown(f"• {role}")
+                    else:
+                        st.markdown("*No target roles suggested*")
+            
             st.success("✅ CV data has been extracted and auto-filled in the form below")
         
         st.markdown("---")
@@ -357,7 +444,7 @@ def run_app():
         cv_suggestions = st.session_state.get('cv_suggestions', {})
         
         st.header("1. 📊 Overall Profile")
-        cols_profil1 = st.columns([3, 1])
+        cols_profil1 = st.columns([2, 2])
         
         # Pre-select overall field from CV if available
         overall_field_default = cv_suggestions.get('overall_field', '')
@@ -373,24 +460,45 @@ def run_app():
             key="field_selector"
         )
 
-        update_field = cols_profil1[1].form_submit_button(
-            "🔄 Opdater profil",
-            help="Klik her for at opdatere færdighedslisten baseret på dit valgte felt"
+        # Pre-populate languages if available from CV
+        cv_languages = cv_suggestions.get('languages', [])
+        job_languages_options = ["Danish", "English", "German", "Swedish", "Norwegian", "French", "Spanish", "Other"]
+        
+        # Only pre-populate if CV data is available, otherwise start empty
+        default_job_languages = []
+        if cv_languages:  # Only if CV extracted languages
+            for lang in cv_languages:
+                lang_lower = lang.lower()
+                # More comprehensive language matching
+                if any(opt.lower() in lang_lower or lang_lower in opt.lower() for opt in job_languages_options):
+                    matching_option = next((opt for opt in job_languages_options if opt.lower() in lang_lower or lang_lower in opt.lower()), None)
+                    if matching_option and matching_option not in default_job_languages:
+                        default_job_languages.append(matching_option)
+                # Handle common language variations
+                elif 'dansk' in lang_lower or 'danish' in lang_lower:
+                    if "Danish" not in default_job_languages:
+                        default_job_languages.append("Danish")
+                elif 'engelsk' in lang_lower or 'english' in lang_lower:
+                    if "English" not in default_job_languages:
+                        default_job_languages.append("English")
+                elif 'tysk' in lang_lower or 'german' in lang_lower:
+                    if "German" not in default_job_languages:
+                        default_job_languages.append("German")
+        
+        job_languages = cols_profil1[1].multiselect(
+            "🌍 Preferred Job Languages:", 
+            options=job_languages_options, 
+            default=default_job_languages,  # Will be empty if no CV data
+            help="Select languages you are comfortable working in. Will be pre-filled if extracted from your CV."
         )
 
-        # Store the selected field in session state
-        if 'previous_field' not in st.session_state:
-            st.session_state.previous_field = overall_field
-        
-        # Check if field has changed and update button is pressed
-        field_changed = st.session_state.previous_field != overall_field and update_field
-        st.session_state.previous_field = overall_field
-
-        if field_changed:
-            # Clear any previously selected skills
-            if 'skills_selector' in st.session_state:
-                del st.session_state.skills_selector
-            st.rerun()
+        # Move the update field button to a separate row
+        update_field_cols = st.columns([3, 1])
+        with update_field_cols[1]:
+            update_field = st.form_submit_button(
+                "🔄 Update Profile",
+                help="Click here to update the skills list based on your selected field"
+            )
 
         st.header("2. ✍️ Personal Description")
         personal_description_default = cv_suggestions.get('personal_summary', '')
@@ -404,14 +512,32 @@ def run_app():
 
         st.header("3. 🎯 Target Roles and Specific Industries")
         
+        # Debug: Show current session state for experience entries
+        if st.session_state.get('cv_suggestions'):
+            st.write("🔍 Debug info:")
+            st.write(f"Experience entries in session state: {len(st.session_state.experience_entries)}")
+            st.write(f"Target roles from CV: {st.session_state.cv_suggestions.get('target_roles', [])}")
+
         # Pre-select target roles from CV if available
         cv_target_roles = cv_suggestions.get('target_roles', [])
+        # Filter roles that exist in the options list
+        default_target_roles = [role for role in cv_target_roles if role in roles_options]
+        
         target_roles_selected = st.multiselect(
             "Target Role(s) and/or Industry(ies) (from list):", 
             roles_options,
-            default=[role for role in cv_target_roles if role in roles_options]
+            default=default_target_roles,
+            help=f"Select from available options. {len(default_target_roles)} roles pre-selected from CV." if default_target_roles else "Select your target roles from the list."
         )
-        target_roles_custom = st.text_area("Other Target Roles/Industries (custom, comma-separated):", height=75)
+        
+        # Pre-populate custom roles if none were found in the list
+        custom_roles_from_cv = [role for role in cv_target_roles if role not in roles_options]
+        target_roles_custom = st.text_area(
+            "Other Target Roles/Industries (custom, comma-separated):", 
+            value=", ".join(custom_roles_from_cv) if custom_roles_from_cv else "",
+            height=75,
+            help="Add roles not found in the list above. These will be added from your CV if applicable."
+        )
 
         st.header("4. 🛠️ Current Skills")
         
@@ -423,20 +549,34 @@ def run_app():
         
         # Show information about relevant skills
         if relevant_skills:
-            st.info(f"🎯 Viser {len(relevant_skills)} relevante færdigheder for {overall_field}")
+            st.info(f"🎯 Showing {len(relevant_skills)} relevant skills for {overall_field}")
         
         # Always show filtered skills based on selected field
         skills_to_show = sorted(list(relevant_skills)) if relevant_skills else skills_options
         
-        # Pre-select skills from CV if available
+        # Pre-select skills from CV if available with better matching
         cv_skills = cv_suggestions.get('skills', [])
+        
+        # Filter CV skills to match available options (case-insensitive)
+        default_skills = []
+        for cv_skill in cv_skills:
+            # Find exact matches first
+            exact_match = next((skill for skill in skills_to_show if skill.lower() == cv_skill.lower()), None)
+            if exact_match and exact_match not in default_skills:
+                default_skills.append(exact_match)
+            else:
+                # Try partial matches
+                partial_match = next((skill for skill in skills_to_show if 
+                                    cv_skill.lower() in skill.lower() or skill.lower() in cv_skill.lower()), None)
+                if partial_match and partial_match not in default_skills:
+                    default_skills.append(partial_match)
         
         # Create the multiselect with filtered skills
         current_skills_selected = st.multiselect(
-            "Vælg dine færdigheder:", 
+            "Select your skills:", 
             options=skills_to_show,
-            default=[skill for skill in cv_skills if skill in skills_to_show],
-            help=f"Disse færdigheder er særligt relevante for {overall_field}",
+            default=default_skills,
+            help=f"These skills are particularly relevant for {overall_field}. {len(default_skills)} skills were pre-selected from your CV.",
             key="skills_selector"
         )
         
@@ -444,31 +584,41 @@ def run_app():
         if current_skills_selected:
             selected_count = len(current_skills_selected)
             total_relevant = len(relevant_skills)
-            st.caption(f"Du har valgt {selected_count} ud af {total_relevant} anbefalede færdigheder for {overall_field}")
+            st.caption(f"You have selected {selected_count} out of {total_relevant} recommended skills for {overall_field}")
             
             # Add recommendations if missing important skills
             if relevant_skills and selected_count < len(relevant_skills) * 0.3:  # Less than 30% of relevant skills
                 missing_key_skills = sorted(list(relevant_skills - set(current_skills_selected)))[:5]
-                st.warning("💡 Overvej at tilføje nogle af disse vigtige færdigheder for dit felt:")
+                st.warning("💡 Consider adding some of these important skills for your field:")
                 st.markdown("- " + "\n- ".join(missing_key_skills))
         
-        # Option to show all skills
-        if st.checkbox("Vis alle færdigheder", help="Marker dette felt for at se alle tilgængelige færdigheder"):
+        # Option to show all skills with better CV skill handling
+        if st.checkbox("Show all skills", help="Check this box to see all available skills"):
             additional_skills = [skill for skill in skills_options if skill not in skills_to_show]
             if additional_skills:
+                # Find CV skills that match additional skills
+                additional_cv_matches = []
+                for cv_skill in cv_skills:
+                    exact_match = next((skill for skill in additional_skills if skill.lower() == cv_skill.lower()), None)
+                    if exact_match and exact_match not in additional_cv_matches:
+                        additional_cv_matches.append(exact_match)
+                
                 additional_selected = st.multiselect(
-                    "Andre færdigheder:", 
+                    "Additional skills:", 
                     options=additional_skills,
-                    default=[skill for skill in cv_skills if skill in additional_skills],
-                    help="Andre færdigheder der ikke er direkte relateret til dit valgte felt"
+                    default=additional_cv_matches,
+                    help="Other skills not directly related to your chosen field"
                 )
                 # Combine selected skills
                 current_skills_selected.extend(additional_selected)
         
+        # Pre-populate custom skills with unmatched CV skills
+        unmatched_cv_skills = [skill for skill in cv_skills if skill not in current_skills_selected]
         current_skills_custom = st.text_area(
-            "Andre færdigheder (kommasepareret):", 
+            "Additional skills (comma-separated):", 
+            value=", ".join(unmatched_cv_skills) if unmatched_cv_skills else "",
             height=75,
-            help="Tilføj eventuelle færdigheder der ikke findes i listerne ovenfor"
+            help="Add any skills that weren't found in the lists above"
         )
 
         st.header("5. 🎓 Educational Background")
@@ -541,13 +691,29 @@ def run_app():
 
         if not st.session_state.experience_entries:
             st.info("No experience entries added. Click '➕ Add Work Experience' to get started.")
+        else:
+            st.info(f"Showing {len(st.session_state.experience_entries)} work experience entries:")
         
         for i, exp_entry in enumerate(st.session_state.experience_entries):
             with st.container(border=True):
                 st.markdown(f"**💼 Work Experience #{i+1}**")
                 exp_cols_1 = st.columns(2)
-                exp_entry["job_title"] = exp_cols_1[0].text_input("Job Title", value=exp_entry.get("job_title", ""), key=f"exp_title_{exp_entry['id']}")
-                exp_entry["company"] = exp_cols_1[1].text_input("Company", value=exp_entry.get("company", ""), key=f"exp_company_{exp_entry['id']}")
+                
+                # Debug info for each entry
+                st.caption(f"Entry ID: {exp_entry.get('id', 'no-id')}")
+                
+                exp_entry["job_title"] = exp_cols_1[0].text_input(
+                    "Job Title", 
+                    value=exp_entry.get("job_title", ""), 
+                    key=f"exp_title_{exp_entry['id']}",
+                    help="Job title from CV or enter manually"
+                )
+                exp_entry["company"] = exp_cols_1[1].text_input(
+                    "Company", 
+                    value=exp_entry.get("company", ""), 
+                    key=f"exp_company_{exp_entry['id']}",
+                    help="Company name from CV or enter manually"
+                )
                 exp_cols_2 = st.columns([1,3,1])
                 
                 # Handle years_in_role with better error handling for fractional years
@@ -567,8 +733,18 @@ def run_app():
                     key=f"exp_years_{exp_entry['id']}"
                 ))
                 
-                exp_entry["skills_responsibilities"] = exp_cols_2[1].text_area("Key Skills/Responsibilities (comma-separated)", value=exp_entry.get("skills_responsibilities", ""), key=f"exp_skills_{exp_entry['id']}", height=75)
-                exp_entry["marked_for_removal"] = exp_cols_2[2].checkbox("🗑️ Remove", key=f"exp_remove_cb_{exp_entry['id']}", help="Mark for removal")
+                exp_entry["skills_responsibilities"] = exp_cols_2[1].text_area(
+                    "Key Skills/Responsibilities (comma-separated)", 
+                    value=exp_entry.get("skills_responsibilities", ""), 
+                    key=f"exp_skills_{exp_entry['id']}", 
+                    height=75,
+                    help="Responsibilities from CV or enter manually"
+                )
+                exp_entry["marked_for_removal"] = exp_cols_2[2].checkbox(
+                    "🗑️ Remove", 
+                    key=f"exp_remove_cb_{exp_entry['id']}", 
+                    help="Mark for removal"
+                )
 
         st.header("7. 🔍 Job Title Search Keywords")
         st.markdown("*These keywords will be used to search for relevant job postings*")
@@ -626,6 +802,7 @@ def run_app():
             st.warning("⚠️ Please add at least one job search keyword")
 
         st.header("8. 🌍 Location & Analysis Preferences")
+        
         location_options_dk = [
             "Danmark", "Hovedstaden", "Midtjylland", "Nordjylland",
             "Sjælland", "Syddanmark",
@@ -750,6 +927,8 @@ def run_app():
                 st.error("Please specify at least one current skill."); validation_passed = False
             if not overall_field:
                 st.error("Please select a primary field."); validation_passed = False
+            if not job_languages:
+                st.error("Please select at least one preferred job language."); validation_passed = False
             if not job_types:
                 st.error("Please select at least one desired job type."); validation_passed = False
             if not preferred_locations_dk:
