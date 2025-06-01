@@ -1,9 +1,9 @@
-import warnings
-import logging
 import os
 import json
 import re
 import uuid
+import warnings
+import logging
 from typing import Dict, List, Optional, Union, Tuple
 from pathlib import Path
 from datetime import datetime
@@ -63,44 +63,75 @@ class LLMCVExtractor:
         
         # Initialize Together client
         if not TOGETHER_AVAILABLE:
-            raise ImportError("Together AI not available. Install with: pip install together")
+            raise ImportError("Together AI library not available. Install with: pip install together")
         
         api_key = api_key or os.getenv("TOGETHER_API_KEY")
         if not api_key:
-            raise ValueError("Together AI API key not provided. Set TOGETHER_API_KEY environment variable or pass api_key parameter.")
+            raise ValueError("Together AI API key required. Set TOGETHER_API_KEY environment variable or provide api_key parameter")
         
         self.client = Together(api_key=api_key)
         
         # Define JSON schema for CV extraction
         self.cv_schema = {
-            "name": "Full name of the person",
-            "email": "Email address", 
-            "phone": "Phone number",
-            "linkedin": "LinkedIn profile URL",
-            "personal_summary": "Brief professional summary",
-            "languages": ["List of languages"],
-            "skills": {"technical": [], "soft": [], "all": []},
-            "education_entries": [],
-            "experience_entries": [],
-            "suggested_job_title_keywords": [],
-            "extraction_success": True,
-            "extraction_error": None
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "email": {"type": "string"},
+                "phone": {"type": "string"},
+                "linkedin": {"type": "string"},
+                "personal_summary": {"type": "string"},
+                "skills": {
+                    "type": "object",
+                    "properties": {
+                        "technical": {"type": "array", "items": {"type": "string"}},
+                        "soft": {"type": "array", "items": {"type": "string"}},
+                        "all": {"type": "array", "items": {"type": "string"}}
+                    }
+                },
+                "languages": {"type": "array", "items": {"type": "string"}},
+                "education_entries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "degree": {"type": "string"},
+                            "field_of_study": {"type": "string"},
+                            "institution": {"type": "string"},
+                            "graduation_year": {"type": "string"}
+                        }
+                    }
+                },
+                "experience_entries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "job_title": {"type": "string"},
+                            "company": {"type": "string"},
+                            "years_in_role": {"type": "number"},
+                            "skills_responsibilities": {"type": "string"}
+                        }
+                    }
+                }
+            }
         }
 
     def _check_dependencies(self):
-        """Check if required dependencies are available"""
-        issues = []
-        if not PDF_AVAILABLE:
-            issues.append("PDF libraries not available")
-        if not DOCX_AVAILABLE:
-            issues.append("DOCX library not available")
-        if not TOGETHER_AVAILABLE:
-            issues.append("Together AI not available")
-        return issues
+        """Check which document parsing dependencies are available"""
+        return {
+            'pdf': PDF_AVAILABLE,
+            'docx': DOCX_AVAILABLE,
+            'together': TOGETHER_AVAILABLE
+        }
 
     def get_supported_formats(self) -> List[str]:
-        """Get list of supported file formats"""
-        return self.supported_formats
+        """Get list of supported file formats based on available dependencies"""
+        formats = ['.txt']  # Always supported
+        if PDF_AVAILABLE:
+            formats.extend(['.pdf'])
+        if DOCX_AVAILABLE:
+            formats.extend(['.docx'])
+        return formats
 
     def extract_from_file(self, file_path: Union[str, Path]) -> Dict:
         """Extract CV data from a file"""
@@ -108,9 +139,6 @@ class LLMCVExtractor:
         
         if not file_path.exists():
             return self._create_empty_cv_structure(f"File not found: {file_path}")
-        
-        if file_path.suffix.lower() not in self.supported_formats:
-            return self._create_empty_cv_structure(f"Unsupported file format: {file_path.suffix}")
         
         try:
             # Extract text based on file type
@@ -124,27 +152,34 @@ class LLMCVExtractor:
                 return self._create_empty_cv_structure(f"Unsupported file format: {file_path.suffix}")
             
             if not text or len(text.strip()) < 50:
-                return self._create_empty_cv_structure("Could not extract readable text from file")
+                return self._create_empty_cv_structure("No readable text found in file")
             
             # Process with LLM
             return self.extract_from_text(text)
             
         except Exception as e:
-            logger.error(f"Error extracting from file: {e}")
-            return self._create_empty_cv_structure(f"File extraction error: {str(e)}")
+            logger.error(f"Error extracting from file {file_path}: {e}")
+            return self._create_empty_cv_structure(f"Error reading file: {str(e)}")
 
     def extract_from_text(self, text: str) -> Dict:
-        """Extract CV data from text using LLM"""
-        if not text or len(text.strip()) < 50:
-            return self._create_empty_cv_structure("Text too short for analysis")
+        """Extract CV data from raw text using LLM"""
+        if not text or len(text.strip()) < 20:
+            return self._create_empty_cv_structure("Text too short or empty")
         
         try:
+            # Parse with LLM
             cv_data = self._parse_cv_with_llm(text)
-            return self._post_process_cv_data(cv_data)
+            
+            # Post-process and validate
+            cv_data = self._post_process_cv_data(cv_data)
+            cv_data['extraction_success'] = True
+            cv_data['raw_text_preview'] = text[:500] + "..." if len(text) > 500 else text
+            
+            return cv_data
             
         except Exception as e:
             logger.error(f"Error extracting from text: {e}")
-            return self._create_empty_cv_structure(f"Text extraction error: {str(e)}")
+            return self._create_empty_cv_structure(f"LLM extraction failed: {str(e)}")
 
     def _parse_cv_with_llm(self, text: str) -> Dict:
         """Parse CV text using LLM"""
@@ -153,193 +188,122 @@ class LLMCVExtractor:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": "You are an expert CV parser. Extract structured data from CVs and return valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
                 temperature=0.1,
-                max_tokens=4000
+                max_tokens=2048
             )
             
             response_text = response.choices[0].message.content
-            logger.info(f"LLM response received: {len(response_text)} characters")
-            
             return self._parse_llm_response(response_text)
             
         except Exception as e:
-            logger.error(f"LLM parsing error: {e}")
+            logger.error(f"LLM parsing failed: {e}")
             raise e
 
     def _create_extraction_prompt(self, cv_text: str) -> str:
-        """Create a comprehensive extraction prompt for the LLM"""
-        return f"""Extract structured information from this CV/resume. You must respond with ONLY valid JSON, no other text.
-
-CV TEXT:
-{cv_text[:3000]}
-
-LANGUAGE EXTRACTION GUIDELINES:
-- Look for explicit language mentions (Danish, English, German, etc.)
-- Check for phrases like "fluent in", "native speaker", "speaks", "languages", "sprog"
-- Look for Danish indicators: "dansk", "danish", "danske"
-- Look for English indicators: "engelsk", "english", "fluent english"
-- Include both native languages and learned languages
-- For Danish CVs, assume Danish proficiency unless stated otherwise
-- Look in education section for international programs (often indicate English)
-- Check for language courses, certifications, or study abroad programs
-- Look for work experience in international companies (may indicate language skills)
-
-EXPERIENCE EXTRACTION:
-- Look for job titles, company names, duration (years/months)
-- Extract years in role - convert to approximate years (e.g., "2 years 3 months" -> "2.25")
-- Extract key skills and responsibilities
-- ALWAYS create experience entries if you find any work history
-
-EDUCATION EXTRACTION:
-- Look for degree names, field of study, institution names
-- Extract graduation years if mentioned
-- ALWAYS create education entries if you find any education history
-
-JOB KEYWORD EXTRACTION:
-- Generate relevant job search keywords based on experience and skills
-- Include variations of job titles mentioned
-- Consider Danish job market terms
-
-Respond with ONLY this JSON structure (no extra text, no code blocks, no explanations):
+        """Create extraction prompt for LLM"""
+        return f"""
+Parse this CV/resume and extract structured information. Return ONLY valid JSON with this exact structure:
 
 {{
-    "name": "Full name of the person or empty string",
-    "email": "Email address or empty string",
-    "phone": "Phone number or empty string", 
-    "linkedin": "LinkedIn profile URL or empty string",
-    "personal_summary": "Brief professional summary (2-3 sentences) or empty string",
-    "languages": ["List of languages the person speaks"],
+    "name": "full name",
+    "email": "email address",
+    "phone": "phone number",
+    "linkedin": "linkedin profile",
+    "personal_summary": "professional summary or objective",
     "skills": {{
-        "technical": ["List of technical skills"],
-        "soft": ["List of soft skills"],
-        "all": ["All skills combined"]
+        "technical": ["list", "of", "technical", "skills"],
+        "soft": ["list", "of", "soft", "skills"],
+        "all": ["combined", "list", "of", "all", "skills"]
     }},
+    "languages": ["list", "of", "languages"],
     "education_entries": [
         {{
-            "degree": "Degree name",
-            "field_of_study": "Field of study",
-            "institution": "Institution name",
-            "graduation_year": "Year or empty string",
-            "id": "unique_id"
+            "degree": "degree name",
+            "field_of_study": "field of study",
+            "institution": "institution name",
+            "graduation_year": "year"
         }}
     ],
     "experience_entries": [
         {{
-            "job_title": "Job title",
-            "company": "Company name",
-            "years_in_role": "Number of years as string",
-            "skills_responsibilities": "Key responsibilities",
-            "id": "unique_id"
+            "job_title": "job title",
+            "company": "company name",
+            "years_in_role": 2.5,
+            "skills_responsibilities": "key skills and responsibilities"
         }}
     ],
-    "suggested_job_title_keywords": ["List of job search keywords based on experience"],
-    "extraction_success": true,
-    "extraction_error": null,
-    "raw_text_preview": "{cv_text[:200]}..."
+    "suggested_job_title_keywords": ["keyword1", "keyword2", "keyword3"]
 }}
 
-IMPORTANT: 
-- Return ONLY valid JSON
-- No explanations, no markdown, no code blocks
-- If a field cannot be determined, use empty string or empty array
-- For years_in_role, extract duration and convert to approximate years as string
-- Generate meaningful job keywords based on actual experience
-- ALWAYS include arrays even if empty
-- Ensure all JSON is properly escaped"""
+CV Text:
+{cv_text[:3000]}
+"""
 
     def _parse_llm_response(self, response: str) -> Dict:
-        """Parse LLM response and extract JSON"""
-        # Try to find JSON in the response
-        response = response.strip()
-        
-        # Remove code blocks if present
-        if response.startswith('```'):
-            lines = response.split('\n')
-            start_idx = 0
-            end_idx = len(lines)
-            
-            for i, line in enumerate(lines):
-                if line.startswith('```') and i == 0:
-                    start_idx = 1
-                elif line.startswith('```') and i > 0:
-                    end_idx = i
-                    break
-            
-            response = '\n'.join(lines[start_idx:end_idx])
-        
-        # Try to extract JSON from the response
-        try:
-            # First try: direct JSON parsing
-            return json.loads(response)
-        except json.JSONDecodeError:
-            # Second try: find JSON object in text
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                try:
-                    return json.loads(json_match.group())
-                except json.JSONDecodeError:
-                    pass
-            
-            # Third try: clean and parse
-            cleaned = re.sub(r'[^\x20-\x7E\n\r\t]', '', response)  # Remove non-ASCII
-            cleaned = re.sub(r'\n+', '\n', cleaned)  # Normalize newlines
-            
+        """Parse LLM response into structured data"""
+        # Try to extract JSON from response
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
             try:
-                return json.loads(cleaned)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON response: {e}")
-                logger.error(f"Response content: {response[:500]}...")
-                raise ValueError(f"LLM returned invalid JSON: {str(e)}")
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                pass
+        
+        # If direct JSON parsing fails, try to parse line by line
+        return self._create_empty_cv_structure("Could not parse LLM response as JSON")
 
     def _post_process_cv_data(self, cv_data: Dict) -> Dict:
-        """Post-process and validate extracted CV data"""
-        processed_data = cv_data.copy()
-        
+        """Post-process and validate CV data"""
         # Ensure required fields exist
-        if 'extraction_success' not in processed_data:
-            processed_data['extraction_success'] = True
+        defaults = {
+            'name': '',
+            'email': '',
+            'phone': '',
+            'linkedin': '',
+            'personal_summary': '',
+            'skills': {'technical': [], 'soft': [], 'all': []},
+            'languages': [],
+            'education_entries': [],
+            'experience_entries': [],
+            'suggested_job_title_keywords': []
+        }
         
-        # Combine skills if needed
-        if 'skills' in processed_data and isinstance(processed_data['skills'], dict):
-            technical = processed_data['skills'].get('technical', [])
-            soft = processed_data['skills'].get('soft', [])
-            all_skills = list(set(technical + soft))
-            processed_data['skills']['all'] = all_skills
+        for key, default_value in defaults.items():
+            if key not in cv_data:
+                cv_data[key] = default_value
         
-        # Add unique IDs to entries if missing
-        for entry in processed_data.get('education_entries', []):
-            if 'id' not in entry:
-                entry['id'] = str(uuid.uuid4())
-            # Ensure marked_for_removal is set
-            if 'marked_for_removal' not in entry:
-                entry['marked_for_removal'] = False
+        # Add unique IDs to entries
+        for entry in cv_data.get('education_entries', []):
+            entry['id'] = str(uuid.uuid4())
+            entry['marked_for_removal'] = False
         
-        for entry in processed_data.get('experience_entries', []):
-            if 'id' not in entry:
-                entry['id'] = str(uuid.uuid4())
-            # Ensure marked_for_removal is set
-            if 'marked_for_removal' not in entry:
-                entry['marked_for_removal'] = False
+        for entry in cv_data.get('experience_entries', []):
+            entry['id'] = str(uuid.uuid4())
+            entry['marked_for_removal'] = False
         
-        return processed_data
+        return cv_data
 
     def _create_empty_cv_structure(self, error: str = None) -> Dict:
         """Create empty CV structure with error information"""
+        import uuid
         return {
-            "name": "",
-            "email": "",
-            "phone": "",
-            "linkedin": "",
-            "personal_summary": "",
-            "languages": [],
-            "skills": {"technical": [], "soft": [], "all": []},
-            "education_entries": [],
-            "experience_entries": [],
-            "suggested_job_title_keywords": [],
-            "extraction_success": False,
-            "extraction_error": error,
-            "raw_text_preview": ""
+            'extraction_success': False,
+            'extraction_error': error,
+            'name': '',
+            'email': '',
+            'phone': '',
+            'linkedin': '',
+            'personal_summary': '',
+            'skills': {'technical': [], 'soft': [], 'all': []},
+            'languages': [],
+            'education_entries': [],
+            'experience_entries': [],
+            'suggested_job_title_keywords': []
         }
 
     def _extract_pdf_text(self, file_path: Path) -> str:
@@ -347,28 +311,25 @@ IMPORTANT:
         if not PDF_AVAILABLE:
             raise ImportError("PDF libraries not available")
         
+        text = ""
         try:
-            import PyPDF2
-            text = ""
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    text += page.extract_text() + "\n"
-            return text
-        except Exception as e:
-            # Fallback to pdfplumber
+            # Try pdfplumber first
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+        except Exception:
+            # Fallback to PyPDF2
             try:
-                import pdfplumber
-                text = ""
-                with pdfplumber.open(file_path) as pdf:
-                    for page in pdf.pages:
-                        page_text = page.extract_text()
-                        if page_text:
-                            text += page_text + "\n"
-                return text
-            except Exception as e2:
-                logger.error(f"PDF extraction failed with both libraries: {e}, {e2}")
-                raise e
+                with open(file_path, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    for page in pdf_reader.pages:
+                        text += page.extract_text() + "\n"
+            except Exception as e:
+                raise Exception(f"Could not extract text from PDF: {e}")
+        
+        return text.strip()
 
     def _extract_docx_text(self, file_path: Path) -> str:
         """Extract text from DOCX file"""
@@ -376,73 +337,70 @@ IMPORTANT:
             raise ImportError("DOCX library not available")
         
         try:
-            from docx import Document
             doc = Document(file_path)
             text = ""
             for paragraph in doc.paragraphs:
                 text += paragraph.text + "\n"
-            return text
+            return text.strip()
         except Exception as e:
-            logger.error(f"DOCX extraction failed: {e}")
-            raise e
+            raise Exception(f"Could not extract text from DOCX: {e}")
 
     def _extract_txt_text(self, file_path: Path) -> str:
         """Extract text from TXT file"""
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
-                return file.read()
+                return file.read().strip()
         except UnicodeDecodeError:
-            # Try with different encoding
-            with open(file_path, 'r', encoding='latin-1') as file:
-                return file.read()
+            # Try different encodings
+            for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as file:
+                        return file.read().strip()
+                except:
+                    continue
+            raise Exception("Could not decode text file")
+        except Exception as e:
+            raise Exception(f"Could not read text file: {e}")
 
     def suggest_profile_fields(self, cv_data: Dict) -> Dict:
-        """Suggest profile fields based on extracted CV data"""
+        """Generate suggestions for profile fields based on CV data"""
         suggestions = {}
         
-        # Overall field suggestion based on education and experience
-        education_fields = [edu.get('field_of_study', '') for edu in cv_data.get('education_entries', [])]
-        job_titles = [exp.get('job_title', '') for exp in cv_data.get('experience_entries', [])]
+        # Suggest overall field based on education and experience
+        education_fields = [entry.get('field_of_study', '') for entry in cv_data.get('education_entries', [])]
+        job_titles = [entry.get('job_title', '') for entry in cv_data.get('experience_entries', [])]
         
-        # Simple field mapping logic
         all_text = ' '.join(education_fields + job_titles).lower()
         
-        if any(word in all_text for word in ['computer', 'software', 'programming', 'developer', 'engineer']):
+        if any(term in all_text for term in ['software', 'programming', 'developer', 'engineer']):
             suggestions['overall_field'] = 'Software Development'
-        elif any(word in all_text for word in ['data', 'analysis', 'analytics', 'science']):
+        elif any(term in all_text for term in ['data', 'analytics', 'science', 'machine learning']):
             suggestions['overall_field'] = 'Data Science & AI'
-        elif any(word in all_text for word in ['business', 'management', 'marketing']):
-            suggestions['overall_field'] = 'International Business'
-        elif any(word in all_text for word in ['design', 'ux', 'ui']):
+        elif any(term in all_text for term in ['project', 'management', 'manager']):
+            suggestions['overall_field'] = 'Project Management'
+        elif any(term in all_text for term in ['design', 'ux', 'ui', 'graphic']):
             suggestions['overall_field'] = 'UX/UI Design'
         else:
-            suggestions['overall_field'] = cv_data.get('education_entries', [{}])[0].get('field_of_study', '') if cv_data.get('education_entries') else ''
+            suggestions['overall_field'] = 'Software Development'  # Default
         
-        # Target roles based on experience
-        suggestions['target_roles'] = [exp.get('job_title', '') for exp in cv_data.get('experience_entries', [])][:3]
+        # Suggest target roles based on recent experience
+        recent_jobs = cv_data.get('experience_entries', [])[:2]  # Last 2 jobs
+        suggestions['target_roles'] = [job.get('job_title', '') for job in recent_jobs if job.get('job_title')]
         
-        # Total experience estimation
-        total_years = 0
-        for exp in cv_data.get('experience_entries', []):
-            years_str = exp.get('years_in_role', '0')
-            try:
-                years = float(years_str)
-                total_years += years
-            except:
-                pass
-        
-        if total_years == 0:
-            suggestions['total_experience'] = 'None'
-        elif total_years <= 1:
-            suggestions['total_experience'] = '0-1 year'
-        elif total_years <= 3:
-            suggestions['total_experience'] = '1-3 years'
-        elif total_years <= 5:
-            suggestions['total_experience'] = '3-5 years'
-        elif total_years <= 10:
+        # Calculate total experience
+        total_years = sum(entry.get('years_in_role', 0) for entry in cv_data.get('experience_entries', []))
+        if total_years >= 15:
+            suggestions['total_experience'] = '15+ years'
+        elif total_years >= 10:
+            suggestions['total_experience'] = '10-15 years'
+        elif total_years >= 5:
             suggestions['total_experience'] = '5-10 years'
+        elif total_years >= 3:
+            suggestions['total_experience'] = '3-5 years'
+        elif total_years >= 1:
+            suggestions['total_experience'] = '1-3 years'
         else:
-            suggestions['total_experience'] = '10+ years'
+            suggestions['total_experience'] = '0-1 year'
         
         return suggestions
 
@@ -473,56 +431,13 @@ if __name__ == "__main__":
     # Check for API key
     api_key = os.getenv("TOGETHER_API_KEY")
     if not api_key:
-        print("❌ TOGETHER_API_KEY environment variable not set")
-        print("Please set your Together AI API key:")
-        print("export TOGETHER_API_KEY='your-api-key-here'")
-        exit(1)
+        print("WARNING: TOGETHER_API_KEY not found in environment")
+        print("Set it with: export TOGETHER_API_KEY=your_key_here")
     
     try:
-        extractor = LLMCVExtractor(api_key=api_key)
-        print(f"Supported formats: {extractor.get_supported_formats()}")
-        print(f"PDF Support: {PDF_AVAILABLE}")
-        print(f"DOCX Support: {DOCX_AVAILABLE}")
-        print(f"Together AI: {TOGETHER_AVAILABLE}")
-        
-        # Test with sample Danish CV text
-        sample_cv_text = """
-        Lars Nielsen
-        Email: lars.nielsen@example.com
-        Phone: +45 12 34 56 78
-        LinkedIn: linkedin.com/in/larsnielsen
-        
-        UDDANNELSE
-        Datamatiker, Erhvervsakademi Aarhus, 2020
-        STX, Aarhus Gymnasium, 2017
-        
-        ERFARING
-        Software Udvikler
-        TechCorp ApS
-        2020-2024
-        Udvikling af Python applikationer, arbejde med SQL databaser, agile metoder
-        
-        Praktikant
-        StartupXYZ
-        2019-2020
-        JavaScript, React, Node.js udvikling
-        
-        FÆRDIGHEDER
-        Python, Java, JavaScript, SQL, React, Git, Docker, Scrum, Teamarbejde
-        Dansk (modersmål), Engelsk (flydende)
-        """
-        
-        print("\n" + "=" * 40)
-        print("Testing with sample Danish CV:")
-        print("=" * 40)
-        
-        result = extractor.extract_from_text(sample_cv_text)
-        suggestions = extractor.suggest_profile_fields(result)
-        
-        print("Extracted CV Data:")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-        print("\nProfile Suggestions:")
-        print(json.dumps(suggestions, indent=2, ensure_ascii=False))
+        # Check dependencies
+        extractor = LLMCVExtractor(api_key=api_key) if api_key else None
+        print("CV extractor initialized successfully")
         
     except Exception as e:
-        print(f"❌ Error during testing: {e}")
+        print(f"Error initializing CV extractor: {e}")
