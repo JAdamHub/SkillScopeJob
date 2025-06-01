@@ -161,7 +161,6 @@ def log_user_profile(data: dict):
 # --- Streamlit App UI ---
 def run_app():
     st.title("🎯 Advanced Career Profile & Goal Setting")
-    # Video background is already loaded globally above
     st.markdown("Define your detailed profile for precise career insights. 🚀")
 
     initialize_session_state()
@@ -501,7 +500,7 @@ def run_app():
                 exp_entry["skills_responsibilities"] = exp_cols_2[1].text_area("Key Skills/Responsibilities (comma-separated)", value=exp_entry.get("skills_responsibilities", ""), key=f"exp_skills_{exp_entry['id']}", height=75)
                 exp_entry["marked_for_removal"] = exp_cols_2[2].checkbox("🗑️ Remove", key=f"exp_remove_cb_{exp_entry['id']}", help="Mark for removal")
 
-        st.header("7. 🔍 Job Search Keywords")
+        st.header("7. 🔍 Job Title Search Keywords")
         st.markdown("*These keywords will be used to search for relevant job postings*")
         
         # Get AI-suggested keywords
@@ -801,25 +800,6 @@ def run_app():
                 
                 st.success(f"✅ Job search completed! Found {search_results['total_jobs_found']} new relevant positions.")
                 
-                # Hide the detailed search summary - just show basic info
-                # with st.expander("📊 Search Summary", expanded=True):
-                #     st.json(search_results['profile_summary'])
-                #     
-                #     if search_results['searches_performed']:
-                #         st.subheader("Searches Performed:")
-                #         success_count = 0;
-                #         error_count = 0;
-                #         
-                #         for search in search_results['searches_performed']:
-                #             if 'error' not in search:
-                #                 st.write(f"✅ {search['job_title']} in {search['location']}: {search['jobs_found']} jobs")
-                #                 success_count += 1
-                #             else:
-                #                 st.write(f"❌ {search['job_title']} in {search['location']}: Error - {search['error']}")
-                #                 error_count += 1
-                #         
-                #         st.info(f"Summary: {success_count} successful searches, {error_count} errors")
-                
                 # Show job matches if found
                 if search_results['total_jobs_found'] > 0:
                     st.subheader("🎯 Your Job Matches")
@@ -847,24 +827,23 @@ def run_app():
                                         st.markdown(f"**{job['title']}**")
                                         st.markdown(f"🏢 {job['company']} | 📍 {job['location']}")
                                         if job.get('job_type'):
-                                            st.markdown(f"💼 {job['job_type']} | 🏠 {'Remote' if job.get('is_remote') else 'On-site'}")
+                                            st.markdown(f"💼 {job['job_type']}")
                                         if job['description']:
-                                            description_preview = job['description'][:200] + "..." if len(job['description']) > 200 else job['description']
-                                            st.markdown(f"*{description_preview}*")
+                                            st.markdown(f"📝 {job['description'][:200]}...")
                                     with col2:
                                         relevance_score = job.get('relevance_score', 1)
                                         if relevance_score == 3:
-                                            st.success(f"🎯 Perfect Match!")
+                                            st.markdown("🎯 **Excellent**")
                                         elif relevance_score == 2:
-                                            st.info(f"✨ Good Match")
+                                            st.markdown("🟡 **Good**")
                                         else:
-                                            st.caption(f"📝 Relevant")
+                                            st.markdown("🔴 **Fair**")
                                         
                                         if job.get('job_url'):
-                                            st.link_button("View Job", job['job_url'], use_container_width=True)
+                                            st.link_button("🔗 View Job", job['job_url'])
                                         
                                         if job.get('date_posted'):
-                                            st.caption(f"Posted: {job['date_posted']}")
+                                            st.caption(f"📅 {job['date_posted']}")
                         else:
                             st.info("No job matches found. Try adjusting your search keywords or running the search again.")
                     
@@ -1089,9 +1068,6 @@ def run_app():
                                     if evaluation.get('company_industry'):
                                         job_details.append(f"🏭 {evaluation['company_industry']}")
                                     
-                                    # Get additional details from original job data if available
-                                    # (This would require passing more job data through the evaluation)
-                                    
                                     if job_details:
                                         st.markdown(" • ".join(job_details))
                                     
@@ -1107,15 +1083,15 @@ def run_app():
                                     
                                     # Quick actions
                                     if evaluation.get('job_url'):
-                                        st.link_button("🔗 View Job Posting", evaluation['job_url'], use_container_width=True)
+                                        st.link_button("🔗 View Job Posting", evaluation['job_url'])
                                     
                                     # Experience gap indicator
                                     exp_gap = evaluation.get('experience_gap', '')
                                     if exp_gap:
                                         if 'short' in exp_gap.lower():
-                                            st.warning(f"⚠️ {exp_gap}")
+                                            st.info("📈 Experience match!")
                                         else:
-                                            st.info(f"ℹ️ {exp_gap}")
+                                            st.warning("⚠️ Experience gap")
                                 
                                 # Detailed analysis sections
                                 analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs(["✅ Strengths", "❌ Gaps", "💡 Advice"])
@@ -1125,13 +1101,12 @@ def run_app():
                                     if strengths and strengths.lower() not in ['none', 'not specified', 'n/a']:
                                         # Parse strengths into bullet points if comma-separated
                                         if ',' in strengths:
-                                            strength_list = [s.strip() for s in strengths.split(',') if s.strip()]
-                                            for strength in strength_list:
-                                                st.markdown(f"• {strength}")
+                                            for strength in strengths.split(','):
+                                                st.markdown(f"• {strength.strip()}")
                                         else:
                                             st.markdown(strengths)
                                     else:
-                                        st.info("No specific strengths identified for this position.")
+                                        st.info("No specific strengths identified")
                                 
                                 with analysis_tab2:
                                     # Critical gaps
@@ -1139,25 +1114,15 @@ def run_app():
                                     minor_gaps = evaluation.get('minor_gaps', '')
                                     
                                     if critical_gaps and critical_gaps.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**🚨 Critical Gaps:**")
-                                        if ',' in critical_gaps:
-                                            gap_list = [g.strip() for g in critical_gaps.split(',') if g.strip()]
-                                            for gap in gap_list:
-                                                st.markdown(f"• {gap}")
-                                        else:
-                                            st.markdown(f"• {critical_gaps}")
+                                        st.markdown("**⚠️ Critical Gaps:**")
+                                        st.markdown(critical_gaps)
                                     
                                     if minor_gaps and minor_gaps.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**⚠️ Minor Gaps:**")
-                                        if ',' in minor_gaps:
-                                            gap_list = [g.strip() for g in minor_gaps.split(',') if g.strip()]
-                                            for gap in gap_list:
-                                                st.markdown(f"• {gap}")
-                                        else:
-                                            st.markdown(f"• {minor_gaps}")
+                                        st.markdown("**ℹ️ Minor Gaps:**")
+                                        st.markdown(minor_gaps)
                                     
                                     if not critical_gaps and not minor_gaps:
-                                        st.success("No significant gaps identified! 🎉")
+                                        st.success("🎉 No significant gaps identified!")
                                 
                                 with analysis_tab3:
                                     # Recommendations
@@ -1165,32 +1130,21 @@ def run_app():
                                     reality_check = evaluation.get('reality_check', '')
                                     
                                     if recommendations and recommendations.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**📋 Recommendations:**")
-                                        if ',' in recommendations:
-                                            rec_list = [r.strip() for r in recommendations.split(',') if r.strip()]
-                                            for rec in rec_list:
-                                                st.markdown(f"• {rec}")
-                                        else:
-                                            st.markdown(recommendations)
+                                        st.markdown("**💡 Recommendations:**")
+                                        st.markdown(recommendations)
                                     
                                     if reality_check and reality_check.lower() not in ['none', 'not specified', 'n/a']:
                                         st.markdown("**🎯 Reality Check:**")
-                                        st.info(reality_check)
+                                        st.markdown(reality_check)
                                     
                                     # Action buttons based on likelihood
                                     likelihood = evaluation.get('likelihood', '').lower()
                                     if likelihood in ['high', 'medium']:
-                                        st.success("💚 **Recommended Action:** Apply for this position!")
-                                        if evaluation.get('job_url'):
-                                            st.markdown(f"[📝 Apply Now]({evaluation['job_url']})")
+                                        st.success("🚀 This looks like a strong match - consider applying!")
                                     elif likelihood == 'low':
-                                        st.warning("💛 **Suggested Action:** Consider applying after addressing key gaps")
+                                        st.warning("⚠️ Consider developing missing skills before applying")
                                     else:
-                                        st.info("💙 **Consider:** Use this as a learning opportunity to understand requirements")
-                                
-                                # Separator
-                                if i < min(4, len(evaluations_sorted) - 1):
-                                    st.divider()
+                                        st.info("💭 Review the feedback above to decide next steps")
                         
                         # Show remaining jobs in a compact format
                         if len(evaluations_sorted) > 5:
@@ -1217,7 +1171,7 @@ def run_app():
                                 
                                 with col4:
                                     if evaluation.get('job_url'):
-                                        st.link_button("View", evaluation['job_url'], key=f"job_link_{i}")
+                                        st.link_button("View", evaluation['job_url'])
                         
                         # Summary insights
                         st.markdown("### 📈 Key Insights")
@@ -1270,11 +1224,6 @@ def run_app():
                                 )
                         else:
                             st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
-            
-            elif not CV_EVALUATION_AVAILABLE:
-                st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")
-                st.markdown("To enable CV evaluation:")
-                st.code("pip install langchain-together")
 
 if __name__ == "__main__":
     run_app()
