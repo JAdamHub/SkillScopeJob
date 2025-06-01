@@ -64,7 +64,7 @@ def load_ontology_data(file_path: str, column_name: str, default_items: list, is
                 if is_education_ontology:
                     # Specific headers for education ontology
                     writer.writerow(["degree_name", "field_of_study_name", "institution_name"])
-                    for deg, fos, inst in default_items: # Expects tuples/lists for default education
+                    for deg, fos, inst in default_items:
                         writer.writerow([deg, fos, inst])
                 else:
                     writer.writerow([column_name]) # Header
@@ -86,9 +86,12 @@ def load_ontology_data(file_path: str, column_name: str, default_items: list, is
                     print(f"ERROR: One or more required columns {expected_cols} missing in {file_path}")
                     return {col: [] for col in expected_cols} # Return empty lists
                 for row in reader:
-                    if row.get("degree_name"): education_data["degree_name"].add(row["degree_name"])
-                    if row.get("field_of_study_name"): education_data["field_of_study_name"].add(row["field_of_study_name"])
-                    if row.get("institution_name"): education_data["institution_name"].add(row["institution_name"])
+                    if row.get("degree_name"): 
+                        education_data["degree_name"].add(row["degree_name"])
+                    if row.get("field_of_study_name"): 
+                        education_data["field_of_study_name"].add(row["field_of_study_name"])
+                    if row.get("institution_name"): 
+                        education_data["institution_name"].add(row["institution_name"])
                 return {k: sorted(list(v)) for k, v in education_data.items()}
             else:
                 if column_name not in reader.fieldnames:
@@ -179,7 +182,6 @@ def load_field_skills_mapping():
 # --- Streamlit App UI ---
 def run_app():
     st.title("🎯 Advanced Career Profile & Goal Setting")
-    # Video background is already loaded globally above
     st.markdown("Define your detailed profile for precise career insights. 🚀")
 
     initialize_session_state()
@@ -522,23 +524,24 @@ def run_app():
         exp_cols = st.columns([3, 1])
         with exp_cols[1]:
             add_experience = st.form_submit_button("➕ Add Work Experience", help="Add a new work experience entry")
-        
+
         # Pre-select total experience from CV if available
         cv_total_exp = cv_suggestions.get('total_experience', 'None')
         total_exp_options = ["None", "0-1 year", "1-3 years", "3-5 years", "5-10 years", "10-15 years", "15+ years"]
         total_exp_index = 0
         if cv_total_exp in total_exp_options:
             total_exp_index = total_exp_options.index(cv_total_exp)
-        
+
         total_experience = st.selectbox(
             "Total Professional Experience:", 
             options=total_exp_options, 
             index=total_exp_index,
             key="total_exp_select"
         )
-        
+
         if not st.session_state.experience_entries:
             st.info("No experience entries added. Click '➕ Add Work Experience' to get started.")
+        
         for i, exp_entry in enumerate(st.session_state.experience_entries):
             with st.container(border=True):
                 st.markdown(f"**💼 Work Experience #{i+1}**")
@@ -567,7 +570,7 @@ def run_app():
                 exp_entry["skills_responsibilities"] = exp_cols_2[1].text_area("Key Skills/Responsibilities (comma-separated)", value=exp_entry.get("skills_responsibilities", ""), key=f"exp_skills_{exp_entry['id']}", height=75)
                 exp_entry["marked_for_removal"] = exp_cols_2[2].checkbox("🗑️ Remove", key=f"exp_remove_cb_{exp_entry['id']}", help="Mark for removal")
 
-        st.header("7. 🔍 Job Search Keywords")
+        st.header("7. 🔍 Job Title Search Keywords")
         st.markdown("*These keywords will be used to search for relevant job postings*")
         
         # Get AI-suggested keywords
@@ -677,116 +680,112 @@ def run_app():
         st.markdown("&nbsp;")
         submitted = st.form_submit_button("🚀 Save Profile and Continue")
 
-    if update_keywords_btn:
-        # Handle keyword updates
-        keywords_text = st.session_state.get("keywords_textarea", "")
-        if keywords_text.strip():
-            new_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
-            # Limit to 5 keywords
-            new_keywords = new_keywords[:5]
-            st.session_state.job_title_keywords = new_keywords
-            st.success(f"✅ Keywords updated! ({len(new_keywords)} keywords saved)")
-        else:
-            st.session_state.job_title_keywords = []
-            st.warning("⚠️ Keywords cleared")
-        st.rerun()
-
-    if add_education:
-        # Add new education entry
-        st.session_state.education_entries.append({
-            "degree": "", "field_of_study": "", "institution": "", "graduation_year": "", 
-            "id": str(uuid.uuid4()), "marked_for_removal": False
-        })
-        st.rerun()
-    
-    if add_experience:
-        # Add new work experience entry
-        st.session_state.experience_entries.append({
-            "job_title": "", "company": "", "years_in_role": "0", "skills_responsibilities": "", 
-            "id": str(uuid.uuid4()), "marked_for_removal": False
-        })
-        st.rerun()
-
-    if submitted:
-        # Step 1: Handle removals
-        education_removed_flag = False
-        if any(edu.get("marked_for_removal") for edu in st.session_state.education_entries):
-            st.session_state.education_entries = [edu for edu in st.session_state.education_entries if not edu.get("marked_for_removal")]
-            education_removed_flag = True
-        
-        experience_removed_flag = False
-        if any(exp.get("marked_for_removal") for exp in st.session_state.experience_entries):
-            st.session_state.experience_entries = [exp for exp in st.session_state.experience_entries if not exp.get("marked_for_removal")]
-            experience_removed_flag = True
-
-        if education_removed_flag or experience_removed_flag:
-            st.toast("Marked item(s) have been removed. Review and submit the form again.", icon="♻️")
+        # Handle form submissions - MOVED INSIDE THE FORM BLOCK
+        if update_keywords_btn:
+            # Handle keyword updates
+            keywords_text = st.session_state.get("keywords_textarea", "")
+            if keywords_text.strip():
+                new_keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
+                # Limit to 5 keywords
+                new_keywords = new_keywords[:5]
+                st.session_state.job_title_keywords = new_keywords
+                st.success(f"✅ Keywords updated! ({len(new_keywords)} keywords saved)")
+            else:
+                st.session_state.job_title_keywords = []
+                st.warning("⚠️ Keywords cleared")
             st.rerun()
 
-        # Step 2: Validation
-        validation_passed = True
-        if not target_roles_selected and not target_roles_custom.strip():
-            st.error("Please specify at least one target role/industry."); validation_passed = False
-        if not current_skills_selected and not current_skills_custom.strip():
-            st.error("Please specify at least one current skill."); validation_passed = False
-        if not overall_field:
-            st.error("Please select a primary field."); validation_passed = False
-        if not job_languages:
-            st.error("Please select at least one preferred job language."); validation_passed = False
-        if not job_types:
-            st.error("Please select at least one desired job type."); validation_passed = False
-        if not preferred_locations_dk:
-            st.error("Please select at least one preferred job location in Denmark."); validation_passed = False
-        if not personal_description.strip():
-            st.error("Please write a personal description."); validation_passed = False
-        if not st.session_state.job_title_keywords:
-            st.error("Please add at least one job search keyword."); validation_passed = False
+        if add_education:
+            # Add new education entry
+            st.session_state.education_entries.append({
+                "degree": "", "field_of_study": "", "institution": "", "graduation_year": "", 
+                "id": str(uuid.uuid4()), "marked_for_removal": False
+            })
+            st.rerun()
+        
+        if add_experience:
+            # Add new work experience entry
+            st.session_state.experience_entries.append({
+                "job_title": "", "company": "", "years_in_role": "0", "skills_responsibilities": "", 
+                "id": str(uuid.uuid4()), "marked_for_removal": False
+            })
+            st.rerun()
 
-        for edu_entry in st.session_state.education_entries:
-            if not edu_entry["degree"].strip() or not edu_entry["field_of_study"].strip() or not edu_entry["institution"].strip():
-                st.error("Fill in Degree, Field of Study and Institution for all education entries."); validation_passed = False; break
-        
-        for exp_entry in st.session_state.experience_entries:
-            if not exp_entry["job_title"].strip() or not exp_entry["company"].strip():
-                st.error("Fill in Job Title and Company for all experience entries."); validation_passed = False; break
-        
-        if validation_passed:
-            profile_data = {
-                "submission_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "user_session_id": user_session_id_for_run,
-                "user_id_input": st.session_state.user_id,
-                "target_roles_industries_selected": target_roles_selected,
-                "target_roles_industries_custom": [r.strip() for r in target_roles_custom.split(',') if r.strip()],
-                "overall_field": overall_field,
-                "personal_description": personal_description.strip(),
-                "job_title_keywords": st.session_state.job_title_keywords,
-                "current_skills_selected": current_skills_selected,
-                "current_skills_custom": [s.strip() for s in current_skills_custom.split(',') if s.strip()],
-                "education_entries": [{k: v for k, v in edu.items() if k != 'marked_for_removal'} for edu in st.session_state.education_entries],
-                "total_experience": total_experience,
-                "work_experience_entries": [{k: v for k, v in exp.items() if k != 'marked_for_removal'} for exp in st.session_state.experience_entries],
-                "job_languages": job_languages,
-                "job_types": job_types,
-                "preferred_locations_dk": preferred_locations_dk,
-                "remote_openness": remote_openness,
-                "analysis_preference": analysis_preference
-            }
-            if log_user_profile(profile_data):
-                st.success("✅ Profile saved and logged successfully!")
-                st.balloons()
-                
-                # Store profile data in session state for job search
-                st.session_state.saved_profile_data = profile_data
-                st.session_state.profile_saved = True
-                
-                # Hide the detailed profile data display
-                # st.subheader("📊 Collected Profile Data:")
-                # st.json(profile_data)
-                # st.caption(f"Data has been added to `{USER_PROFILE_LOG_FILE}`.")
-                
-                st.info(f"📋 Profile data saved to {USER_PROFILE_LOG_FILE}")
-            else:
-                st.error("Error logging profile.")
+        if submitted:
+            # Step 1: Handle removals
+            education_removed_flag = False
+            if any(edu.get("marked_for_removal") for edu in st.session_state.education_entries):
+                st.session_state.education_entries = [edu for edu in st.session_state.education_entries if not edu.get("marked_for_removal")]
+                education_removed_flag = True
+            
+            experience_removed_flag = False
+            if any(exp.get("marked_for_removal") for exp in st.session_state.experience_entries):
+                st.session_state.experience_entries = [exp for exp in st.session_state.experience_entries if not exp.get("marked_for_removal")]
+                experience_removed_flag = True
+
+            if education_removed_flag or experience_removed_flag:
+                st.toast("Marked item(s) have been removed. Review and submit the form again.", icon="♻️")
+                st.rerun()
+
+            # Step 2: Validation
+            validation_passed = True
+            if not target_roles_selected and not target_roles_custom.strip():
+                st.error("Please specify at least one target role/industry."); validation_passed = False
+            if not current_skills_selected and not current_skills_custom.strip():
+                st.error("Please specify at least one current skill."); validation_passed = False
+            if not overall_field:
+                st.error("Please select a primary field."); validation_passed = False
+            if not job_languages:
+                st.error("Please select at least one preferred job language."); validation_passed = False
+            if not job_types:
+                st.error("Please select at least one desired job type."); validation_passed = False
+            if not preferred_locations_dk:
+                st.error("Please select at least one preferred job location in Denmark."); validation_passed = False
+            if not personal_description.strip():
+                st.error("Please write a personal description."); validation_passed = False
+            if not st.session_state.job_title_keywords:
+                st.error("Please add at least one job search keyword."); validation_passed = False
+
+            for edu_entry in st.session_state.education_entries:
+                if not edu_entry["degree"].strip() or not edu_entry["field_of_study"].strip() or not edu_entry["institution"].strip():
+                    st.error("Fill in Degree, Field of Study and Institution for all education entries."); validation_passed = False; break
+            
+            for exp_entry in st.session_state.experience_entries:
+                if not exp_entry["job_title"].strip() or not exp_entry["company"].strip():
+                    st.error("Fill in Job Title and Company for all experience entries."); validation_passed = False; break
+            
+            if validation_passed:
+                profile_data = {
+                    "submission_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "user_session_id": user_session_id_for_run,
+                    "user_id_input": st.session_state.user_id,
+                    "target_roles_industries_selected": target_roles_selected,
+                    "target_roles_industries_custom": [r.strip() for r in target_roles_custom.split(',') if r.strip()],
+                    "overall_field": overall_field,
+                    "personal_description": personal_description.strip(),
+                    "job_title_keywords": st.session_state.job_title_keywords,
+                    "current_skills_selected": current_skills_selected,
+                    "current_skills_custom": [s.strip() for s in current_skills_custom.split(',') if s.strip()],
+                    "education_entries": [{k: v for k, v in edu.items() if k != 'marked_for_removal'} for edu in st.session_state.education_entries],
+                    "total_experience": total_experience,
+                    "work_experience_entries": [{k: v for k, v in exp.items() if k != 'marked_for_removal'} for exp in st.session_state.experience_entries],
+                    "job_languages": job_languages,
+                    "job_types": job_types,
+                    "preferred_locations_dk": preferred_locations_dk,
+                    "remote_openness": remote_openness,
+                    "analysis_preference": analysis_preference
+                }
+                if log_user_profile(profile_data):
+                    st.success("✅ Profile saved and logged successfully!")
+                    st.balloons()
+                    
+                    # Store profile data in session state for job search
+                    st.session_state.saved_profile_data = profile_data
+                    st.session_state.profile_saved = True
+                    
+                    st.info(f"📋 Profile data saved to {USER_PROFILE_LOG_FILE}")
+                else:
+                    st.error("Error logging profile.")
 
     # Job Search Section - Outside the form but with session state management
     if st.session_state.get('profile_saved', False) and JOB_MATCHING_AVAILABLE:
@@ -831,7 +830,7 @@ def run_app():
                 if st.session_state.get('job_search_results'):
                     if st.button("📊 View All Jobs", key="view_dashboard"):
                         st.info("💡 Run the streamlit_app.py dashboard to view all scraped jobs")
-            
+
             # Handle job search execution
             if start_search:
                 st.session_state.job_search_started = True
@@ -860,31 +859,12 @@ def run_app():
                             - Try reducing the number of job search keywords
                             - Check if Indeed is accessible from your location
                             """)
-            
+
             # Display results if completed
             if st.session_state.job_search_completed and st.session_state.job_search_results:
                 search_results = st.session_state.job_search_results
                 
                 st.success(f"✅ Job search completed! Found {search_results['total_jobs_found']} new relevant positions.")
-                
-                # Hide the detailed search summary - just show basic info
-                # with st.expander("📊 Search Summary", expanded=True):
-                #     st.json(search_results['profile_summary'])
-                #     
-                #     if search_results['searches_performed']:
-                #         st.subheader("Searches Performed:")
-                #         success_count = 0;
-                #         error_count = 0;
-                #         
-                #         for search in search_results['searches_performed']:
-                #             if 'error' not in search:
-                #                 st.write(f"✅ {search['job_title']} in {search['location']}: {search['jobs_found']} jobs")
-                #                 success_count += 1
-                #             else:
-                #                 st.write(f"❌ {search['job_title']} in {search['location']}: Error - {search['error']}")
-                #                 error_count += 1
-                #         
-                #         st.info(f"Summary: {success_count} successful searches, {error_count} errors")
                 
                 # Show job matches if found
                 if search_results['total_jobs_found'] > 0:
@@ -913,24 +893,23 @@ def run_app():
                                         st.markdown(f"**{job['title']}**")
                                         st.markdown(f"🏢 {job['company']} | 📍 {job['location']}")
                                         if job.get('job_type'):
-                                            st.markdown(f"💼 {job['job_type']} | 🏠 {'Remote' if job.get('is_remote') else 'On-site'}")
+                                            st.markdown(f"💼 {job['job_type']}")
                                         if job['description']:
-                                            description_preview = job['description'][:200] + "..." if len(job['description']) > 200 else job['description']
-                                            st.markdown(f"*{description_preview}*")
+                                            st.markdown(f"📝 {job['description'][:200]}...")
                                     with col2:
                                         relevance_score = job.get('relevance_score', 1)
                                         if relevance_score == 3:
-                                            st.success(f"🎯 Perfect Match!")
+                                            st.markdown("🎯 **Excellent**")
                                         elif relevance_score == 2:
-                                            st.info(f"✨ Good Match")
+                                            st.markdown("🟡 **Good**")
                                         else:
-                                            st.caption(f"📝 Relevant")
+                                            st.markdown("🔴 **Fair**")
                                         
                                         if job.get('job_url'):
-                                            st.link_button("View Job", job['job_url'], use_container_width=True)
+                                            st.link_button("🔗 View Job", job['job_url'])
                                         
                                         if job.get('date_posted'):
-                                            st.caption(f"Posted: {job['date_posted']}")
+                                            st.caption(f"📅 {job['date_posted']}")
                         else:
                             st.info("No job matches found. Try adjusting your search keywords or running the search again.")
                     
@@ -947,72 +926,6 @@ def run_app():
                     - Indeed has limited results for your search terms
                     """)
                     st.info("💡 Try adjusting your job search keywords or running the general job dashboard.")
-    
-    elif st.session_state.get('profile_saved', False) and not JOB_MATCHING_AVAILABLE:
-        st.markdown("---")
-        st.info(f"🔍 Job matching not available: {JOB_MATCHING_ERROR}")
-        st.markdown("To enable job matching:")
-        st.code("pip install python-jobspy")
-
-    # Hide the "Latest Extracted CV Data" section completely
-    # Show extracted data outside the main expander and form
-    # if CV_EXTRACTION_AVAILABLE and st.session_state.get('cv_suggestions'):
-    #     st.markdown("---")
-    #     st.header("📊 Latest Extracted CV Data")
-    #     
-    #     # Show personal summary prominently if available
-    #     if st.session_state.cv_suggestions.get('personal_summary'):
-    #         st.subheader("📝 AI-Generated Professional Description")
-    #         st.markdown(f"*{st.session_state.cv_suggestions['personal_summary']}*")
-    #         st.markdown("---")
-    #     
-    #     col1, col2 = st.columns(2)
-    #     
-    #     with col1:
-    #         st.subheader("📞 Contact Info")
-    #         contact_info = st.session_state.cv_suggestions.get('contact_info', {})
-    #         if any(contact_info.values()):
-    #             st.json({
-    #                 "name": contact_info.get('name', ''),
-    #                 "email": contact_info.get('email', ''),
-    #                 "phone": contact_info.get('phone', ''),
-    #                 "linkedin": contact_info.get('linkedin', '')
-    #             })
-    #         else:
-    #             st.info("No contact info extracted")
-    #         
-    #         st.subheader("🌍 Languages")
-    #         languages = st.session_state.cv_suggestions.get('languages', [])
-    #         if languages:
-    #             st.json(languages)
-    #         else:
-    #             st.info("No languages extracted")
-    #         
-    #         st.subheader("🔍 Job Search Keywords")
-    #         keywords = st.session_state.cv_suggestions.get('job_title_keywords', [])
-    #         if keywords:
-    #             st.json(keywords)
-    #         else:
-    #             st.info("No job keywords extracted")
-    #     
-    #     with col2:
-    #         st.subheader("🤖 AI Suggestions")
-    #         st.json({
-    #             "Suggested field": st.session_state.cv_suggestions.get('overall_field', ''),
-    #             "Suggested roles": st.session_state.cv_suggestions.get('target_roles', []),
-    #             "Experience": st.session_state.cv_suggestions.get('total_experience', '')
-    #         })
-    #         
-    #         st.subheader("🛠️ Skills")
-    #         skills = st.session_state.cv_suggestions.get('skills', [])
-    #         if skills:
-    #             # Show first 10 skills to avoid overwhelming display
-    #             display_skills = skills[:10]
-    #             if len(skills) > 10:
-    #                 display_skills.append(f"... and {len(skills) - 10} more")
-    #             st.json(display_skills)
-    #         else:
-    #             st.info("No skills extracted")
 
     # Add CV-Job Evaluation Section
     if (CV_EVALUATION_AVAILABLE and 
@@ -1108,11 +1021,12 @@ def run_app():
                         st.metric("Jobs Analyzed", jobs_analyzed)
                     
                     with col3:
-                        best_score = max([eval.get('match_score', 0) for eval in evaluation_results.get('evaluations', [])], default=0)
+                        evaluations = evaluation_results.get('evaluations', [])
+                        best_score = max([eval.get('match_score', 0) for eval in evaluations], default=0)
                         st.metric("Best Match", f"{best_score}%")
                     
                     with col4:
-                        high_likelihood = len([eval for eval in evaluation_results.get('evaluations', []) 
+                        high_likelihood = len([eval for eval in evaluations 
                                              if eval.get('likelihood', '').lower() in ['high', 'medium']])
                         st.metric("High Interview Likelihood", high_likelihood)
                     
@@ -1120,7 +1034,13 @@ def run_app():
                     st.subheader("📊 Detailed Job Evaluations")
                     
                     evaluations = evaluation_results.get('evaluations', [])
-                    if evaluations:
+                    
+                    # Debug: Show what we actually have
+                    if not evaluations:
+                        st.warning("⚠️ No evaluations found in results")
+                        with st.expander("🔍 Debug: Raw Evaluation Data"):
+                            st.json(evaluation_results)
+                    else:
                         # Sort by match score (highest first)
                         evaluations_sorted = sorted(evaluations, key=lambda x: x.get('match_score', 0), reverse=True)
                         
@@ -1155,9 +1075,6 @@ def run_app():
                                     if evaluation.get('company_industry'):
                                         job_details.append(f"🏭 {evaluation['company_industry']}")
                                     
-                                    # Get additional details from original job data if available
-                                    # (This would require passing more job data through the evaluation)
-                                    
                                     if job_details:
                                         st.markdown(" • ".join(job_details))
                                     
@@ -1173,15 +1090,15 @@ def run_app():
                                     
                                     # Quick actions
                                     if evaluation.get('job_url'):
-                                        st.link_button("🔗 View Job Posting", evaluation['job_url'], use_container_width=True)
+                                        st.link_button("🔗 View Job Posting", evaluation['job_url'])
                                     
                                     # Experience gap indicator
                                     exp_gap = evaluation.get('experience_gap', '')
                                     if exp_gap:
                                         if 'short' in exp_gap.lower():
-                                            st.warning(f"⚠️ {exp_gap}")
+                                            st.info("📈 Experience match!")
                                         else:
-                                            st.info(f"ℹ️ {exp_gap}")
+                                            st.warning("⚠️ Experience gap")
                                 
                                 # Detailed analysis sections
                                 analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs(["✅ Strengths", "❌ Gaps", "💡 Advice"])
@@ -1191,13 +1108,12 @@ def run_app():
                                     if strengths and strengths.lower() not in ['none', 'not specified', 'n/a']:
                                         # Parse strengths into bullet points if comma-separated
                                         if ',' in strengths:
-                                            strength_list = [s.strip() for s in strengths.split(',') if s.strip()]
-                                            for strength in strength_list:
-                                                st.markdown(f"• {strength}")
+                                            for strength in strengths.split(','):
+                                                st.markdown(f"• {strength.strip()}")
                                         else:
                                             st.markdown(strengths)
                                     else:
-                                        st.info("No specific strengths identified for this position.")
+                                        st.info("No specific strengths identified")
                                 
                                 with analysis_tab2:
                                     # Critical gaps
@@ -1205,25 +1121,15 @@ def run_app():
                                     minor_gaps = evaluation.get('minor_gaps', '')
                                     
                                     if critical_gaps and critical_gaps.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**🚨 Critical Gaps:**")
-                                        if ',' in critical_gaps:
-                                            gap_list = [g.strip() for g in critical_gaps.split(',') if g.strip()]
-                                            for gap in gap_list:
-                                                st.markdown(f"• {gap}")
-                                        else:
-                                            st.markdown(f"• {critical_gaps}")
+                                        st.markdown("**⚠️ Critical Gaps:**")
+                                        st.markdown(critical_gaps)
                                     
                                     if minor_gaps and minor_gaps.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**⚠️ Minor Gaps:**")
-                                        if ',' in minor_gaps:
-                                            gap_list = [g.strip() for g in minor_gaps.split(',') if g.strip()]
-                                            for gap in gap_list:
-                                                st.markdown(f"• {gap}")
-                                        else:
-                                            st.markdown(f"• {minor_gaps}")
+                                        st.markdown("**ℹ️ Minor Gaps:**")
+                                        st.markdown(minor_gaps)
                                     
                                     if not critical_gaps and not minor_gaps:
-                                        st.success("No significant gaps identified! 🎉")
+                                        st.success("🎉 No significant gaps identified!")
                                 
                                 with analysis_tab3:
                                     # Recommendations
@@ -1231,32 +1137,21 @@ def run_app():
                                     reality_check = evaluation.get('reality_check', '')
                                     
                                     if recommendations and recommendations.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**📋 Recommendations:**")
-                                        if ',' in recommendations:
-                                            rec_list = [r.strip() for r in recommendations.split(',') if r.strip()]
-                                            for rec in rec_list:
-                                                st.markdown(f"• {rec}")
-                                        else:
-                                            st.markdown(recommendations)
+                                        st.markdown("**💡 Recommendations:**")
+                                        st.markdown(recommendations)
                                     
                                     if reality_check and reality_check.lower() not in ['none', 'not specified', 'n/a']:
                                         st.markdown("**🎯 Reality Check:**")
-                                        st.info(reality_check)
+                                        st.markdown(reality_check)
                                     
                                     # Action buttons based on likelihood
                                     likelihood = evaluation.get('likelihood', '').lower()
                                     if likelihood in ['high', 'medium']:
-                                        st.success("💚 **Recommended Action:** Apply for this position!")
-                                        if evaluation.get('job_url'):
-                                            st.markdown(f"[📝 Apply Now]({evaluation['job_url']})")
+                                        st.success("🚀 This looks like a strong match - consider applying!")
                                     elif likelihood == 'low':
-                                        st.warning("💛 **Suggested Action:** Consider applying after addressing key gaps")
+                                        st.warning("⚠️ Consider developing missing skills before applying")
                                     else:
-                                        st.info("💙 **Consider:** Use this as a learning opportunity to understand requirements")
-                                
-                                # Separator
-                                if i < min(4, len(evaluations_sorted) - 1):
-                                    st.divider()
+                                        st.info("💭 Review the feedback above to decide next steps")
                         
                         # Show remaining jobs in a compact format
                         if len(evaluations_sorted) > 5:
@@ -1283,7 +1178,7 @@ def run_app():
                                 
                                 with col4:
                                     if evaluation.get('job_url'):
-                                        st.link_button("View", evaluation['job_url'], key=f"job_link_{i}")
+                                        st.link_button("View", evaluation['job_url'])
                         
                         # Summary insights
                         st.markdown("### 📈 Key Insights")
@@ -1307,9 +1202,6 @@ def run_app():
                                 for gap in common_gaps[:3]:
                                     if gap and gap.lower() not in ['none', 'not specified']:
                                         st.markdown(f"• {gap}")
-                    
-                    else:
-                        st.warning("No job evaluations found in results.")
                 
                 # Handle improvement plan generation
                 if (st.session_state.cv_evaluation_completed and 
@@ -1336,11 +1228,15 @@ def run_app():
                                 )
                         else:
                             st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
-            
+
             elif not CV_EVALUATION_AVAILABLE:
                 st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")
                 st.markdown("To enable CV evaluation:")
                 st.code("pip install langchain-together")
+
+    # --- Debugging: Show session state ---
+    # st.subheader("🔧 Debug: Session State")
+    # st.json(st.session_state)
 
 if __name__ == "__main__":
     run_app()
