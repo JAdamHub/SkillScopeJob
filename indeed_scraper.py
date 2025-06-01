@@ -204,11 +204,70 @@ def scrape_indeed_jobs(search_term: str, location: str) -> int:
         logging.error(f"error during job scraping: {e}")
         return 0
 
+def check_existing_jobs_for_terms(search_terms: List[str], location: str = None) -> int:
+    """Check how many jobs already exist in database for given search terms"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Build query to check for existing jobs matching the search terms
+        conditions = []
+        params = []
+        
+        for term in search_terms:
+            conditions.append("LOWER(title) LIKE ? OR LOWER(search_term) LIKE ?")
+            params.extend([f"%{term.lower()}%", f"%{term.lower()}%"])
+        
+        where_clause = " OR ".join(conditions)
+        
+        if location:
+            where_clause += " AND (LOWER(location) LIKE ? OR LOWER(search_location) LIKE ?)"
+            params.extend([f"%{location.lower()}%", f"%{location.lower()}%"])
+        
+        query = f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE {where_clause}"
+        
+        cursor.execute(query, params)
+        count = cursor.fetchone()[0]
+        
+        logging.info(f"Found {count} existing jobs matching search terms: {search_terms}")
+        return count
+        
+    except Exception as e:
+        logging.error(f"Error checking existing jobs: {e}")
+        return 0
+    finally:
+        conn.close()
+
+def get_recent_jobs_count(days: int = 7) -> int:
+    """Get count of jobs scraped in the last N days"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(f"""
+        SELECT COUNT(*) FROM {TABLE_NAME} 
+        WHERE date(scraped_timestamp) >= date('now', '-{days} days')
+        """)
+        count = cursor.fetchone()[0]
+        return count
+    except Exception as e:
+        logging.error(f"Error getting recent jobs count: {e}")
+        return 0
+    finally:
+        conn.close()
+
 def scrape_indeed_jobs_with_profile(search_term: str, location: str, job_type: str = None, 
                                    is_remote: bool = None, max_results: int = 50) -> int:
     """Enhanced scraper that accepts profile-specific parameters"""
     
+    # Check existing jobs first
+    existing_count = check_existing_jobs_for_terms([search_term], location)
+    recent_count = get_recent_jobs_count(7)
+    
     logging.info(f"starting profile-based indeed job scrape for '{search_term}' in '{location}'")
+    logging.info(f"existing jobs for this search: {existing_count}")
+    logging.info(f"recent jobs (last 7 days): {recent_count}")
+    
     if job_type:
         logging.info(f"job type filter: {job_type}")
     if is_remote is not None:

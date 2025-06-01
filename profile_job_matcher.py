@@ -178,9 +178,16 @@ class ProfileJobMatcher:
         # Store user profile in database for reference
         self._store_user_profile(profile_data)
         
+        # Check existing matches before scraping
+        user_session_id = profile_data.get('user_session_id', 'unknown')
+        existing_matches_before = self.get_profile_job_matches(user_session_id, limit=1000)
+        existing_count_before = len(existing_matches_before) if existing_matches_before else 0
+        
         total_inserted = 0
         search_results = {
             'total_jobs_found': 0,
+            'existing_matches_before_search': existing_count_before,
+            'existing_matches_after_search': 0,  # Will be updated after scraping
             'searches_performed': [],
             'profile_summary': {
                 'user_id': profile_data.get('user_session_id', 'unknown'),
@@ -191,6 +198,8 @@ class ProfileJobMatcher:
                 'remote_preference': search_params['remote_preference']
             }
         }
+        
+        logger.info(f"Found {existing_count_before} existing relevant jobs before scraping")
         
         # Test jobspy before running searches
         logger.info("Testing jobspy compatibility...")
@@ -270,10 +279,18 @@ class ProfileJobMatcher:
                 
                 search_results['searches_performed'].append(search_info)
         
-        search_results['total_jobs_found'] = total_inserted
+        # After all searches, check total matches again
+        existing_matches_after = self.get_profile_job_matches(user_session_id, limit=1000)
+        existing_count_after = len(existing_matches_after) if existing_matches_after else 0
         
-        # Log summary
-        logger.info(f"Profile-based search completed. Total new jobs: {total_inserted}")
+        search_results['total_jobs_found'] = total_inserted
+        search_results['existing_matches_after_search'] = existing_count_after
+        
+        # Log comprehensive summary
+        logger.info(f"Profile-based search completed:")
+        logger.info(f"  - New jobs scraped: {total_inserted}")
+        logger.info(f"  - Existing matches before: {existing_count_before}")
+        logger.info(f"  - Total relevant matches after: {existing_count_after}")
         
         return search_results
 
@@ -318,11 +335,21 @@ class ProfileJobMatcher:
     def get_profile_job_matches(self, user_session_id: str, limit: int = 50) -> List[Dict]:
         """
         Get job matches for a specific user profile with relevance scoring using enriched data
+        Always fetches from database - this is the primary source of job data
         """
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         try:
+            # First, verify the database has data
+            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            total_jobs_in_db = cursor.fetchone()[0]
+            logger.info(f"Total jobs in database: {total_jobs_in_db}")
+            
+            if total_jobs_in_db == 0:
+                logger.warning("Database is empty - no jobs to match against")
+                return []
+            
             # Get user profile
             cursor.execute("""
             SELECT profile_data FROM user_profiles 
@@ -332,6 +359,7 @@ class ProfileJobMatcher:
             
             profile_row = cursor.fetchone()
             if not profile_row:
+                logger.warning(f"No profile found for user {user_session_id}")
                 return []
             
             profile_data = json.loads(profile_row[0])
@@ -339,7 +367,10 @@ class ProfileJobMatcher:
             user_skills = profile_data.get('current_skills_selected', []) + profile_data.get('current_skills_custom', [])
             overall_field = profile_data.get('overall_field', '')
             
+            logger.info(f"Profile matching criteria - Keywords: {job_titles}, Skills: {user_skills[:3]}, Field: {overall_field}")
+            
             if not job_titles:
+                logger.warning("No job title keywords found in profile")
                 return []
             
             # Build comprehensive matching query using enriched data
@@ -359,13 +390,14 @@ class ProfileJobMatcher:
             # Create industry pattern matching
             industry_pattern = f"%{overall_field.lower()}%" if overall_field else "%"
             
+            # Enhanced query with better scoring
             query = f"""
             SELECT *, 
                    CASE 
-                       WHEN ({title_condition_sql}) THEN 5
-                       WHEN LOWER(company_industry) LIKE ? THEN 4
-                       WHEN LOWER(description) LIKE ? THEN 3
-                       WHEN LOWER(company_description) LIKE ? THEN 2
+                       WHEN ({title_condition_sql}) THEN 3
+                       WHEN LOWER(company_industry) LIKE ? AND ? != '%' THEN 2
+                       WHEN LOWER(description) LIKE ? AND ? != '%' THEN 2
+                       WHEN LOWER(company_description) LIKE ? AND ? != '%' THEN 1
                        ELSE 1
                    END as relevance_score,
                    CASE 
@@ -374,35 +406,30 @@ class ProfileJobMatcher:
                    END as has_enriched_data
             FROM {TABLE_NAME}
             WHERE ({title_condition_sql})
-               OR LOWER(company_industry) LIKE ?
-               OR LOWER(description) LIKE ?
-               OR LOWER(company_description) LIKE ?
+               OR (LOWER(company_industry) LIKE ? AND ? != '%')
+               OR (LOWER(description) LIKE ? AND ? != '%')
+               OR (LOWER(company_description) LIKE ? AND ? != '%')
             ORDER BY relevance_score DESC, has_enriched_data DESC, scraped_timestamp DESC
             LIMIT ?
             """
             
-            # Build complete parameter list:
-            # 1. Title conditions (for relevance scoring)
-            # 2. Industry pattern (for relevance scoring)  
-            # 3. Skills pattern (for relevance scoring)
-            # 4. Skills pattern (for company description relevance scoring)
-            # 5. Title conditions again (for WHERE clause)
-            # 6. Industry pattern (for WHERE clause)
-            # 7. Skills pattern (for WHERE clause)
-            # 8. Skills pattern (for company description WHERE clause)
-            # 9. Limit
+            # Build complete parameter list - handle empty patterns carefully
+            skill_pattern = f"%{skill_keywords}%" if skill_keywords.strip() else "%none%"
+            industry_pattern_safe = industry_pattern if overall_field else "%none%"
+            
             complete_params = (
                 params +  # Title conditions for CASE
-                [industry_pattern] +  # Industry for CASE
-                [f"%{skill_keywords}%"] +  # Skills for description CASE
-                [f"%{skill_keywords}%"] +  # Skills for company_description CASE
+                [industry_pattern_safe, overall_field] +  # Industry for CASE with check
+                [skill_pattern, skill_keywords] +  # Skills for description CASE with check  
+                [skill_pattern, skill_keywords] +  # Skills for company_description CASE with check
                 params +  # Title conditions for WHERE
-                [industry_pattern] +  # Industry for WHERE
-                [f"%{skill_keywords}%"] +  # Skills for description WHERE
-                [f"%{skill_keywords}%"] +  # Skills for company_description WHERE
+                [industry_pattern_safe, overall_field] +  # Industry for WHERE with check
+                [skill_pattern, skill_keywords] +  # Skills for description WHERE with check
+                [skill_pattern, skill_keywords] +  # Skills for company_description WHERE with check
                 [limit]
             )
             
+            logger.info(f"Executing database query with {len(complete_params)} parameters")
             cursor.execute(query, complete_params)
             jobs = cursor.fetchall()
             
@@ -410,15 +437,41 @@ class ProfileJobMatcher:
             columns = [description[0] for description in cursor.description]
             job_matches = [dict(zip(columns, job)) for job in jobs]
             
-            # Log matching statistics
+            # Log detailed matching statistics
             enriched_count = sum(1 for job in job_matches if job.get('has_enriched_data'))
-            logger.info(f"Found {len(job_matches)} job matches for user {user_session_id}")
-            logger.info(f"Jobs with enriched data: {enriched_count}/{len(job_matches)}")
+            score_distribution = {}
+            for job in job_matches:
+                score = job.get('relevance_score', 1)
+                score_distribution[score] = score_distribution.get(score, 0) + 1
+            
+            logger.info(f"Database query results for user {user_session_id}:")
+            logger.info(f"  - Total matches found: {len(job_matches)}")
+            logger.info(f"  - Jobs with enriched data: {enriched_count}/{len(job_matches)}")
+            logger.info(f"  - Score distribution: {score_distribution}")
+            
+            # Ensure we return the jobs even if scoring isn't perfect
+            if not job_matches and total_jobs_in_db > 0:
+                logger.warning("No matches found with current criteria, trying broader search...")
+                
+                # Fallback: just search by job titles without additional criteria
+                fallback_query = f"""
+                SELECT *, 2 as relevance_score, 0 as has_enriched_data
+                FROM {TABLE_NAME}
+                WHERE {title_condition_sql}
+                ORDER BY scraped_timestamp DESC
+                LIMIT ?
+                """
+                
+                cursor.execute(fallback_query, params + [limit])
+                fallback_jobs = cursor.fetchall()
+                job_matches = [dict(zip(columns, job)) for job in fallback_jobs]
+                
+                logger.info(f"Fallback search found {len(job_matches)} matches")
             
             return job_matches
             
         except Exception as e:
-            logger.error(f"Error getting job matches: {e}")
+            logger.error(f"Error getting job matches from database: {e}")
             logger.error(f"Profile data keys: {list(profile_data.keys()) if 'profile_data' in locals() else 'Profile not loaded'}")
             return []
         finally:
