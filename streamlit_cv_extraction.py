@@ -5,6 +5,7 @@ import os
 import json
 import streamlit as st
 import streamlit.components.v1 as components
+from dotenv import load_dotenv
 
 # Set page config at the top level
 if 'page_config_set' not in st.session_state:
@@ -40,11 +41,15 @@ except ImportError as e:
     CV_EVALUATION_AVAILABLE = False
     CV_EVALUATION_ERROR = str(e)
 
+# Load environment variables
+load_dotenv()
+
 # --- Constants for file names ---
 ROLES_INDUSTRIES_ONTOLOGY_FILE = "roles_industries_ontology.csv"
 SKILL_ONTOLOGY_FILE = "skill_ontology.csv"
 EDUCATION_ONTOLOGY_FILE = "education_ontology.csv"
 USER_PROFILE_LOG_FILE = "advanced_user_profile_log.csv"
+FIELD_SKILLS_MAPPING_FILE = "field_skills_mapping.csv"
 
 # --- Helper functions to load ontologies (with dummy creation) ---
 def load_ontology_data(file_path: str, column_name: str, default_items: list, is_education_ontology: bool = False) -> list | dict:
@@ -157,6 +162,19 @@ def log_user_profile(data: dict):
         st.error(f"Error logging profile: {e}")
         print(f"ERROR logging profile: {e}")
         return False
+
+def load_field_skills_mapping():
+    """Load the mapping between fields and their relevant skills."""
+    field_skills = {}
+    try:
+        with open(FIELD_SKILLS_MAPPING_FILE, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                field_skills[row['field']] = set(row['skills'].split('|'))
+        return field_skills
+    except Exception as e:
+        print(f"Error loading field-skills mapping: {e}")
+        return {}
 
 # --- Streamlit App UI ---
 def run_app():
@@ -337,7 +355,7 @@ def run_app():
         cv_suggestions = st.session_state.get('cv_suggestions', {})
         
         st.header("1. 📊 Overall Profile")
-        cols_profil1 = st.columns(2)
+        cols_profil1 = st.columns([3, 1])
         
         # Pre-select overall field from CV if available
         overall_field_default = cv_suggestions.get('overall_field', '')
@@ -349,28 +367,29 @@ def run_app():
             "Primary Field/Industry:", 
             options=default_overall_fields, 
             index=overall_field_index, 
-            help="Choose the field that best describes your general profile."
+            help="Choose the field that best describes your general profile.",
+            key="field_selector"
         )
-        
-        # Pre-populate languages if available from CV
-        cv_languages = cv_suggestions.get('languages', [])
-        job_languages_options = ["Danish", "English", "German", "Swedish", "Norwegian", "French", "Spanish", "Other"]
-        # Map CV languages to options
-        default_job_languages = []
-        for lang in cv_languages:
-            lang_lower = lang.lower()
-            if any(opt.lower().startswith(lang_lower[:3]) for opt in job_languages_options):
-                matching_opt = next(opt for opt in job_languages_options if opt.lower().startswith(lang_lower[:3]))
-                default_job_languages.append(matching_opt)
-        
-        job_languages = cols_profil1[1].multiselect(
-            "🌍 Preferred Job Languages:", 
-            options=job_languages_options, 
-            default=default_job_languages,
-            help="Select one or more languages you are comfortable working in."
+
+        update_field = cols_profil1[1].form_submit_button(
+            "🔄 Opdater profil",
+            help="Klik her for at opdatere færdighedslisten baseret på dit valgte felt"
         )
+
+        # Store the selected field in session state
+        if 'previous_field' not in st.session_state:
+            st.session_state.previous_field = overall_field
         
-        # Add personal description field
+        # Check if field has changed and update button is pressed
+        field_changed = st.session_state.previous_field != overall_field and update_field
+        st.session_state.previous_field = overall_field
+
+        if field_changed:
+            # Clear any previously selected skills
+            if 'skills_selector' in st.session_state:
+                del st.session_state.skills_selector
+            st.rerun()
+
         st.header("2. ✍️ Personal Description")
         personal_description_default = cv_suggestions.get('personal_summary', '')
         personal_description = st.text_area(
@@ -394,14 +413,61 @@ def run_app():
 
         st.header("4. 🛠️ Current Skills")
         
+        # Load field-skills mapping
+        field_skills_mapping = load_field_skills_mapping()
+        
+        # Get relevant skills for selected field
+        relevant_skills = field_skills_mapping.get(overall_field, set())
+        
+        # Show information about relevant skills
+        if relevant_skills:
+            st.info(f"🎯 Viser {len(relevant_skills)} relevante færdigheder for {overall_field}")
+        
+        # Always show filtered skills based on selected field
+        skills_to_show = sorted(list(relevant_skills)) if relevant_skills else skills_options
+        
         # Pre-select skills from CV if available
         cv_skills = cv_suggestions.get('skills', [])
+        
+        # Create the multiselect with filtered skills
         current_skills_selected = st.multiselect(
-            "Your Skills (from list):", 
-            skills_options,
-            default=[skill for skill in cv_skills if skill in skills_options]
+            "Vælg dine færdigheder:", 
+            options=skills_to_show,
+            default=[skill for skill in cv_skills if skill in skills_to_show],
+            help=f"Disse færdigheder er særligt relevante for {overall_field}",
+            key="skills_selector"
         )
-        current_skills_custom = st.text_area("Other Skills (custom, comma-separated):", height=75)
+        
+        # Show number of selected skills and recommendations
+        if current_skills_selected:
+            selected_count = len(current_skills_selected)
+            total_relevant = len(relevant_skills)
+            st.caption(f"Du har valgt {selected_count} ud af {total_relevant} anbefalede færdigheder for {overall_field}")
+            
+            # Add recommendations if missing important skills
+            if relevant_skills and selected_count < len(relevant_skills) * 0.3:  # Less than 30% of relevant skills
+                missing_key_skills = sorted(list(relevant_skills - set(current_skills_selected)))[:5]
+                st.warning("💡 Overvej at tilføje nogle af disse vigtige færdigheder for dit felt:")
+                st.markdown("- " + "\n- ".join(missing_key_skills))
+        
+        # Option to show all skills
+        if st.checkbox("Vis alle færdigheder", help="Marker dette felt for at se alle tilgængelige færdigheder"):
+            additional_skills = [skill for skill in skills_options if skill not in skills_to_show]
+            if additional_skills:
+                additional_selected = st.multiselect(
+                    "Andre færdigheder:", 
+                    options=additional_skills,
+                    default=[skill for skill in cv_skills if skill in additional_skills],
+                    help="Andre færdigheder der ikke er direkte relateret til dit valgte felt"
+                )
+                # Combine selected skills
+                current_skills_selected.extend(additional_selected)
+        
+        current_skills_custom = st.text_area(
+            "Andre færdigheder (kommasepareret):", 
+            height=75,
+            help="Tilføj eventuelle færdigheder der ikke findes i listerne ovenfor"
+        )
 
         st.header("5. 🎓 Educational Background")
         
