@@ -586,8 +586,23 @@ def run_app():
             "Viborg kommune", "Vordingborg kommune", "Ærø kommune", "Aarhus kommune", "Ødsherred kommune"
         ]
 
-        job_type_options = ["Full-time", "Part-time", "Permanent", "Student job", "Volunteer work", "Internship", "New graduate", "Apprentice", "Temporary"]
-        job_types = st.multiselect("💼 Desired Job Types:", options=job_type_options, help="Select one or more relevant job types.")
+        # Updated job type options to align with Indeed's supported types and user expectations
+        job_type_options = [
+            "Full-time", 
+            "Part-time", 
+            "Internship", 
+            "Temporary", 
+            "Permanent",  # Will map to fulltime
+            "Student job",  # Will add "student" to search terms
+            "New graduate",  # Will add "graduate" to search terms
+            "Apprentice"  # Will map to internship with "apprentice" modifier
+        ]
+        
+        job_types = st.multiselect(
+            "💼 Desired Job Types:", 
+            options=job_type_options, 
+            help="Select job types. Note: 'Student job' will add 'student' to your search terms, 'New graduate' adds 'graduate', etc."
+        )
 
         preferred_locations_dk = st.multiselect("🗺️ Preferred Job Locations in Denmark:", options=location_options_dk)
         remote_options = ["Don't care", "Primarily On-site", "Primarily Hybrid", "Primarily Remote"]

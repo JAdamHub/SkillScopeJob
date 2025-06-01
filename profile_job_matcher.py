@@ -16,19 +16,29 @@ class ProfileJobMatcher:
     """
     
     def __init__(self):
+        # Updated job type mapping to ONLY use Indeed's supported types
         self.job_type_mapping = {
-            # Streamlit app options -> jobspy format
+            # Streamlit app options -> jobspy format (Indeed's ONLY supported types)
             "Full-time": "fulltime",
             "Part-time": "parttime", 
             "Internship": "internship",
             "Temporary": "contract",
-            "Permanent": "fulltime",
-            "Student job": "parttime",
-            "Volunteer work": "parttime",
-            "New graduate": "fulltime",
-            "Apprentice": "internship"
+            "Permanent": "fulltime",  # Map to fulltime as Indeed doesn't have "permanent"
+            "Student job": "parttime",  # Map to parttime, add "student" to search term
+            "Volunteer work": "parttime",  # Map to parttime, add "volunteer" to search term
+            "New graduate": "fulltime",  # Map to fulltime, add "graduate" to search term
+            "Apprentice": "internship"  # Map to internship, add "apprentice" to search term
         }
         
+        # Enhanced job type handling for search term modification
+        self.search_term_modifiers = {
+            "Student job": ["student", "studiejob", "deltid"],
+            "New graduate": ["graduate", "nyuddannet", "junior"],
+            "Volunteer work": ["volunteer", "frivillig"],
+            "Apprentice": ["apprentice", "lærling", "trainee"]
+        }
+        
+        # Location mapping remains the same
         self.location_mapping = {
             # Danish locations -> jobspy search terms - updated for Danish communes
             "Danmark": "denmark",
@@ -66,6 +76,26 @@ class ProfileJobMatcher:
             "Herlev kommune": "herlev, denmark"
         }
 
+    def enhance_search_term_for_job_type(self, base_search_term: str, job_types: List[str]) -> str:
+        """
+        Enhanced search term modification based on special job types
+        """
+        enhanced_term = base_search_term
+        added_modifiers = []
+        
+        # Add specific modifiers for certain job types
+        for job_type in job_types:
+            if job_type in self.search_term_modifiers:
+                modifiers = self.search_term_modifiers[job_type]
+                # Add the first modifier that's not already in the search term
+                for modifier in modifiers:
+                    if modifier.lower() not in enhanced_term.lower() and modifier not in added_modifiers:
+                        enhanced_term = f"{enhanced_term} {modifier}"
+                        added_modifiers.append(modifier)
+                        break  # Only add one modifier per job type
+        
+        return enhanced_term
+
     def extract_search_parameters(self, profile_data: Dict) -> Dict:
         """
         Extract and format search parameters from user profile data
@@ -74,6 +104,7 @@ class ProfileJobMatcher:
             'job_titles': profile_data.get('job_title_keywords', []),
             'locations': [],
             'job_types': [],
+            'original_job_types': profile_data.get('job_types', []),  # Keep original for enhancement
             'remote_preference': profile_data.get('remote_openness', "Don't care"),
             'user_profile': profile_data
         }
@@ -89,16 +120,22 @@ class ProfileJobMatcher:
         if not search_params['locations']:
             search_params['locations'] = ['copenhagen, denmark']
         
-        # Map job types to jobspy format
+        # Map job types to ONLY valid jobspy format
         desired_job_types = profile_data.get('job_types', [])
+        valid_types_used = set()
+        
         for job_type in desired_job_types:
             mapped_type = self.job_type_mapping.get(job_type)
-            if mapped_type and mapped_type not in search_params['job_types']:
+            if mapped_type and mapped_type not in valid_types_used:
                 search_params['job_types'].append(mapped_type)
+                valid_types_used.add(mapped_type)
         
-        # Default job type if none specified
+        # Default job type if none specified or none valid
         if not search_params['job_types']:
             search_params['job_types'] = ['fulltime']
+        
+        # Remove duplicates while preserving order
+        search_params['job_types'] = list(dict.fromkeys(search_params['job_types']))
         
         return search_params
 
@@ -127,6 +164,17 @@ class ProfileJobMatcher:
         search_params = self.extract_search_parameters(profile_data)
         logger.info(f"Search parameters: {search_params}")
         
+        # Validate job types are supported
+        supported_types = ['fulltime', 'parttime', 'internship', 'contract']
+        invalid_types = [jt for jt in search_params['job_types'] if jt not in supported_types]
+        if invalid_types:
+            logger.warning(f"Invalid job types detected and will be filtered: {invalid_types}")
+            search_params['job_types'] = [jt for jt in search_params['job_types'] if jt in supported_types]
+        
+        if not search_params['job_types']:
+            logger.warning("No valid job types found, defaulting to fulltime")
+            search_params['job_types'] = ['fulltime']
+        
         # Store user profile in database for reference
         self._store_user_profile(profile_data)
         
@@ -139,6 +187,7 @@ class ProfileJobMatcher:
                 'target_roles': search_params['job_titles'],
                 'locations': search_params['locations'],
                 'job_types': search_params['job_types'],
+                'original_job_types': search_params['original_job_types'],
                 'remote_preference': search_params['remote_preference']
             }
         }
@@ -154,26 +203,35 @@ class ProfileJobMatcher:
         # Perform searches for each combination of job title and location
         for job_title in search_params['job_titles']:
             for location in search_params['locations']:
-                # Limit to one job type to avoid too many combinations
-                primary_job_type = search_params['job_types'][0] if search_params['job_types'] else 'fulltime'
+                # Use the first valid job type
+                primary_job_type = search_params['job_types'][0]
+                
+                # Enhance search term based on original job types
+                enhanced_job_title = self.enhance_search_term_for_job_type(
+                    job_title, 
+                    search_params['original_job_types']
+                )
                 
                 search_info = {
                     'job_title': job_title,
+                    'enhanced_job_title': enhanced_job_title,
                     'location': location, 
                     'job_type': primary_job_type,
+                    'valid_job_type': primary_job_type in supported_types,
+                    'original_job_types': search_params['original_job_types'],
                     'timestamp': datetime.now().isoformat(),
                     'jobs_found': 0
                 }
                 
                 try:
-                    logger.info(f"Searching: {job_title} | {location} | {primary_job_type}")
+                    logger.info(f"Searching: '{enhanced_job_title}' | {location} | {primary_job_type}")
                     
                     # Determine remote setting
                     is_remote = self.determine_remote_setting(search_params['remote_preference'])
                     
-                    # Use enhanced scraper with profile parameters
+                    # Use enhanced scraper with validated parameters
                     inserted_count = scrape_indeed_jobs_with_profile(
-                        search_term=job_title,
+                        search_term=enhanced_job_title,
                         location=location,
                         job_type=primary_job_type,
                         is_remote=is_remote,
@@ -183,26 +241,31 @@ class ProfileJobMatcher:
                     search_info['jobs_found'] = inserted_count
                     total_inserted += inserted_count
                     
-                    logger.info(f"Found {inserted_count} new jobs for {job_title} in {location}")
+                    logger.info(f"Found {inserted_count} new jobs for '{enhanced_job_title}' in {location}")
                     
-                    # If no jobs found, try with basic search
-                    if inserted_count == 0:
-                        logger.info(f"Retrying with basic search for {job_title}")
+                    # Fallback strategy if enhanced search finds nothing
+                    if inserted_count == 0 and enhanced_job_title != job_title:
+                        logger.info(f"Retrying with basic search term: '{job_title}'")
                         try:
-                            from indeed_scraper import scrape_indeed_jobs
-                            fallback_count = scrape_indeed_jobs(job_title, location)
+                            fallback_count = scrape_indeed_jobs_with_profile(
+                                search_term=job_title,
+                                location=location,
+                                job_type=primary_job_type,
+                                is_remote=is_remote,
+                                max_results=max_results_per_search
+                            )
                             search_info['fallback_jobs_found'] = fallback_count
                             total_inserted += fallback_count
                             logger.info(f"Fallback search found {fallback_count} jobs")
                         except Exception as fallback_error:
-                            logger.error(f"Fallback search also failed: {fallback_error}")
+                            logger.error(f"Fallback search failed: {fallback_error}")
                     
-                    # Small delay between searches
+                    # Respectful delay between searches
                     import time
-                    time.sleep(3)  # Increased delay to be more respectful
+                    time.sleep(3)
                     
                 except Exception as e:
-                    logger.error(f"Error in search {job_title}/{location}/{primary_job_type}: {e}")
+                    logger.error(f"Error in search '{enhanced_job_title}'/{location}/{primary_job_type}: {e}")
                     search_info['error'] = str(e)
                 
                 search_results['searches_performed'].append(search_info)

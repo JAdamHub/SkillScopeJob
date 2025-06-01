@@ -533,6 +533,30 @@ Please extract structured information from the following CV/resume text and retu
         else:
             suggestions['total_experience'] = '15+ years'
         
+        # Suggest appropriate job types based on experience and education
+        suggested_job_types = []
+        
+        # Check if still student (graduation year in future)
+        is_student = any(
+            edu.get('graduation_year', '') and 
+            int(edu.get('graduation_year', '0')) > 2024
+            for edu in cv_data.get('education_entries', [])
+            if edu.get('graduation_year', '').isdigit()
+        )
+        
+        if is_student:
+            suggested_job_types.extend(["Student job", "Part-time", "Internship"])
+        
+        if total_years == 0:
+            suggested_job_types.extend(["New graduate", "Internship", "Full-time"])
+        elif total_years <= 2:
+            suggested_job_types.extend(["Full-time", "Part-time"])
+        else:
+            suggested_job_types.extend(["Full-time", "Permanent"])
+        
+        # Remove duplicates while preserving order
+        suggestions['job_types'] = list(dict.fromkeys(suggested_job_types))
+        
         return suggestions
 
 # Convenience functions for easy import and use
