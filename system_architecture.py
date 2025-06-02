@@ -423,55 +423,480 @@ def create_simple_overview():
     
     return dot
 
+def create_file_based_architecture():
+    """Create architecture diagram showing actual files and their relationships"""
+    
+    dot = Digraph(comment='SkillScopeJob - File-Based Architecture')
+    dot.attr(rankdir='TB', size='16,12', dpi='200')
+    dot.attr('graph', fontname='Arial', fontsize='12', overlap='false', splines='ortho')
+    dot.attr('node', shape='box', style='rounded,filled', fontname='Arial', fontsize='10')
+    dot.attr('edge', fontname='Arial', fontsize='9')
+    
+    # Color scheme for different file types
+    MAIN_COLOR = '#1976D2'        # Blue for main files
+    UI_COLOR = '#4CAF50'          # Green for UI files
+    CORE_COLOR = '#FF9800'        # Orange for core logic
+    DATA_COLOR = '#9C27B0'        # Purple for data files
+    CONFIG_COLOR = '#607D8B'      # Gray for config
+    DATABASE_COLOR = '#795548'    # Brown for database
+    
+    # Main Application Files
+    with dot.subgraph(name='cluster_main') as c:
+        c.attr(label='🚀 Main Application Files', style='rounded', color=MAIN_COLOR, fontcolor=MAIN_COLOR)
+        c.node('main_py', 'main.py\n\n• Entry point\n• Streamlit app runner\n• Route handling', 
+               fillcolor='#E3F2FD', color=MAIN_COLOR)
+        c.node('app_py', 'app.py\n\n• Streamlit interface\n• UI components\n• User interactions', 
+               fillcolor='#E3F2FD', color=MAIN_COLOR)
+    
+    # UI & Interface Files
+    with dot.subgraph(name='cluster_ui') as c:
+        c.attr(label='🎨 User Interface Files', style='rounded', color=UI_COLOR, fontcolor=UI_COLOR)
+        c.node('ui_components', 'ui_components.py\n\n• Custom widgets\n• Form handlers\n• Display functions', 
+               fillcolor='#E8F5E8', color=UI_COLOR)
+        c.node('styles_css', 'styles.css\n\n• Custom styling\n• Theme definitions\n• Responsive design', 
+               fillcolor='#E8F5E8', color=UI_COLOR)
+    
+    # Core Logic Files
+    with dot.subgraph(name='cluster_core') as c:
+        c.attr(label='⚙️ Core Processing Files', style='rounded', color=CORE_COLOR, fontcolor=CORE_COLOR)
+        c.node('cv_processor_py', 'cv_processor.py\n\n• PDF parsing\n• Text extraction\n• Skill detection', 
+               fillcolor='#FFF3E0', color=CORE_COLOR)
+        c.node('job_scraper_py', 'job_scraper.py\n\n• Indeed scraping\n• Data collection\n• Job parsing', 
+               fillcolor='#FFF3E0', color=CORE_COLOR)
+        c.node('job_matcher_py', 'job_matcher.py\n\n• Profile matching\n• Relevance scoring\n• Result ranking', 
+               fillcolor='#FFF3E0', color=CORE_COLOR)
+        c.node('ai_enrichment_py', 'ai_enrichment.py\n\n• LLM integration\n• Data enhancement\n• Smart analysis', 
+               fillcolor='#FFF3E0', color=CORE_COLOR)
+    
+    # Data & Database Files
+    with dot.subgraph(name='cluster_data') as c:
+        c.attr(label='💾 Data Management Files', style='rounded', color=DATA_COLOR, fontcolor=DATA_COLOR)
+        c.node('database_py', 'database.py\n\n• SQLite operations\n• CRUD functions\n• Schema management', 
+               fillcolor='#F3E5F5', color=DATA_COLOR)
+        c.node('data_models_py', 'data_models.py\n\n• Data structures\n• Model definitions\n• Validation', 
+               fillcolor='#F3E5F5', color=DATA_COLOR)
+        c.node('jobs_db', 'jobs.db\n\n• SQLite database\n• Job storage\n• User profiles', 
+               fillcolor='#EFEBE9', color=DATABASE_COLOR, shape='cylinder')
+    
+    # Configuration Files
+    with dot.subgraph(name='cluster_config') as c:
+        c.attr(label='⚙️ Configuration Files', style='rounded', color=CONFIG_COLOR, fontcolor=CONFIG_COLOR)
+        c.node('config_py', 'config.py\n\n• Settings\n• API keys\n• Constants', 
+               fillcolor='#ECEFF1', color=CONFIG_COLOR)
+        c.node('requirements_txt', 'requirements.txt\n\n• Dependencies\n• Package versions\n• Installation', 
+               fillcolor='#ECEFF1', color=CONFIG_COLOR)
+        c.node('env_file', '.env\n\n• Environment variables\n• Secret keys\n• Local settings', 
+               fillcolor='#ECEFF1', color=CONFIG_COLOR)
+    
+    # External Services (not files but important to show)
+    with dot.subgraph(name='cluster_external') as c:
+        c.attr(label='🌐 External Services', style='rounded', color='#D32F2F', fontcolor='#D32F2F')
+        c.node('indeed_api', 'Indeed API\n\n• Job listings\n• Company data\n• Search results', 
+               fillcolor='#FFEBEE', color='#D32F2F', shape='ellipse')
+        c.node('together_ai_api', 'Together AI API\n\n• Llama 3.3 70B\n• Text processing\n• Analysis', 
+               fillcolor='#FFEBEE', color='#D32F2F', shape='ellipse')
+    
+    # File relationships and data flow
+    # Main flow
+    dot.edge('main_py', 'app_py', label='imports & runs', color=MAIN_COLOR, style='bold')
+    dot.edge('app_py', 'ui_components', label='uses UI', color=UI_COLOR)
+    dot.edge('app_py', 'cv_processor_py', label='processes CV', color=CORE_COLOR)
+    dot.edge('cv_processor_py', 'job_scraper_py', label='triggers search', color=CORE_COLOR)
+    dot.edge('job_scraper_py', 'ai_enrichment_py', label='raw job data', color=CORE_COLOR)
+    dot.edge('ai_enrichment_py', 'job_matcher_py', label='enriched data', color=CORE_COLOR)
+    dot.edge('job_matcher_py', 'app_py', label='ranked results', color=MAIN_COLOR)
+    
+    # Database interactions
+    dot.edge('job_scraper_py', 'database_py', label='stores jobs', color=DATA_COLOR)
+    dot.edge('database_py', 'jobs_db', label='SQL operations', color=DATABASE_COLOR)
+    dot.edge('job_matcher_py', 'database_py', label='queries data', color=DATA_COLOR)
+    dot.edge('ai_enrichment_py', 'database_py', label='updates records', color=DATA_COLOR)
+    
+    # Configuration usage
+    dot.edge('config_py', 'job_scraper_py', label='settings', color=CONFIG_COLOR, style='dashed')
+    dot.edge('config_py', 'ai_enrichment_py', label='API keys', color=CONFIG_COLOR, style='dashed')
+    dot.edge('env_file', 'config_py', label='env vars', color=CONFIG_COLOR, style='dashed')
+    
+    # External API calls
+    dot.edge('job_scraper_py', 'indeed_api', label='scrapes', color='#D32F2F', style='dashed')
+    dot.edge('ai_enrichment_py', 'together_ai_api', label='API calls', color='#D32F2F', style='dashed')
+    
+    # Data models usage
+    dot.edge('data_models_py', 'cv_processor_py', label='models', color=DATA_COLOR, style='dotted')
+    dot.edge('data_models_py', 'job_scraper_py', label='models', color=DATA_COLOR, style='dotted')
+    dot.edge('data_models_py', 'database_py', label='schema', color=DATA_COLOR, style='dotted')
+    
+    return dot
+
+def create_module_dependency_diagram():
+    """Create a module dependency diagram showing imports and relationships"""
+    
+    dot = Digraph(comment='SkillScopeJob - Module Dependencies')
+    dot.attr(rankdir='LR', size='18,10', dpi='200')
+    dot.attr('node', shape='box', style='rounded,filled', fontsize='10')
+    
+    # Python modules with their dependencies
+    modules = {
+        'main.py': {
+            'imports': ['streamlit', 'app'],
+            'color': '#1976D2',
+            'description': 'Entry Point\n\n• App launcher\n• Configuration'
+        },
+        'app.py': {
+            'imports': ['streamlit', 'cv_processor', 'job_matcher', 'ui_components', 'database'],
+            'color': '#4CAF50',
+            'description': 'Main App\n\n• UI logic\n• User flow\n• State management'
+        },
+        'cv_processor.py': {
+            'imports': ['pandas', 'PyPDF2', 'docx', 'data_models'],
+            'color': '#FF9800',
+            'description': 'CV Processing\n\n• PDF parsing\n• Text extraction\n• Skill analysis'
+        },
+        'job_scraper.py': {
+            'imports': ['jobspy', 'pandas', 'requests', 'database', 'config'],
+            'color': '#FF9800',
+            'description': 'Job Scraping\n\n• Web scraping\n• Data collection\n• API integration'
+        },
+        'job_matcher.py': {
+            'imports': ['pandas', 'numpy', 'database', 'ai_enrichment', 'data_models'],
+            'color': '#FF9800',
+            'description': 'Job Matching\n\n• Relevance scoring\n• Profile matching\n• Result ranking'
+        },
+        'ai_enrichment.py': {
+            'imports': ['openai', 'requests', 'pandas', 'config', 'database'],
+            'color': '#9C27B0',
+            'description': 'AI Enhancement\n\n• LLM processing\n• Data enrichment\n• Smart analysis'
+        },
+        'database.py': {
+            'imports': ['sqlite3', 'pandas', 'datetime', 'data_models'],
+            'color': '#795548',
+            'description': 'Database Layer\n\n• SQLite operations\n• Data persistence\n• Query management'
+        },
+        'ui_components.py': {
+            'imports': ['streamlit', 'plotly', 'pandas'],
+            'color': '#4CAF50',
+            'description': 'UI Components\n\n• Custom widgets\n• Charts & graphs\n• Interactive elements'
+        },
+        'data_models.py': {
+            'imports': ['dataclasses', 'typing', 'datetime'],
+            'color': '#607D8B',
+            'description': 'Data Models\n\n• Type definitions\n• Data structures\n• Validation'
+        },
+        'config.py': {
+            'imports': ['os', 'dotenv'],
+            'color': '#607D8B',
+            'description': 'Configuration\n\n• Settings\n• Environment vars\n• Constants'
+        }
+    }
+    
+    # Add module nodes
+    for module, info in modules.items():
+        dot.node(module.replace('.py', ''), f"{module}\n\n{info['description']}", 
+                fillcolor=f"{info['color']}30", color=info['color'])
+    
+    # Add dependency edges
+    for module, info in modules.items():
+        module_name = module.replace('.py', '')
+        for imported in info['imports']:
+            if imported in [m.replace('.py', '') for m in modules.keys()]:
+                dot.edge(module_name, imported, label='imports', color=info['color'], style='dashed')
+    
+    # Add external library dependencies
+    external_libs = {
+        'streamlit': '#FF4B4B',
+        'pandas': '#150458',
+        'jobspy': '#FFA500',
+        'sqlite3': '#003B57',
+        'openai': '#412991',
+        'plotly': '#3F4F75'
+    }
+    
+    for lib, color in external_libs.items():
+        dot.node(lib, f"{lib}\n(External Library)", fillcolor=f"{color}20", color=color, shape='ellipse')
+    
+    # Connect modules to external libraries
+    for module, info in modules.items():
+        module_name = module.replace('.py', '')
+        for imported in info['imports']:
+            if imported in external_libs:
+                dot.edge(module_name, imported, label='uses', color=external_libs[imported], style='dotted')
+    
+    return dot
+
+def create_application_flow_with_files():
+    """Create application flow showing file execution order and data flow"""
+    
+    dot = Digraph(comment='SkillScopeJob - Application Flow with Files')
+    dot.attr(rankdir='TB', size='14,16', dpi='200')
+    dot.attr('node', shape='box', style='rounded,filled', fontsize='10')
+    
+    # Execution phases with files
+    phases = [
+        {
+            'name': 'initialization',
+            'label': '🚀 INITIALIZATION PHASE',
+            'files': [
+                ('main_py', 'main.py\nLaunches Streamlit app', '#E3F2FD'),
+                ('config_load', 'config.py\nLoads environment settings', '#ECEFF1'),
+                ('database_init', 'database.py\nInitializes SQLite connection', '#F3E5F5')
+            ]
+        },
+        {
+            'name': 'user_interaction',
+            'label': '👤 USER INTERACTION PHASE',
+            'files': [
+                ('app_start', 'app.py\nRenders main interface', '#E8F5E8'),
+                ('ui_components', 'ui_components.py\nDisplays upload forms', '#E8F5E8'),
+                ('file_upload', 'User uploads CV file\n(PDF/DOCX)', '#FFF9C4')
+            ]
+        },
+        {
+            'name': 'cv_processing',
+            'label': '📄 CV PROCESSING PHASE',
+            'files': [
+                ('cv_parse', 'cv_processor.py\nParses uploaded CV', '#FFF3E0'),
+                ('skill_extract', 'Extract skills & experience\nCreate user profile', '#FFF3E0'),
+                ('profile_save', 'database.py\nSaves user profile', '#F3E5F5')
+            ]
+        },
+        {
+            'name': 'job_search',
+            'label': '🔍 JOB SEARCH PHASE',
+            'files': [
+                ('job_scrape', 'job_scraper.py\nScrapes job sites', '#FFEBEE'),
+                ('indeed_api', 'Indeed API\nFetches job listings', '#FFCDD2'),
+                ('job_store', 'database.py\nStores raw job data', '#F3E5F5')
+            ]
+        },
+        {
+            'name': 'ai_enhancement',
+            'label': '🤖 AI ENHANCEMENT PHASE',
+            'files': [
+                ('ai_process', 'ai_enrichment.py\nEnhances job data', '#F3E5F5'),
+                ('together_ai', 'Together AI API\nLLM processing', '#E1F5FE'),
+                ('data_update', 'database.py\nUpdates enriched data', '#F3E5F5')
+            ]
+        },
+        {
+            'name': 'matching',
+            'label': '🎯 MATCHING PHASE',
+            'files': [
+                ('job_match', 'job_matcher.py\nMatches jobs to profile', '#E8F5E8'),
+                ('relevance_score', 'Calculate relevance scores\nRank results', '#E8F5E8'),
+                ('final_results', 'app.py\nDisplays ranked results', '#E8F5E8')
+            ]
+        }
+    ]
+    
+    # Create phase clusters
+    prev_phase_files = []
+    for phase in phases:
+        with dot.subgraph(name=f'cluster_{phase["name"]}') as c:
+            c.attr(label=phase['label'], style='rounded', fontsize='12')
+            
+            phase_files = []
+            for file_id, file_label, color in phase['files']:
+                c.node(file_id, file_label, fillcolor=color)
+                phase_files.append(file_id)
+            
+            # Connect files within phase
+            for i in range(len(phase_files) - 1):
+                dot.edge(phase_files[i], phase_files[i + 1], style='bold')
+            
+            # Connect to previous phase
+            if prev_phase_files:
+                dot.edge(prev_phase_files[-1], phase_files[0], color='red', style='bold')
+            
+            prev_phase_files = phase_files
+    
+    return dot
+
+def create_repository_structure_view():
+    """Create a visual representation of the project repository structure"""
+    
+    dot = Digraph(comment='SkillScopeJob - Repository Structure')
+    dot.attr(rankdir='TB', size='12,14', dpi='200')
+    dot.attr('node', shape='folder', style='filled', fontsize='10')
+    
+    # Root folder
+    dot.node('root', 'SkillScopeJob-1/\n📁 Root Directory', fillcolor='#FFF3E0')
+    
+    # Main application files
+    dot.node('app_files', '📄 Application Files\n\n• main.py\n• app.py\n• cv_processor.py\n• job_scraper.py\n• job_matcher.py\n• ai_enrichment.py', 
+             fillcolor='#E3F2FD', shape='box')
+    
+    # Data and database files
+    dot.node('data_files', '💾 Data Files\n\n• database.py\n• data_models.py\n• jobs.db (SQLite)', 
+             fillcolor='#F3E5F5', shape='box')
+    
+    # Configuration files
+    dot.node('config_files', '⚙️ Configuration\n\n• config.py\n• .env\n• requirements.txt', 
+             fillcolor='#ECEFF1', shape='box')
+    
+    # UI and assets
+    dot.node('ui_files', '🎨 UI & Assets\n\n• ui_components.py\n• styles.css\n• images/\n• templates/', 
+             fillcolor='#E8F5E8', shape='box')
+    
+    # Documentation
+    dot.node('docs', '📚 Documentation\n\n• README.md\n• system_architecture.py\n• docs/', 
+             fillcolor='#FFF8E1', shape='box')
+    
+    # Tests (if they exist)
+    dot.node('tests', '🧪 Tests\n\n• test_cv_processor.py\n• test_job_matcher.py\n• tests/', 
+             fillcolor='#FFEBEE', shape='box')
+    
+    # Logs and temp files
+    dot.node('temp_files', '📝 Runtime Files\n\n• logs/\n• temp/\n• uploads/\n• cache/', 
+             fillcolor='#F5F5F5', shape='box')
+    
+    # Connect to root
+    for node in ['app_files', 'data_files', 'config_files', 'ui_files', 'docs', 'tests', 'temp_files']:
+        dot.edge('root', node)
+    
+    # Show relationships between file groups
+    dot.edge('app_files', 'data_files', label='uses', style='dashed')
+    dot.edge('app_files', 'config_files', label='imports', style='dashed')
+    dot.edge('app_files', 'ui_files', label='renders', style='dashed')
+    dot.edge('tests', 'app_files', label='tests', style='dotted')
+    
+    return dot
+
+def create_comprehensive_system_overview():
+    """Create the most comprehensive system overview with everything"""
+    
+    dot = Digraph(comment='SkillScopeJob - Comprehensive System Overview')
+    dot.attr(rankdir='TB', size='20,14', dpi='200')
+    dot.attr('node', shape='box', style='rounded,filled', fontsize='9')
+    
+    # User and environment
+    dot.node('user', '👤 USER\n\n• Uploads CV\n• Sets preferences\n• Views results', 
+             fillcolor='#E1F5FE', shape='ellipse')
+    dot.node('browser', '🌐 Web Browser\n\nStreamlit Interface\nRunning on localhost:8501', 
+             fillcolor='#E8F5E8')
+    
+    # Main application cluster
+    with dot.subgraph(name='cluster_main_app') as c:
+        c.attr(label='🚀 MAIN APPLICATION (Python)', style='rounded', color='#1976D2')
+        
+        # Entry point
+        c.node('main_py', 'main.py\n\n• Entry point\n• Streamlit runner\n• App configuration', 
+               fillcolor='#E3F2FD')
+        
+        # Core application
+        c.node('app_py', 'app.py\n\n• Main UI logic\n• User interactions\n• State management\n• Result display', 
+               fillcolor='#E3F2FD')
+        
+        # UI components
+        c.node('ui_comp', 'ui_components.py\n\n• Custom widgets\n• Forms & inputs\n• Charts & visualizations', 
+               fillcolor='#E8F5E8')
+    
+    # Processing engines cluster
+    with dot.subgraph(name='cluster_processing') as c:
+        c.attr(label='⚙️ PROCESSING ENGINES', style='rounded', color='#FF9800')
+        
+        c.node('cv_proc', 'cv_processor.py\n\n• PDF/DOCX parsing\n• Text extraction\n• Skill detection\n• Profile creation', 
+               fillcolor='#FFF3E0')
+        
+        c.node('job_scraper', 'job_scraper.py\n\n• Web scraping\n• Job data collection\n• Indeed integration\n• Data cleaning', 
+               fillcolor='#FFF3E0')
+        
+        c.node('job_matcher', 'job_matcher.py\n\n• Profile matching\n• Relevance scoring\n• Result ranking\n• Personalization', 
+               fillcolor='#FFF3E0')
+        
+        c.node('ai_enrich', 'ai_enrichment.py\n\n• LLM integration\n• Data enhancement\n• Smart analysis\n• Company research', 
+               fillcolor='#F3E5F5')
+    
+    # Data layer cluster
+    with dot.subgraph(name='cluster_data') as c:
+        c.attr(label='💾 DATA LAYER', style='rounded', color='#7B1FA2')
+        
+        c.node('database_py', 'database.py\n\n• SQLite operations\n• CRUD functions\n• Query management\n• Schema handling', 
+               fillcolor='#F3E5F5')
+        
+        c.node('data_models', 'data_models.py\n\n• Data structures\n• Type definitions\n• Validation logic', 
+               fillcolor='#F3E5F5')
+        
+        c.node('sqlite_db', 'jobs.db\n\n📊 SQLite Database\n• Job postings\n• User profiles\n• Search history', 
+               fillcolor='#EFEBE9', shape='cylinder')
+    
+    # Configuration cluster
+    with dot.subgraph(name='cluster_config') as c:
+        c.attr(label='⚙️ CONFIGURATION', style='rounded', color='#607D8B')
+        
+        c.node('config_py', 'config.py\n\n• App settings\n• API configuration\n• Constants', 
+               fillcolor='#ECEFF1')
+        
+        c.node('env_vars', '.env\n\n• Environment variables\n• Secret keys\n• Local settings', 
+               fillcolor='#ECEFF1')
+        
+        c.node('requirements', 'requirements.txt\n\n• Python dependencies\n• Package versions', 
+               fillcolor='#ECEFF1')
+    
+    # External services
+    with dot.subgraph(name='cluster_external') as c:
+        c.attr(label='🌐 EXTERNAL SERVICES', style='rounded', color='#D32F2F')
+        
+        c.node('indeed', 'Indeed API\n\n• Job listings\n• Company data\n• Search results', 
+               fillcolor='#FFEBEE', shape='ellipse')
+        
+        c.node('together_ai', 'Together AI\n\n• Llama 3.3 70B\n• Text processing\n• AI analysis', 
+               fillcolor='#FFEBEE', shape='ellipse')
+    
+    # Main user flow
+    dot.edge('user', 'browser', label='interacts', color='#1976D2', style='bold')
+    dot.edge('browser', 'main_py', label='HTTP requests', color='#1976D2', style='bold')
+    dot.edge('main_py', 'app_py', label='launches', color='#1976D2', style='bold')
+    dot.edge('app_py', 'ui_comp', label='renders UI', color='#4CAF50')
+    
+    # Processing flow
+    dot.edge('app_py', 'cv_proc', label='CV file', color='#FF9800', style='bold')
+    dot.edge('cv_proc', 'job_scraper', label='search criteria', color='#FF9800', style='bold')
+    dot.edge('job_scraper', 'ai_enrich', label='raw job data', color='#FF9800', style='bold')
+    dot.edge('ai_enrich', 'job_matcher', label='enriched data', color='#FF9800', style='bold')
+    dot.edge('job_matcher', 'app_py', label='ranked results', color='#4CAF50', style='bold')
+    
+    # Data interactions
+    dot.edge('cv_proc', 'database_py', label='save profile', color='#7B1FA2')
+    dot.edge('job_scraper', 'database_py', label='store jobs', color='#7B1FA2')
+    dot.edge('ai_enrich', 'database_py', label='update data', color='#7B1FA2')
+    dot.edge('job_matcher', 'database_py', label='query jobs', color='#7B1FA2')
+    dot.edge('database_py', 'sqlite_db', label='SQL operations', color='#795548')
+    
+    # Configuration usage
+    dot.edge('config_py', 'job_scraper', label='settings', color='#607D8B', style='dashed')
+    dot.edge('config_py', 'ai_enrich', label='API keys', color='#607D8B', style='dashed')
+    dot.edge('env_vars', 'config_py', label='env vars', color='#607D8B', style='dashed')
+    
+    # External API calls
+    dot.edge('job_scraper', 'indeed', label='scrapes jobs', color='#D32F2F', style='dashed')
+    dot.edge('ai_enrich', 'together_ai', label='LLM requests', color='#D32F2F', style='dashed')
+    
+    # Data model usage
+    dot.edge('data_models', 'cv_proc', label='models', color='#9C27B0', style='dotted')
+    dot.edge('data_models', 'job_scraper', label='models', color='#9C27B0', style='dotted')
+    dot.edge('data_models', 'database_py', label='schema', color='#9C27B0', style='dotted')
+    
+    return dot
+
 def main():
-    """Generate multiple alternative architecture diagrams"""
+    """Generate the two specific architecture diagrams"""
     
-    print("🏗️ Creating Multiple Architecture Views...")
+    print("🏗️ Creating Architecture Diagrams...")
     
-    # 1. Layered Architecture
-    layered = create_layered_architecture()
-    layered.render('skillscope_layered_architecture', format='png', cleanup=True)
-    print("✅ Layered architecture: skillscope_layered_architecture.png")
-    
-    # 2. User Journey Flow
-    journey = create_user_journey_flow()
-    journey.render('skillscope_user_journey', format='png', cleanup=True)
-    print("✅ User journey flow: skillscope_user_journey.png")
-    
-    # 3. Technology Stack
-    tech_stack = create_technology_stack()
-    tech_stack.render('skillscope_technology_stack', format='png', cleanup=True)
-    print("✅ Technology stack: skillscope_technology_stack.png")
-    
-    # 4. Data Transformation Flow
-    data_flow = create_data_transformation_flow()
-    data_flow.render('skillscope_data_transformation', format='png', cleanup=True)
-    print("✅ Data transformation: skillscope_data_transformation.png")
-    
-    # 5. Component Interaction
+    # 1. Component Interaction (matches your first attachment)
     components = create_component_interaction()
     components.render('skillscope_component_interaction', format='png', cleanup=True)
     print("✅ Component interaction: skillscope_component_interaction.png")
     
-    # 6. Simple Overview
-    simple = create_simple_overview()
-    simple.render('skillscope_simple_overview', format='png', cleanup=True)
-    print("✅ Simple overview: skillscope_simple_overview.png")
+    # 2. Layered Architecture (matches your second attachment)
+    layered = create_layered_architecture()
+    layered.render('skillscope_layered_architecture', format='png', cleanup=True)
+    print("✅ Layered architecture: skillscope_layered_architecture.png")
     
-    # Original enhanced architecture
-    arch = create_simplified_architecture()
-    arch.render('skillscopejob_ai_architecture', format='png', cleanup=True)
-    print("✅ Enhanced architecture: skillscopejob_ai_architecture.png")
-    
-    print("\n📊 All architecture diagrams generated!")
+    print("\n📊 Architecture diagrams generated!")
     print("\nDiagrams created:")
-    print("  1. skillscope_layered_architecture.png (Clean layer separation)")
-    print("  2. skillscope_user_journey.png (User-centric flow)")
-    print("  3. skillscope_technology_stack.png (Technical components)")
-    print("  4. skillscope_data_transformation.png (Data processing pipeline)")
-    print("  5. skillscope_component_interaction.png (Component relationships)")
-    print("  6. skillscope_simple_overview.png (Simplest explanation)")
-    print("  7. skillscopejob_ai_architecture.png (Detailed AI architecture)")
+    print("  1. skillscope_component_interaction.png (Component interactions & data flow)")
+    print("  2. skillscope_layered_architecture.png (Clean layer separation)")
 
 if __name__ == "__main__":
     main()
