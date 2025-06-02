@@ -1,11 +1,12 @@
 import os
 import uuid
 import csv
-from datetime import datetime
 import json
 import logging
 import streamlit as st
 import streamlit.components.v1 as components
+import sqlite3
+from datetime import datetime
 
 # Set page config at the top level
 if 'page_config_set' not in st.session_state:
@@ -361,13 +362,33 @@ def run_app():
         # Pre-populate languages if available from CV
         cv_languages = cv_suggestions.get('languages', [])
         job_languages_options = ["Danish", "English", "German", "Swedish", "Norwegian", "French", "Spanish", "Other"]
-        # Map CV languages to options
+        
+        # Improved language mapping
         default_job_languages = []
         for lang in cv_languages:
-            lang_lower = lang.lower()
-            if any(opt.lower().startswith(lang_lower[:3]) for opt in job_languages_options):
-                matching_opt = next(opt for opt in job_languages_options if opt.lower().startswith(lang_lower[:3]))
-                default_job_languages.append(matching_opt)
+            lang_lower = lang.lower().strip()
+            # Direct matches first
+            for opt in job_languages_options:
+                if lang_lower == opt.lower():
+                    default_job_languages.append(opt)
+                    break
+            else:
+                # Partial matches for common variations
+                if any(x in lang_lower for x in ['english', 'eng']):
+                    if 'English' not in default_job_languages:
+                        default_job_languages.append('English')
+                elif any(x in lang_lower for x in ['danish', 'dansk']):
+                    if 'Danish' not in default_job_languages:
+                        default_job_languages.append('Danish')
+                elif any(x in lang_lower for x in ['german', 'deutsch', 'tysk']):
+                    if 'German' not in default_job_languages:
+                        default_job_languages.append('German')
+                elif any(x in lang_lower for x in ['spanish', 'español']):
+                    if 'Spanish' not in default_job_languages:
+                        default_job_languages.append('Spanish')
+                elif any(x in lang_lower for x in ['french', 'français']):
+                    if 'French' not in default_job_languages:
+                        default_job_languages.append('French')
         
         job_languages = cols_profil1[1].multiselect(
             "🌍 Preferred Job Languages:", 
@@ -389,14 +410,40 @@ def run_app():
 
         st.header("3. 🎯 Target Roles and Specific Industries")
         
-        # Pre-select target roles from CV if available
+        # Improved target roles selection from CV
         cv_target_roles = cv_suggestions.get('target_roles', [])
+        
+        # Find matches in the ontology
+        matched_roles = []
+        for cv_role in cv_target_roles:
+            cv_role_lower = cv_role.lower()
+            # Direct match first
+            for option in roles_options:
+                if cv_role_lower == option.lower():
+                    matched_roles.append(option)
+                    break
+            else:
+                # Partial match for similar roles
+                for option in roles_options:
+                    if any(word in option.lower() for word in cv_role_lower.split() if len(word) > 3):
+                        matched_roles.append(option)
+                        break
+        
         target_roles_selected = st.multiselect(
             "Target Role(s) and/or Industry(ies) (from list):", 
             roles_options,
-            default=[role for role in cv_target_roles if role in roles_options]
+            default=matched_roles
         )
-        target_roles_custom = st.text_area("Other Target Roles/Industries (custom, comma-separated):", height=75)
+        
+        # Pre-populate custom roles with unmatched CV roles
+        unmatched_roles = [role for role in cv_target_roles if role not in matched_roles]
+        default_custom_roles = ', '.join(unmatched_roles) if unmatched_roles else ''
+        
+        target_roles_custom = st.text_area(
+            "Other Target Roles/Industries (custom, comma-separated):", 
+            value=default_custom_roles,
+            height=75
+        )
 
         st.header("4. 🛠️ Current Skills")
         
@@ -897,9 +944,9 @@ def run_app():
                                 
                                 with header_col2:
                                     relevance_score = job.get('relevance_score', 1)
-                                    if relevance_score >= 3:
+                                    if relevance_score >= 8:
                                         st.markdown("🎯 **Excellent**")
-                                    elif relevance_score >= 2:
+                                    elif relevance_score >= 5:
                                         st.markdown("🟡 **Good**")
                                     else:
                                         st.markdown("🔴 **Fair**")
@@ -953,9 +1000,10 @@ def run_app():
                                     if job.get('job_url'):
                                         st.link_button("🔗 View Job", job['job_url'], use_container_width=True)
                                     
-                                    # Relevance score visualization
-                                    score_percentage = (relevance_score / 3) * 100
-                                    st.progress(score_percentage / 100)
+                                    # Relevance score visualization - FIX THE PROGRESS BAR ERROR
+                                    score_percentage = min(100, max(0, (relevance_score / 10) * 100))  # Normalize to 0-100
+                                    progress_value = score_percentage / 100  # Convert to 0.0-1.0 for progress bar
+                                    st.progress(progress_value)
                                     st.caption(f"Match: {score_percentage:.0f}%")
                                     
                                     # Database source indicator
@@ -968,17 +1016,17 @@ def run_app():
                             stats_col1, stats_col2, stats_col3 = st.columns(3)
                             
                             with stats_col1:
-                                excellent_matches = len([job for job in matches if job.get('relevance_score', 1) >= 3])
+                                excellent_matches = len([job for job in matches if job.get('relevance_score', 1) >= 8])
                                 st.metric("🎯 Excellent Matches", excellent_matches)
                             
                             with stats_col2:
-                                good_matches = len([job for job in matches if job.get('relevance_score', 1) == 2])
+                                good_matches = len([job for job in matches if job.get('relevance_score', 1) >= 5 and job.get('relevance_score', 1) < 8])
                                 st.metric("🟡 Good Matches", good_matches)
                             
                             with stats_col3:
                                 companies = len(set([job.get('company', '').lower() for job in matches if job.get('company')]))
                                 st.metric("🏢 Unique Companies", companies)
-                    
+
                     except Exception as e:
                         st.error(f"❌ Error displaying job matches: {str(e)}")
                         st.info("💡 Jobs were found in database but couldn't be displayed properly")
@@ -1023,9 +1071,6 @@ def run_app():
                         
                         # Database connection test
                         try:
-                            import sqlite3
-                            import os
-                            
                             db_path = "indeed_jobs.db"
                             if os.path.exists(db_path):
                                 conn = sqlite3.connect(db_path)
@@ -1341,10 +1386,10 @@ def run_app():
                         else:
                             st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
 
-            elif not CV_EVALUATION_AVAILABLE:
-                st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")
-                st.markdown("To enable CV evaluation:")
-                st.code("pip install langchain-together")
+    elif not CV_EVALUATION_AVAILABLE:
+        st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")
+        st.markdown("To enable CV evaluation:")
+        st.code("pip install langchain-together")
 
     # --- Debugging: Show session state ---
     # st.subheader("🔧 Debug: Session State")

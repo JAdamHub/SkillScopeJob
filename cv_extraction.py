@@ -206,41 +206,48 @@ class LLMCVExtractor:
     def _create_extraction_prompt(self, cv_text: str) -> str:
         """Create extraction prompt for LLM"""
         return f"""
-Parse this CV/resume and extract structured information. Return ONLY valid JSON with this exact structure:
+Parse this CV/resume and extract structured information. Return ONLY valid JSON with this exact structure.
+
+IMPORTANT INSTRUCTIONS:
+- For languages: Include ALL languages mentioned (English, Danish, German, etc.)
+- For experience_entries: Convert any duration to numeric years (e.g., "2 years 3 months" = 2.25, "6 months" = 0.5)
+- For skills: Include programming languages, tools, frameworks, soft skills, etc.
+- For job titles: Extract exact titles from work experience
+- For suggested_job_title_keywords: Create 3-5 searchable job titles based on the person's experience
 
 {{
-    "name": "full name",
-    "email": "email address",
-    "phone": "phone number",
-    "linkedin": "linkedin profile",
-    "personal_summary": "professional summary or objective",
+    "name": "full name from CV",
+    "email": "email address if found",
+    "phone": "phone number if found",
+    "linkedin": "linkedin profile URL if found",
+    "personal_summary": "professional summary or objective section",
     "skills": {{
-        "technical": ["list", "of", "technical", "skills"],
-        "soft": ["list", "of", "soft", "skills"],
-        "all": ["combined", "list", "of", "all", "skills"]
+        "technical": ["Python", "Java", "SQL", "React", "etc"],
+        "soft": ["Leadership", "Communication", "Problem solving", "etc"],
+        "all": ["combined list of ALL skills mentioned"]
     }},
-    "languages": ["list", "of", "languages"],
+    "languages": ["English", "Danish", "German", "Spanish", "etc - ALL languages mentioned"],
     "education_entries": [
         {{
-            "degree": "degree name",
-            "field_of_study": "field of study",
-            "institution": "institution name",
-            "graduation_year": "year"
+            "degree": "Bachelor/Master/PhD/etc",
+            "field_of_study": "Computer Science/Engineering/Business/etc",
+            "institution": "University name",
+            "graduation_year": "2020"
         }}
     ],
     "experience_entries": [
         {{
-            "job_title": "job title",
+            "job_title": "exact job title from CV",
             "company": "company name",
             "years_in_role": 2.5,
-            "skills_responsibilities": "key skills and responsibilities"
+            "skills_responsibilities": "key responsibilities and skills used in this role"
         }}
     ],
-    "suggested_job_title_keywords": ["keyword1", "keyword2", "keyword3"]
+    "suggested_job_title_keywords": ["Software Developer", "Python Engineer", "Backend Developer", "Data Scientist", "Project Manager"]
 }}
 
-CV Text:
-{cv_text[:3000]}
+CV Text to parse:
+{cv_text[:4000]}
 """
 
     def _parse_llm_response(self, response: str) -> Dict:
@@ -369,23 +376,44 @@ CV Text:
         # Suggest overall field based on education and experience
         education_fields = [entry.get('field_of_study', '') for entry in cv_data.get('education_entries', [])]
         job_titles = [entry.get('job_title', '') for entry in cv_data.get('experience_entries', [])]
+        skills = cv_data.get('skills', {}).get('all', [])
         
-        all_text = ' '.join(education_fields + job_titles).lower()
+        all_text = ' '.join(education_fields + job_titles + skills).lower()
         
-        if any(term in all_text for term in ['software', 'programming', 'developer', 'engineer']):
-            suggestions['overall_field'] = 'Software Development'
-        elif any(term in all_text for term in ['data', 'analytics', 'science', 'machine learning']):
+        # Improved field detection
+        if any(term in all_text for term in ['data scien', 'machine learning', 'ai', 'analytics', 'data analy']):
             suggestions['overall_field'] = 'Data Science & AI'
-        elif any(term in all_text for term in ['project', 'management', 'manager']):
+        elif any(term in all_text for term in ['software', 'programming', 'developer', 'engineer', 'python', 'java', 'javascript']):
+            suggestions['overall_field'] = 'Software Development'
+        elif any(term in all_text for term in ['project manager', 'project management', 'scrum master', 'agile']):
             suggestions['overall_field'] = 'Project Management'
-        elif any(term in all_text for term in ['design', 'ux', 'ui', 'graphic']):
+        elif any(term in all_text for term in ['ux', 'ui', 'design', 'graphic', 'visual']):
             suggestions['overall_field'] = 'UX/UI Design'
+        elif any(term in all_text for term in ['marketing', 'sales', 'business development']):
+            suggestions['overall_field'] = 'Marketing & Sales'
+        elif any(term in all_text for term in ['finance', 'economics', 'accounting', 'financial']):
+            suggestions['overall_field'] = 'Finance & Economics'
         else:
             suggestions['overall_field'] = 'Software Development'  # Default
         
-        # Suggest target roles based on recent experience
-        recent_jobs = cv_data.get('experience_entries', [])[:2]  # Last 2 jobs
-        suggestions['target_roles'] = [job.get('job_title', '') for job in recent_jobs if job.get('job_title')]
+        # Extract target roles from job titles and suggest similar roles
+        target_roles = []
+        for job_title in job_titles:
+            if job_title:
+                # Clean up job title
+                clean_title = job_title.strip()
+                if clean_title:
+                    target_roles.append(clean_title)
+        
+        # Add some generic roles based on the overall field
+        if suggestions['overall_field'] == 'Software Development':
+            target_roles.extend(['Software Engineer', 'Software Developer'])
+        elif suggestions['overall_field'] == 'Data Science & AI':
+            target_roles.extend(['Data Scientist', 'Data Analyst'])
+        elif suggestions['overall_field'] == 'Project Management':
+            target_roles.extend(['Project Manager', 'Scrum Master'])
+        
+        suggestions['target_roles'] = list(set(target_roles))[:5]  # Remove duplicates, max 5
         
         # Calculate total experience
         total_years = sum(entry.get('years_in_role', 0) for entry in cv_data.get('experience_entries', []))
@@ -399,8 +427,10 @@ CV Text:
             suggestions['total_experience'] = '3-5 years'
         elif total_years >= 1:
             suggestions['total_experience'] = '1-3 years'
-        else:
+        elif total_years > 0:
             suggestions['total_experience'] = '0-1 year'
+        else:
+            suggestions['total_experience'] = 'None'
         
         return suggestions
 

@@ -334,20 +334,19 @@ class ProfileJobMatcher:
 
     def get_profile_job_matches(self, user_session_id: str, limit: int = 50) -> List[Dict]:
         """
-        Get job matches for a specific user profile with relevance scoring using enriched data
-        Always fetches from database - this is the primary source of job data
+        Get job matches using SIMPLE search_term based matching - much faster and more reliable
         """
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         try:
             # First, verify the database has data
-            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            cursor.execute("SELECT COUNT(*) FROM job_postings")
             total_jobs_in_db = cursor.fetchone()[0]
-            logger.info(f"Total jobs in database: {total_jobs_in_db}")
+            logger.info(f"Total jobs in job_postings table: {total_jobs_in_db}")
             
             if total_jobs_in_db == 0:
-                logger.warning("Database is empty - no jobs to match against")
+                logger.warning("job_postings table is empty - no jobs to match against")
                 return []
             
             # Get user profile
@@ -360,323 +359,441 @@ class ProfileJobMatcher:
             profile_row = cursor.fetchone()
             if not profile_row:
                 logger.warning(f"No profile found for user {user_session_id}")
-                return []
+                # Return recent jobs as fallback
+                return self._get_recent_jobs_simple(cursor, limit)
             
             profile_data = json.loads(profile_row[0])
-            job_titles = profile_data.get('job_title_keywords', [])
+            
+            # Extract matching criteria
+            job_keywords = profile_data.get('job_title_keywords', [])
             user_skills = profile_data.get('current_skills_selected', []) + profile_data.get('current_skills_custom', [])
             overall_field = profile_data.get('overall_field', '')
+            job_types = profile_data.get('job_types', [])
+            total_experience = profile_data.get('total_experience', 'None')
             
-            logger.info(f"Profile matching criteria - Keywords: {job_titles}, Skills: {user_skills[:3]}, Field: {overall_field}")
+            logger.info(f"Simple matching: keywords={job_keywords}, job_types={job_types}")
             
-            if not job_titles:
-                logger.warning("No job title keywords found in profile")
-                return []
+            # SUPER SIMPLE STRATEGY: Match based on search_term first, then add filters
+            all_matches = []
             
-            # Build comprehensive matching query using enriched data
-            title_conditions = []
-            params = []
+            # 1. PRIMARY: Direct search_term matching (jobs found by these exact keywords)
+            if job_keywords:
+                search_term_matches = self._match_by_search_terms(cursor, job_keywords, limit * 2)
+                logger.info(f"Search term matching found {len(search_term_matches)} jobs")
+                all_matches.extend(search_term_matches)
             
-            # Add title matching conditions
-            for title in job_titles:
-                title_conditions.append("LOWER(title) LIKE ?")
-                params.append(f"%{title.lower()}%")
+            # 2. SECONDARY: Add job type filtering (student job, etc.)
+            if job_types and all_matches:
+                all_matches = self._filter_by_job_types(all_matches, job_types)
+                logger.info(f"After job type filtering: {len(all_matches)} jobs")
             
-            title_condition_sql = " OR ".join(title_conditions)
+            # 3. TERTIARY: Add simple skill bonus scoring
+            if user_skills and all_matches:
+                all_matches = self._add_skill_bonus_scoring(all_matches, user_skills)
             
-            # Create skills pattern for description matching
-            skill_keywords = " ".join(user_skills[:5]).lower() if user_skills else ""
+            # 4. FALLBACK: If we don't have enough matches, add some recent jobs
+            if len(all_matches) < 10:
+                recent_matches = self._get_recent_jobs_simple(cursor, limit)
+                logger.info(f"Adding {len(recent_matches)} recent jobs as fallback")
+                all_matches.extend(recent_matches)
             
-            # Create industry pattern matching
-            industry_pattern = f"%{overall_field.lower()}%" if overall_field else "%"
+            # Remove duplicates and add experience-based scoring
+            unique_matches = self._deduplicate_and_add_experience_scoring(all_matches, total_experience)
             
-            # Enhanced query with better scoring
-            query = f"""
-            SELECT *, 
-                   CASE 
-                       WHEN ({title_condition_sql}) THEN 3
-                       WHEN LOWER(company_industry) LIKE ? AND ? != '%' THEN 2
-                       WHEN LOWER(description) LIKE ? AND ? != '%' THEN 2
-                       WHEN LOWER(company_description) LIKE ? AND ? != '%' THEN 1
-                       ELSE 1
-                   END as relevance_score,
-                   CASE 
-                       WHEN company_industry IS NOT NULL AND company_industry != '' THEN 1
-                       ELSE 0
-                   END as has_enriched_data
-            FROM {TABLE_NAME}
-            WHERE ({title_condition_sql})
-               OR (LOWER(company_industry) LIKE ? AND ? != '%')
-               OR (LOWER(description) LIKE ? AND ? != '%')
-               OR (LOWER(company_description) LIKE ? AND ? != '%')
-            ORDER BY relevance_score DESC, has_enriched_data DESC, scraped_timestamp DESC
-            LIMIT ?
-            """
+            # Sort by relevance score and return
+            final_matches = sorted(unique_matches, key=lambda x: x.get('relevance_score', 1), reverse=True)[:limit]
             
-            # Build complete parameter list - handle empty patterns carefully
-            skill_pattern = f"%{skill_keywords}%" if skill_keywords.strip() else "%none%"
-            industry_pattern_safe = industry_pattern if overall_field else "%none%"
+            if final_matches:
+                scores = [m.get('relevance_score', 1) for m in final_matches]
+                logger.info(f"Final result: {len(final_matches)} matches with scores {min(scores)}-{max(scores)}")
+            else:
+                logger.warning("No matches found")
             
-            complete_params = (
-                params +  # Title conditions for CASE
-                [industry_pattern_safe, overall_field] +  # Industry for CASE with check
-                [skill_pattern, skill_keywords] +  # Skills for description CASE with check  
-                [skill_pattern, skill_keywords] +  # Skills for company_description CASE with check
-                params +  # Title conditions for WHERE
-                [industry_pattern_safe, overall_field] +  # Industry for WHERE with check
-                [skill_pattern, skill_keywords] +  # Skills for description WHERE with check
-                [skill_pattern, skill_keywords] +  # Skills for company_description WHERE with check
-                [limit]
-            )
-            
-            logger.info(f"Executing database query with {len(complete_params)} parameters")
-            cursor.execute(query, complete_params)
-            jobs = cursor.fetchall()
-            
-            # Convert to dictionaries
-            columns = [description[0] for description in cursor.description]
-            job_matches = [dict(zip(columns, job)) for job in jobs]
-            
-            # Log detailed matching statistics
-            enriched_count = sum(1 for job in job_matches if job.get('has_enriched_data'))
-            score_distribution = {}
-            for job in job_matches:
-                score = job.get('relevance_score', 1)
-                score_distribution[score] = score_distribution.get(score, 0) + 1
-            
-            logger.info(f"Database query results for user {user_session_id}:")
-            logger.info(f"  - Total matches found: {len(job_matches)}")
-            logger.info(f"  - Jobs with enriched data: {enriched_count}/{len(job_matches)}")
-            logger.info(f"  - Score distribution: {score_distribution}")
-            
-            # Ensure we return the jobs even if scoring isn't perfect
-            if not job_matches and total_jobs_in_db > 0:
-                logger.warning("No matches found with current criteria, trying broader search...")
-                
-                # Fallback: just search by job titles without additional criteria
-                fallback_query = f"""
-                SELECT *, 2 as relevance_score, 0 as has_enriched_data
-                FROM {TABLE_NAME}
-                WHERE {title_condition_sql}
-                ORDER BY scraped_timestamp DESC
-                LIMIT ?
-                """
-                
-                cursor.execute(fallback_query, params + [limit])
-                fallback_jobs = cursor.fetchall()
-                job_matches = [dict(zip(columns, job)) for job in fallback_jobs]
-                
-                logger.info(f"Fallback search found {len(job_matches)} matches")
-            
-            return job_matches
+            return final_matches
             
         except Exception as e:
-            logger.error(f"Error getting job matches from database: {e}")
-            logger.error(f"Profile data keys: {list(profile_data.keys()) if 'profile_data' in locals() else 'Profile not loaded'}")
+            logger.error(f"Error getting job matches: {e}", exc_info=True)
             return []
         finally:
             conn.close()
+
+    def _match_by_search_terms(self, cursor, job_keywords: List[str], limit: int) -> List[Dict]:
+        """Match jobs where search_term contains our keywords - MOST RELIABLE method"""
+        matches = []
+        
+        try:
+            # Create search patterns for search_term column
+            search_patterns = []
+            params = []
+            
+            for keyword in job_keywords[:5]:  # Max 5 keywords
+                # Direct match in search_term
+                search_patterns.append("LOWER(search_term) LIKE ?")
+                params.append(f"%{keyword.lower()}%")
+            
+            if not search_patterns:
+                return matches
+            
+            where_clause = " OR ".join(search_patterns)
+            
+            query = f"""
+            SELECT 
+                id, title, company, company_url, job_url, location, is_remote, job_type, 
+                description, date_posted, company_industry, company_description, 
+                company_logo, scraped_timestamp, search_term, search_location
+            FROM job_postings
+            WHERE {where_clause}
+            ORDER BY scraped_timestamp DESC
+            LIMIT ?
+            """
+            
+            params.append(limit)
+            cursor.execute(query, params)
+            jobs = cursor.fetchall()
+            
+            columns = [
+                'id', 'title', 'company', 'company_url', 'job_url', 'location', 'is_remote', 
+                'job_type', 'description', 'date_posted', 'company_industry', 
+                'company_description', 'company_logo', 'scraped_timestamp', 
+                'search_term', 'search_location'
+            ]
+            
+            for job in jobs:
+                job_dict = dict(zip(columns, job))
+                job_dict['match_type'] = 'search_term'
+                job_dict['relevance_score'] = 70  # High base score for search_term matches
+                matches.append(job_dict)
+            
+            logger.info(f"Found {len(matches)} jobs matching search terms")
+            return matches
+            
+        except Exception as e:
+            logger.error(f"Error in search_term matching: {e}")
+            return []
+
+    def _filter_by_job_types(self, matches: List[Dict], job_types: List[str]) -> List[Dict]:
+        """Filter and score jobs based on selected job types"""
+        filtered_matches = []
+        
+        for job in matches:
+            title = job.get('title', '').lower()
+            description = job.get('description', '').lower()
+            base_score = job.get('relevance_score', 50)
+            
+            # Check for job type keywords and adjust score
+            score_adjustment = 0
+            matched_types = []
+            
+            for job_type in job_types:
+                if job_type == "Student job":
+                    if any(word in title or word in description for word in ['student', 'studiejob', 'deltid']):
+                        score_adjustment += 20
+                        matched_types.append('student')
+                
+                elif job_type == "New graduate":
+                    if any(word in title or word in description for word in ['graduate', 'nyuddannet', 'junior', 'entry']):
+                        score_adjustment += 15
+                        matched_types.append('graduate')
+                
+                elif job_type == "Internship":
+                    if any(word in title or word in description for word in ['intern', 'praktik', 'trainee']):
+                        score_adjustment += 20
+                        matched_types.append('internship')
+                
+                elif job_type == "Part-time":
+                    if any(word in title or word in description for word in ['part-time', 'deltid', 'part time']):
+                        score_adjustment += 10
+                        matched_types.append('part-time')
+                
+                elif job_type == "Full-time":
+                    if any(word in title or word in description for word in ['full-time', 'fuldtid', 'full time']):
+                        score_adjustment += 5
+                        matched_types.append('full-time')
+            
+            # Update job with new score and matched types
+            job['relevance_score'] = min(100, base_score + score_adjustment)
+            job['matched_job_types'] = matched_types
+            
+            # Include all jobs (don't filter out), just adjust scores
+            filtered_matches.append(job)
+        
+        return filtered_matches
+
+    def _add_skill_bonus_scoring(self, matches: List[Dict], user_skills: List[str]) -> List[Dict]:
+        """Add bonus points for skill matches in title/description"""
+        for job in matches:
+            title = job.get('title', '').lower()
+            description = job.get('description', '').lower()
+            base_score = job.get('relevance_score', 50)
+            
+            skill_bonus = 0
+            matched_skills = []
+            
+            for skill in user_skills[:5]:  # Top 5 skills
+                if len(skill) >= 3:  # Only meaningful skills
+                    if skill.lower() in title:
+                        skill_bonus += 8  # Higher bonus for title matches
+                        matched_skills.append(skill)
+                    elif skill.lower() in description:
+                        skill_bonus += 3  # Lower bonus for description matches
+                        matched_skills.append(skill)
+            
+            # Cap skill bonus
+            skill_bonus = min(20, skill_bonus)
+            
+            job['relevance_score'] = min(100, base_score + skill_bonus)
+            job['matched_skills'] = matched_skills[:3]  # Store top 3 matched skills
+        
+        return matches
+
+    def _deduplicate_and_add_experience_scoring(self, all_matches: List[Dict], total_experience: str) -> List[Dict]:
+        """Remove duplicates and add experience-based scoring"""
+        # Remove duplicates by job ID
+        seen_ids = set()
+        unique_matches = []
+        
+        for match in all_matches:
+            job_id = match.get('id')
+            if job_id not in seen_ids:
+                seen_ids.add(job_id)
+                unique_matches.append(match)
+        
+        # Add experience-based scoring
+        experience_score = self._get_experience_score(total_experience)
+        
+        for match in unique_matches:
+            title = match.get('title', '').lower()
+            base_score = match.get('relevance_score', 50)
+            
+            # Experience matching adjustment
+            experience_adjustment = 0
+            
+            if experience_score <= 30:  # Entry level/Student
+                if any(word in title for word in ['senior', 'lead', 'manager', 'director']):
+                    experience_adjustment = -15  # Penalty for too senior roles
+                elif any(word in title for word in ['junior', 'entry', 'student', 'graduate', 'trainee']):
+                    experience_adjustment = 10   # Bonus for appropriate level
+            
+            elif experience_score >= 70:  # Senior level
+                if any(word in title for word in ['senior', 'lead', 'principal', 'manager']):
+                    experience_adjustment = 10   # Bonus for senior roles
+                elif any(word in title for word in ['junior', 'entry', 'trainee']):
+                    experience_adjustment = -10  # Penalty for too junior roles
+            
+            match['relevance_score'] = max(1, min(100, base_score + experience_adjustment))
+        
+        return unique_matches
+
+    def _get_recent_jobs_simple(self, cursor, limit: int) -> List[Dict]:
+        """Get recent jobs as fallback with minimal scoring"""
+        try:
+            cursor.execute("""
+            SELECT 
+                id, title, company, company_url, job_url, location, is_remote, job_type, 
+                description, date_posted, company_industry, company_description, 
+                company_logo, scraped_timestamp, search_term, search_location
+            FROM job_postings
+            ORDER BY scraped_timestamp DESC
+            LIMIT ?
+            """, (limit,))
+            
+            jobs = cursor.fetchall()
+            columns = [
+                'id', 'title', 'company', 'company_url', 'job_url', 'location', 'is_remote', 
+                'job_type', 'description', 'date_posted', 'company_industry', 
+                'company_description', 'company_logo', 'scraped_timestamp', 
+                'search_term', 'search_location'
+            ]
+            
+            matches = []
+            for job in jobs:
+                job_dict = dict(zip(columns, job))
+                job_dict['match_type'] = 'recent'
+                job_dict['relevance_score'] = 30  # Lower score for fallback jobs
+                matches.append(job_dict)
+            
+            return matches
+            
+        except Exception as e:
+            logger.error(f"Error getting recent jobs: {e}")
+            return []
+
+    def _get_experience_score(self, total_experience: str) -> int:
+        """Convert experience string to numeric score"""
+        experience_mapping = {
+            'None': 10,
+            '0-1 year': 20,
+            '1-3 years': 35, 
+            '3-5 years': 50,
+            '5-10 years': 70,
+            '10-15 years': 85,
+            '15+ years': 95
+        }
+        return experience_mapping.get(total_experience, 30)
 
     def get_database_enrichment_status(self) -> Dict:
         """
         Get statistics about database enrichment status
+        Returns information about how many jobs have enhanced data
         """
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         try:
-            # Total records
-            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
-            total_records = cursor.fetchone()[0]
-            
-            # Records with enriched company info
-            cursor.execute(f"""
-            SELECT COUNT(*) FROM {TABLE_NAME} 
-            WHERE company_industry IS NOT NULL AND company_industry != ''
+            # Check if the table exists
+            cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='job_postings'
             """)
-            enriched_industry = cursor.fetchone()[0]
             
-            cursor.execute(f"""
-            SELECT COUNT(*) FROM {TABLE_NAME} 
-            WHERE company_description IS NOT NULL AND company_description != ''
-            """)
-            enriched_description = cursor.fetchone()[0]
+            if not cursor.fetchone():
+                return {
+                    'total_jobs': 0,
+                    'enriched_jobs': 0,
+                    'enrichment_percentage': 0,
+                    'has_industry_data': 0,
+                    'has_description_data': 0,
+                    'status': 'No job_postings table found'
+                }
             
-            # Records with company info
-            cursor.execute(f"""
-            SELECT COUNT(*) FROM {TABLE_NAME} 
-            WHERE company IS NOT NULL AND company != ''
-            """)
-            has_company = cursor.fetchone()[0]
+            # Get total job count
+            cursor.execute("SELECT COUNT(*) FROM job_postings")
+            total_jobs = cursor.fetchone()[0]
             
-            # Recent scraping activity
-            cursor.execute(f"""
-            SELECT COUNT(*) FROM {TABLE_NAME} 
-            WHERE date(scraped_timestamp) >= date('now', '-7 days')
+            if total_jobs == 0:
+                return {
+                    'total_jobs': 0,
+                    'enriched_jobs': 0,
+                    'enrichment_percentage': 0,
+                    'has_industry_data': 0,
+                    'has_description_data': 0,
+                    'status': 'No jobs in database'
+                }
+            
+            # Count jobs with company industry data
+            cursor.execute("""
+            SELECT COUNT(*) FROM job_postings 
+            WHERE company_industry IS NOT NULL 
+            AND company_industry != '' 
+            AND company_industry != 'Unknown'
             """)
-            recent_jobs = cursor.fetchone()[0]
+            has_industry_data = cursor.fetchone()[0]
+            
+            # Count jobs with description data
+            cursor.execute("""
+            SELECT COUNT(*) FROM job_postings 
+            WHERE description IS NOT NULL 
+            AND description != '' 
+            AND LENGTH(description) > 50
+            """)
+            has_description_data = cursor.fetchone()[0]
+            
+            # Count jobs with both description and some company info
+            cursor.execute("""
+            SELECT COUNT(*) FROM job_postings 
+            WHERE description IS NOT NULL 
+            AND description != '' 
+            AND LENGTH(description) > 50
+            AND company IS NOT NULL 
+            AND company != ''
+            """)
+            enriched_jobs = cursor.fetchone()[0]
+            
+            enrichment_percentage = (enriched_jobs / total_jobs * 100) if total_jobs > 0 else 0
+            
+            # Determine status
+            if enrichment_percentage >= 80:
+                status = 'Well enriched'
+            elif enrichment_percentage >= 50:
+                status = 'Moderately enriched'
+            elif enrichment_percentage >= 20:
+                status = 'Partially enriched'
+            else:
+                status = 'Poorly enriched'
             
             return {
-                'total_records': total_records,
-                'has_company': has_company,
-                'enriched_industry': enriched_industry,
-                'enriched_description': enriched_description,
-                'enrichment_percentage': round((enriched_industry / total_records * 100) if total_records > 0 else 0, 1),
-                'recent_jobs_7_days': recent_jobs
+                'total_jobs': total_jobs,
+                'enriched_jobs': enriched_jobs,
+                'enrichment_percentage': round(enrichment_percentage, 1),
+                'has_industry_data': has_industry_data,
+                'has_description_data': has_description_data,
+                'status': status
             }
             
         except Exception as e:
-            logger.error(f"Error getting enrichment status: {e}")
-            return {}
+            logger.error(f"Error getting database enrichment status: {e}")
+            return {
+                'total_jobs': 0,
+                'enriched_jobs': 0,
+                'enrichment_percentage': 0,
+                'has_industry_data': 0,
+                'has_description_data': 0,
+                'status': f'Error: {str(e)}'
+            }
         finally:
             conn.close()
 
-    def get_enhanced_job_matches(self, user_session_id: str, limit: int = 50, 
-                                filter_enriched_only: bool = False) -> List[Dict]:
-        """
-        Get job matches with enhanced filtering options for enriched data
-        """
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        try:
-            # Get user profile
-            cursor.execute("""
-            SELECT profile_data FROM user_profiles 
-            WHERE user_session_id = ? 
-            ORDER BY last_search_timestamp DESC LIMIT 1
-            """, (user_session_id,))
-            
-            profile_row = cursor.fetchone()
-            if not profile_row:
-                return []
-            
-            profile_data = json.loads(profile_row[0])
-            job_titles = profile_data.get('job_title_keywords', [])
-            user_skills = profile_data.get('current_skills_selected', []) + profile_data.get('current_skills_custom', [])
-            overall_field = profile_data.get('overall_field', '')
-            target_roles = profile_data.get('target_roles_industries_selected', []) + profile_data.get('target_roles_industries_custom', [])
-            
-            if not job_titles:
-                return []
-            
-            # Build enhanced query
-            where_conditions = []
-            params = []
-            
-            # Title matching
-            title_conditions = []
-            for title in job_titles:
-                title_conditions.append("LOWER(title) LIKE ?")
-                params.append(f"%{title.lower()}%")
-            
-            if title_conditions:
-                where_conditions.append(f"({' OR '.join(title_conditions)})")
-            
-            # Industry matching using enriched data
-            if overall_field:
-                where_conditions.append("LOWER(company_industry) LIKE ?")
-                params.append(f"%{overall_field.lower()}%")
-            
-            # Target roles matching
-            if target_roles:
-                role_conditions = []
-                for role in target_roles:
-                    role_conditions.append("(LOWER(title) LIKE ? OR LOWER(company_industry) LIKE ?)")
-                    params.extend([f"%{role.lower()}%", f"%{role.lower()}%"])
-                if role_conditions:
-                    where_conditions.append(f"({' OR '.join(role_conditions)})")
-            
-            # Skills matching in description
-            if user_skills:
-                skill_condition = " OR ".join(["LOWER(description) LIKE ?" for _ in user_skills[:3]])
-                where_conditions.append(f"({skill_condition})")
-                params.extend([f"%{skill.lower()}%" for skill in user_skills[:3]])
-            
-            # Filter for enriched data only if requested
-            if filter_enriched_only:
-                where_conditions.append("company_industry IS NOT NULL AND company_industry != ''")
-            
-            where_clause = " OR ".join(where_conditions) if where_conditions else "1=1"
-            
-            # Enhanced relevance scoring
-            query = f"""
-            SELECT *, 
-                   CASE 
-                       WHEN LOWER(title) LIKE ? THEN 10
-                       WHEN LOWER(company_industry) = LOWER(?) THEN 8
-                       WHEN LOWER(company_industry) LIKE ? THEN 6
-                       WHEN LOWER(description) LIKE ? THEN 4
-                       WHEN LOWER(company_description) LIKE ? THEN 3
-                       ELSE 1
-                   END as relevance_score,
-                   CASE 
-                       WHEN company_industry IS NOT NULL AND company_industry != '' 
-                            AND company_description IS NOT NULL AND company_description != '' THEN 2
-                       WHEN company_industry IS NOT NULL AND company_industry != '' THEN 1
-                       ELSE 0
-                   END as enrichment_level
-            FROM {TABLE_NAME}
-            WHERE {where_clause}
-            ORDER BY relevance_score DESC, enrichment_level DESC, scraped_timestamp DESC
-            LIMIT ?
-            """
-            
-            # Parameters for relevance scoring
-            primary_title = job_titles[0] if job_titles else ""
-            skill_pattern = f"%{' '.join(user_skills[:3]).lower()}%" if user_skills else "%"
-            
-            relevance_params = [
-                f"%{primary_title.lower()}%",  # Title exact match
-                overall_field,  # Industry exact match
-                f"%{overall_field.lower()}%",  # Industry partial match
-                skill_pattern,  # Skills in description
-                skill_pattern   # Skills in company description
-            ]
-            
-            all_params = relevance_params + params + [limit]
-            
-            cursor.execute(query, all_params)
-            jobs = cursor.fetchall()
-            
-            # Convert to dictionaries
-            columns = [description[0] for description in cursor.description]
-            job_matches = [dict(zip(columns, job)) for job in jobs]
-            
-            return job_matches
-            
-        except Exception as e:
-            logger.error(f"Error getting enhanced job matches: {e}")
-            return []
-        finally:
-            conn.close()
+# Add missing wrapper functions at the end of the file
 
-
-# Convenience functions for integration
 def run_profile_job_search(profile_data: Dict) -> Dict:
     """
-    Convenience function to run job search based on user profile
+    Wrapper function to run profile-based job search
     """
     matcher = ProfileJobMatcher()
     return matcher.run_profile_based_search(profile_data)
 
 def get_user_job_matches(user_session_id: str, limit: int = 50) -> List[Dict]:
     """
-    Convenience function to get job matches for a user
+    Wrapper function to get job matches for a specific user
     """
     matcher = ProfileJobMatcher()
     return matcher.get_profile_job_matches(user_session_id, limit)
 
-def get_enhanced_user_job_matches(user_session_id: str, limit: int = 50, filter_enriched_only: bool = False) -> List[Dict]:
-    """
-    Convenience function to get enhanced job matches for a user
-    """
-    matcher = ProfileJobMatcher()
-    return matcher.get_enhanced_job_matches(user_session_id, limit, filter_enriched_only)
-
 def get_database_enrichment_status() -> Dict:
     """
-    Convenience function to get database enrichment status
+    Wrapper function to get database enrichment status
     """
     matcher = ProfileJobMatcher()
     return matcher.get_database_enrichment_status()
+
+# Example usage
+if __name__ == "__main__":
+    # Test the profile job matcher
+    test_profile = {
+        'user_session_id': 'test_user_123',
+        'job_title_keywords': ['software developer', 'python developer'],
+        'preferred_locations_dk': ['København', 'Aarhus kommun'],
+        'job_types': ['Full-time', 'Part-time'],
+        'current_skills_selected': ['Python', 'JavaScript', 'SQL'],
+        'overall_field': 'Software Development',
+        'target_roles_industries_selected': ['Software Engineer'],
+        'total_experience': '3-5 years',
+        'work_experience_entries': [
+            {
+                'job_title': 'Junior Developer',
+                'company': 'Tech Company',
+                'years_in_role': 2,
+                'skills_responsibilities': 'Python, Django, REST APIs'
+            }
+        ],
+        'remote_openness': "Don't care"
+    }
+    
+    try:
+        # Test search
+        print("Testing profile-based job search...")
+        results = run_profile_job_search(test_profile)
+        print(f"Search completed. Results: {results}")
+        
+        # Test getting matches
+        print("\nTesting job matches retrieval...")
+        matches = get_user_job_matches('test_user_123', limit=10)
+        print(f"Found {len(matches) if matches else 0} job matches")
+        
+        # Test database enrichment status
+        print("\nTesting database enrichment status...")
+        enrichment_status = get_database_enrichment_status()
+        print(f"Enrichment status: {enrichment_status}")
+        
+    except Exception as e:
+        print(f"Test failed: {e}")
