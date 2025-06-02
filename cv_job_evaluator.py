@@ -473,76 +473,139 @@ For each job, evaluate and respond with the exact format above. Start now:"""
         if not profile_data:
             return {"error": "No profile data found"}
         
-        # Create a simple improvement plan
-        improvement_plan = f"""Based on your evaluation results, here's a personalized improvement plan:
+        # Create comprehensive improvement plan prompt
+        evaluations = evaluation_results.get('evaluations', [])
+        summary = evaluation_results.get('summary', {})
+        
+        # Extract key insights from evaluations
+        all_critical_gaps = []
+        all_recommendations = []
+        all_strengths = []
+        
+        for eval in evaluations:
+            if eval.get('critical_gaps'):
+                all_critical_gaps.append(eval['critical_gaps'])
+            if eval.get('recommendations'):
+                all_recommendations.append(eval['recommendations'])
+            if eval.get('strengths'):
+                all_strengths.append(eval['strengths'])
+        
+        # Create detailed prompt for AI
+        improvement_prompt = f"""Based on the detailed CV-job evaluation results, create a comprehensive and actionable career improvement plan.
+
+EVALUATION SUMMARY:
+- Average Match Score: {summary.get('average_match_score', 0)}%
+- Jobs Evaluated: {evaluation_results.get('jobs_evaluated', 0)}
+- Best Match Score: {max([e.get('match_score', 0) for e in evaluations]) if evaluations else 0}%
+
+CURRENT PROFILE:
+- Field: {profile_data.get('overall_field', '')}
+- Experience: {profile_data.get('total_experience', '')}
+- Skills: {', '.join(profile_data.get('current_skills_selected', [])[:10])}
+- Target Job Types: {', '.join(profile_data.get('job_types', []))}
+
+COMMON CRITICAL GAPS IDENTIFIED:
+{chr(10).join(all_critical_gaps[:5])}
+
+COMMON RECOMMENDATIONS:
+{chr(10).join(all_recommendations[:5])}
+
+STRENGTHS TO BUILD ON:
+{chr(10).join(all_strengths[:3])}
+
+CREATE A DETAILED IMPROVEMENT PLAN:
 
 CURRENT STATUS:
-- Average match score: {evaluation_results.get('summary', {}).get('average_match_score', 0)}%
-- Jobs evaluated: {evaluation_results.get('jobs_evaluated', 0)}
+- Current match score and what it means
+- Key strengths to leverage
+- Main areas for improvement
 
 IMMEDIATE ACTIONS (0-2 months):
-1. Update your CV to highlight relevant skills
-2. Apply to jobs with 60%+ match scores first
-3. Practice common interview questions
+1. [Specific action with clear steps]
+2. [Specific action with clear steps]
+3. [Specific action with clear steps]
+4. [Specific action with clear steps]
 
 MEDIUM TERM (2-4 months):
-1. Develop skills mentioned in job descriptions
-2. Network with professionals in your field
-3. Consider relevant certifications
+1. [Specific action with timeline and resources]
+2. [Specific action with timeline and resources]
+3. [Specific action with timeline and resources]
 
 LONG TERM (4-6 months):
-1. Build portfolio projects
-2. Gain additional experience through projects
-3. Expand your professional network
+1. [Strategic action with measurable outcomes]
+2. [Strategic action with measurable outcomes]
+3. [Strategic action with measurable outcomes]
 
-The system has analyzed your profile and found relevant opportunities. Focus on the highest-scoring matches first."""
+SKILL DEVELOPMENT PRIORITIES:
+1. [Most critical skill] - Why: [reason] - How: [specific resources/courses]
+2. [Second priority] - Why: [reason] - How: [specific resources/courses]
+3. [Third priority] - Why: [reason] - How: [specific resources/courses]
 
-        return {
-            "user_session_id": user_session_id,
-            "improvement_plan": improvement_plan,
-            "generated_timestamp": datetime.now().isoformat()
-        }
+CERTIFICATION RECOMMENDATIONS:
+- [Specific certification] - Why: [relevance] - Where: [provider] - Time: [estimate]
+- [Specific certification] - Why: [relevance] - Where: [provider] - Time: [estimate]
 
-# Convenience functions
-def evaluate_user_cv_matches(user_session_id: str, max_jobs: int = 10) -> Dict:
-    """Convenience function to evaluate CV-job matches"""
-    evaluator = CVJobEvaluator()
-    return evaluator.evaluate_cv_job_matches(user_session_id, max_jobs)
+APPLICATION STRATEGY:
+- Which jobs to apply to first (based on match scores)
+- How to tailor applications
+- Key points to emphasize
 
-def get_user_latest_evaluation(user_session_id: str) -> Optional[Dict]:
-    """Convenience function to get latest evaluation"""
-    evaluator = CVJobEvaluator()
-    return evaluator.get_latest_evaluation(user_session_id)
+NETWORKING SUGGESTIONS:
+- Specific professional networks to join
+- Events to attend
+- LinkedIn strategy
 
-def generate_user_improvement_plan(user_session_id: str) -> Dict:
-    """Convenience function to generate improvement plan"""
-    evaluator = CVJobEvaluator()
-    return evaluator.generate_improvement_plan(user_session_id)
+Be specific, actionable, and realistic. Focus on the Danish job market context."""
 
-def main():
-    """Main function for testing"""
-    logging.info("CV Job Evaluator - Test Mode")
-    
-    # Test with a sample user
-    test_user_id = "test_user_123"
-    
-    try:
-        evaluator = CVJobEvaluator()
-        results = evaluator.evaluate_cv_job_matches(test_user_id, max_jobs=5)
-        
-        if "error" in results:
-            logging.error(f"Evaluation failed: {results['error']}")
-        else:
-            logging.info(f"Evaluation completed for {results.get('jobs_evaluated', 0)} jobs")
-            logging.info(f"Average match score: {results.get('summary', {}).get('average_match_score', 0)}%")
+        try:
+            # Generate improvement plan with AI
+            response = self.llm.invoke(improvement_prompt)
             
-            # Generate improvement plan
-            plan = evaluator.generate_improvement_plan(test_user_id)
-            if "error" not in plan:
-                logging.info("Improvement plan generated successfully")
+            return {
+                "user_session_id": user_session_id,
+                "improvement_plan": response,
+                "generated_timestamp": datetime.now().isoformat(),
+                "based_on_evaluation": {
+                    "average_score": summary.get('average_match_score', 0),
+                    "jobs_evaluated": evaluation_results.get('jobs_evaluated', 0),
+                    "evaluation_date": evaluation_results.get('evaluation_timestamp')
+                }
+            }
             
-    except Exception as e:
-        logging.error(f"Test failed: {e}")
+        except Exception as e:
+            logging.error(f"Error generating improvement plan: {e}")
+            # Create fallback plan
+            fallback_plan = f"""PERSONALIZED CAREER IMPROVEMENT PLAN
 
-if __name__ == "__main__":
-    main()
+CURRENT STATUS:
+- Average match score: {summary.get('average_match_score', 0)}%
+- Jobs evaluated: {evaluation_results.get('jobs_evaluated', 0)}
+- Primary field: {profile_data.get('overall_field', '')}
+
+IMMEDIATE ACTIONS (0-2 months):
+1. Update your CV to better highlight relevant skills mentioned in job descriptions
+2. Apply to jobs with 60%+ match scores first - these are your best opportunities
+3. Practice common interview questions for your field
+4. Optimize your LinkedIn profile with keywords from target job descriptions
+
+MEDIUM TERM (2-4 months):
+1. Develop the most commonly requested skills from your job matches
+2. Start networking with professionals in companies you're interested in
+3. Consider relevant certifications or online courses to fill skill gaps
+4. Build a portfolio or projects that demonstrate your capabilities
+
+LONG TERM (4-6 months):
+1. Gain additional experience through projects, freelancing, or volunteering
+2. Expand your professional network and attend industry events
+3. Consider advanced training or specialization in high-demand areas
+4. Develop thought leadership through writing or speaking about your expertise
+
+The system identified specific opportunities for improvement. Focus on your highest-scoring job matches first, as these represent your best chances for success in the current market."""
+
+            return {
+                "user_session_id": user_session_id,
+                "improvement_plan": fallback_plan,
+                "generated_timestamp": datetime.now().isoformat(),
+                "generation_method": "fallback_plan",
+                "error_note": str(e)
+            }
