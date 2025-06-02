@@ -1,11 +1,11 @@
+import os
 import uuid
 import csv
 from datetime import datetime
-import os
 import json
+import logging
 import streamlit as st
 import streamlit.components.v1 as components
-from dotenv import load_dotenv
 
 # Set page config at the top level
 if 'page_config_set' not in st.session_state:
@@ -41,15 +41,11 @@ except ImportError as e:
     CV_EVALUATION_AVAILABLE = False
     CV_EVALUATION_ERROR = str(e)
 
-# Load environment variables
-load_dotenv()
-
 # --- Constants for file names ---
 ROLES_INDUSTRIES_ONTOLOGY_FILE = "roles_industries_ontology.csv"
 SKILL_ONTOLOGY_FILE = "skill_ontology.csv"
 EDUCATION_ONTOLOGY_FILE = "education_ontology.csv"
 USER_PROFILE_LOG_FILE = "advanced_user_profile_log.csv"
-FIELD_SKILLS_MAPPING_FILE = "field_skills_mapping.csv"
 
 # --- Helper functions to load ontologies (with dummy creation) ---
 def load_ontology_data(file_path: str, column_name: str, default_items: list, is_education_ontology: bool = False) -> list | dict:
@@ -166,21 +162,11 @@ def log_user_profile(data: dict):
         print(f"ERROR logging profile: {e}")
         return False
 
-def load_field_skills_mapping():
-    """Load the mapping between fields and their relevant skills."""
-    field_skills = {}
-    try:
-        with open(FIELD_SKILLS_MAPPING_FILE, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                field_skills[row['field']] = set(row['skills'].split('|'))
-        return field_skills
-    except Exception as e:
-        print(f"Error loading field-skills mapping: {e}")
-        return {}
-
 # --- Streamlit App UI ---
 def run_app():
+    # Ensure os is available in function scope
+    import os
+    
     st.title("🎯 Advanced Career Profile & Goal Setting")
     st.markdown("Define your detailed profile for precise career insights. 🚀")
 
@@ -357,7 +343,7 @@ def run_app():
         cv_suggestions = st.session_state.get('cv_suggestions', {})
         
         st.header("1. 📊 Overall Profile")
-        cols_profil1 = st.columns([3, 1])
+        cols_profil1 = st.columns(2)
         
         # Pre-select overall field from CV if available
         overall_field_default = cv_suggestions.get('overall_field', '')
@@ -369,29 +355,28 @@ def run_app():
             "Primary Field/Industry:", 
             options=default_overall_fields, 
             index=overall_field_index, 
-            help="Choose the field that best describes your general profile.",
-            key="field_selector"
+            help="Choose the field that best describes your general profile."
         )
-
-        update_field = cols_profil1[1].form_submit_button(
-            "🔄 Opdater profil",
-            help="Klik her for at opdatere færdighedslisten baseret på dit valgte felt"
-        )
-
-        # Store the selected field in session state
-        if 'previous_field' not in st.session_state:
-            st.session_state.previous_field = overall_field
         
-        # Check if field has changed and update button is pressed
-        field_changed = st.session_state.previous_field != overall_field and update_field
-        st.session_state.previous_field = overall_field
-
-        if field_changed:
-            # Clear any previously selected skills
-            if 'skills_selector' in st.session_state:
-                del st.session_state.skills_selector
-            st.rerun()
-
+        # Pre-populate languages if available from CV
+        cv_languages = cv_suggestions.get('languages', [])
+        job_languages_options = ["Danish", "English", "German", "Swedish", "Norwegian", "French", "Spanish", "Other"]
+        # Map CV languages to options
+        default_job_languages = []
+        for lang in cv_languages:
+            lang_lower = lang.lower()
+            if any(opt.lower().startswith(lang_lower[:3]) for opt in job_languages_options):
+                matching_opt = next(opt for opt in job_languages_options if opt.lower().startswith(lang_lower[:3]))
+                default_job_languages.append(matching_opt)
+        
+        job_languages = cols_profil1[1].multiselect(
+            "🌍 Preferred Job Languages:", 
+            options=job_languages_options, 
+            default=default_job_languages,
+            help="Select one or more languages you are comfortable working in."
+        )
+        
+        # Add personal description field
         st.header("2. ✍️ Personal Description")
         personal_description_default = cv_suggestions.get('personal_summary', '')
         personal_description = st.text_area(
@@ -415,61 +400,14 @@ def run_app():
 
         st.header("4. 🛠️ Current Skills")
         
-        # Load field-skills mapping
-        field_skills_mapping = load_field_skills_mapping()
-        
-        # Get relevant skills for selected field
-        relevant_skills = field_skills_mapping.get(overall_field, set())
-        
-        # Show information about relevant skills
-        if relevant_skills:
-            st.info(f"🎯 Viser {len(relevant_skills)} relevante færdigheder for {overall_field}")
-        
-        # Always show filtered skills based on selected field
-        skills_to_show = sorted(list(relevant_skills)) if relevant_skills else skills_options
-        
         # Pre-select skills from CV if available
         cv_skills = cv_suggestions.get('skills', [])
-        
-        # Create the multiselect with filtered skills
         current_skills_selected = st.multiselect(
-            "Vælg dine færdigheder:", 
-            options=skills_to_show,
-            default=[skill for skill in cv_skills if skill in skills_to_show],
-            help=f"Disse færdigheder er særligt relevante for {overall_field}",
-            key="skills_selector"
+            "Your Skills (from list):", 
+            skills_options,
+            default=[skill for skill in cv_skills if skill in skills_options]
         )
-        
-        # Show number of selected skills and recommendations
-        if current_skills_selected:
-            selected_count = len(current_skills_selected)
-            total_relevant = len(relevant_skills)
-            st.caption(f"Du har valgt {selected_count} ud af {total_relevant} anbefalede færdigheder for {overall_field}")
-            
-            # Add recommendations if missing important skills
-            if relevant_skills and selected_count < len(relevant_skills) * 0.3:  # Less than 30% of relevant skills
-                missing_key_skills = sorted(list(relevant_skills - set(current_skills_selected)))[:5]
-                st.warning("💡 Overvej at tilføje nogle af disse vigtige færdigheder for dit felt:")
-                st.markdown("- " + "\n- ".join(missing_key_skills))
-        
-        # Option to show all skills
-        if st.checkbox("Vis alle færdigheder", help="Marker dette felt for at se alle tilgængelige færdigheder"):
-            additional_skills = [skill for skill in skills_options if skill not in skills_to_show]
-            if additional_skills:
-                additional_selected = st.multiselect(
-                    "Andre færdigheder:", 
-                    options=additional_skills,
-                    default=[skill for skill in cv_skills if skill in additional_skills],
-                    help="Andre færdigheder der ikke er direkte relateret til dit valgte felt"
-                )
-                # Combine selected skills
-                current_skills_selected.extend(additional_selected)
-        
-        current_skills_custom = st.text_area(
-            "Andre færdigheder (kommasepareret):", 
-            height=75,
-            help="Tilføj eventuelle færdigheder der ikke findes i listerne ovenfor"
-        )
+        current_skills_custom = st.text_area("Other Skills (custom, comma-separated):", height=75)
 
         st.header("5. 🎓 Educational Background")
         
@@ -651,7 +589,6 @@ def run_app():
             "Vallensbæk kommune", "Varde kommune", "Vejen kommune", "Vejle kommune", "Vesthimmerlands kommune",
             "Viborg kommune", "Vordingborg kommune", "Ærø kommune", "Aarhus kommune", "Ødsherred kommune"
         ]
-
         # Updated job type options to align with Indeed's supported types and user expectations
         job_type_options = [
             "Full-time", 
@@ -750,6 +687,8 @@ def run_app():
                 st.error("Please specify at least one current skill."); validation_passed = False
             if not overall_field:
                 st.error("Please select a primary field."); validation_passed = False
+            if not job_languages:
+                st.error("Please select at least one preferred job language."); validation_passed = False
             if not job_types:
                 st.error("Please select at least one desired job type."); validation_passed = False
             if not preferred_locations_dk:
@@ -877,69 +816,229 @@ def run_app():
             if st.session_state.job_search_completed and st.session_state.job_search_results:
                 search_results = st.session_state.job_search_results
                 
-                st.success(f"✅ Job search completed! Found {search_results['total_jobs_found']} new relevant positions.")
+                # ALWAYS fetch existing matches from database - this is the primary source
+                try:
+                    matches = get_user_job_matches(user_session_id_for_run, limit=100)
+                    total_existing_matches = len(matches) if matches else 0
+                    
+                    # Log database fetch for debugging
+                    import logging
+                    logging.info(f"Fetched {total_existing_matches} job matches from database for user {user_session_id_for_run}")
+                    
+                except Exception as e:
+                    matches = []
+                    total_existing_matches = 0
+                    st.error(f"❌ Error fetching jobs from database: {str(e)}")
+                    st.info("💡 Check that the database exists and contains job data")
                 
-                # Show job matches if found
-                if search_results['total_jobs_found'] > 0:
-                    st.subheader("🎯 Your Job Matches")
+                # Show results - focus on database matches, not scraping results
+                if total_existing_matches > 0:
+                    # Success message based on whether new jobs were scraped
+                    if search_results['total_jobs_found'] > 0:
+                        st.success(f"✅ Found {search_results['total_jobs_found']} new jobs and loaded {total_existing_matches} total relevant positions from database.")
+                    else:
+                        st.success(f"✅ Search completed! Loaded {total_existing_matches} relevant positions from database.")
+                        st.info("ℹ️ No new jobs were scraped (they may already exist in database)")
+                    
+                    st.subheader("🎯 Your Job Matches (from Database)")
+                    
+                    # Show database source information
+                    st.info(f"📊 Showing jobs from local database. Total matches found: {total_existing_matches}")
                     
                     try:
-                        matches = get_user_job_matches(user_session_id_for_run, limit=20)
+                        # Add enhanced filter options
+                        filter_col1, filter_col2, filter_col3 = st.columns(3)
                         
-                        if matches:
-                            # Add filter options
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                show_all = st.checkbox("Show all matches", value=False)
-                            with col2:
-                                min_relevance = st.selectbox("Minimum relevance score", [1, 2, 3], index=0)
+                        with filter_col1:
+                            show_all = st.checkbox("Show all matches", value=False, help="Show all matches or limit to top 10")
+                        
+                        with filter_col2:
+                            min_relevance = st.selectbox(
+                                "Minimum relevance score", 
+                                [1, 2, 3], 
+                                index=0,
+                                help="Filter by relevance: 3=Excellent, 2=Good, 1=Fair"
+                            )
+                        
+                        with filter_col3:
+                            sort_by = st.selectbox(
+                                "Sort by",
+                                ["Relevance (highest first)", "Date (newest first)", "Company name"],
+                                help="Choose how to sort the job matches"
+                            )
+                        
+                        # Apply filters and sorting
+                        filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance]
+                        
+                        # Apply sorting
+                        if sort_by == "Date (newest first)":
+                            filtered_matches = sorted(filtered_matches, key=lambda x: x.get('scraped_timestamp', ''), reverse=True)
+                        elif sort_by == "Company name":
+                            filtered_matches = sorted(filtered_matches, key=lambda x: x.get('company', '').lower())
+                        else:  # Default: Relevance
+                            filtered_matches = sorted(filtered_matches, key=lambda x: x.get('relevance_score', 1), reverse=True)
+                        
+                        display_count = len(filtered_matches) if show_all else min(15, len(filtered_matches))
+                        
+                        # Show filtering results
+                        st.write(f"Displaying {display_count} of {len(filtered_matches)} matches (filtered from {total_existing_matches} total)")
+                        
+                        if len(filtered_matches) > display_count:
+                            st.info(f"💡 {len(filtered_matches) - display_count} more matches available. Check 'Show all matches' to see them.")
+                        
+                        # Display job matches with enhanced information
+                        for i, job in enumerate(filtered_matches[:display_count]):
+                            with st.container(border=True):
+                                # Header with job title and relevance
+                                header_col1, header_col2 = st.columns([4, 1])
+                                
+                                with header_col1:
+                                    st.markdown(f"### **{job.get('title', 'Unknown Title')}**")
+                                
+                                with header_col2:
+                                    relevance_score = job.get('relevance_score', 1)
+                                    if relevance_score >= 3:
+                                        st.markdown("🎯 **Excellent**")
+                                    elif relevance_score >= 2:
+                                        st.markdown("🟡 **Good**")
+                                    else:
+                                        st.markdown("🔴 **Fair**")
+                                
+                                # Main job information
+                                info_col1, info_col2 = st.columns([3, 1])
+                                
+                                with info_col1:
+                                    # Company and location
+                                    company_info = []
+                                    if job.get('company'):
+                                        company_info.append(f"🏢 **{job['company']}**")
+                                    if job.get('location'):
+                                        company_info.append(f"📍 {job['location']}")
+                                    if job.get('job_type'):
+                                        company_info.append(f"💼 {job['job_type']}")
+                                    
+                                    if company_info:
+                                        st.markdown(" | ".join(company_info))
+                                    
+                                    # Enhanced company information if available
+                                    if job.get('company_industry'):
+                                        st.markdown(f"🏭 **Industry:** {job['company_industry']}")
+                                    
+                                    # Job description preview
+                                    description = job.get('description', '')
+                                    if description and len(description) > 10:
+                                        # Clean up description and show preview
+                                        clean_desc = description.replace('\n', ' ').replace('\r', ' ')
+                                        preview_length = 200
+                                        if len(clean_desc) > preview_length:
+                                            clean_desc = clean_desc[:preview_length] + "..."
+                                        st.markdown(f"📝 {clean_desc}")
+                                    else:
+                                        st.markdown("📝 *No description available*")
+                                    
+                                    # Additional metadata
+                                    metadata_parts = []
+                                    if job.get('date_posted'):
+                                        metadata_parts.append(f"📅 Posted: {job['date_posted']}")
+                                    if job.get('scraped_timestamp'):
+                                        # Show just the date part
+                                        scraped_date = job['scraped_timestamp'].split(' ')[0] if ' ' in job['scraped_timestamp'] else job['scraped_timestamp']
+                                        metadata_parts.append(f"🔍 Found: {scraped_date}")
+                                    
+                                    if metadata_parts:
+                                        st.caption(" • ".join(metadata_parts))
+                                
+                                with info_col2:
+                                    # Action buttons and score
+                                    if job.get('job_url'):
+                                        st.link_button("🔗 View Job", job['job_url'], use_container_width=True)
+                                    
+                                    # Relevance score visualization
+                                    score_percentage = (relevance_score / 3) * 100
+                                    st.progress(score_percentage / 100)
+                                    st.caption(f"Match: {score_percentage:.0f}%")
+                                    
+                                    # Database source indicator
+                                    st.caption("💾 From Database")
+                        
+                        # Additional database statistics
+                        if total_existing_matches > 0:
+                            st.markdown("---")
                             
-                            filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance]
-                            display_count = len(filtered_matches) if show_all else min(10, len(filtered_matches))
+                            stats_col1, stats_col2, stats_col3 = st.columns(3)
                             
-                            st.write(f"Showing {display_count} of {len(matches)} total matches")
+                            with stats_col1:
+                                excellent_matches = len([job for job in matches if job.get('relevance_score', 1) >= 3])
+                                st.metric("🎯 Excellent Matches", excellent_matches)
                             
-                            for job in filtered_matches[:display_count]:
-                                with st.container(border=True):
-                                    col1, col2 = st.columns([3, 1])
-                                    with col1:
-                                        st.markdown(f"**{job['title']}**")
-                                        st.markdown(f"🏢 {job['company']} | 📍 {job['location']}")
-                                        if job.get('job_type'):
-                                            st.markdown(f"💼 {job['job_type']}")
-                                        if job['description']:
-                                            st.markdown(f"📝 {job['description'][:200]}...")
-                                    with col2:
-                                        relevance_score = job.get('relevance_score', 1)
-                                        if relevance_score == 3:
-                                            st.markdown("🎯 **Excellent**")
-                                        elif relevance_score == 2:
-                                            st.markdown("🟡 **Good**")
-                                        else:
-                                            st.markdown("🔴 **Fair**")
-                                        
-                                        if job.get('job_url'):
-                                            st.link_button("🔗 View Job", job['job_url'])
-                                        
-                                        if job.get('date_posted'):
-                                            st.caption(f"📅 {job['date_posted']}")
-                        else:
-                            st.info("No job matches found. Try adjusting your search keywords or running the search again.")
+                            with stats_col2:
+                                good_matches = len([job for job in matches if job.get('relevance_score', 1) == 2])
+                                st.metric("🟡 Good Matches", good_matches)
+                            
+                            with stats_col3:
+                                companies = len(set([job.get('company', '').lower() for job in matches if job.get('company')]))
+                                st.metric("🏢 Unique Companies", companies)
                     
                     except Exception as e:
-                        st.error(f"Error loading job matches: {str(e)}")
-                        st.info("Job search completed but couldn't load matches. Check the dashboard for all jobs.")
+                        st.error(f"❌ Error displaying job matches: {str(e)}")
+                        st.info("💡 Jobs were found in database but couldn't be displayed properly")
+                        
+                        # Show raw count as fallback
+                        st.info(f"Found {total_existing_matches} job matches in database")
                 
                 else:
-                    st.warning("No new jobs found. This might be because:")
-                    st.markdown("""
-                    - All relevant jobs for your keywords are already in the database
-                    - Your search keywords are too specific
-                    - No jobs match your location preferences
-                    - Indeed has limited results for your search terms
-                    """)
-                    st.info("💡 Try adjusting your job search keywords or running the general job dashboard.")
-
+                    # No matches found in database at all
+                    if search_results['total_jobs_found'] > 0:
+                        st.warning(f"⚠️ Scraped {search_results['total_jobs_found']} new jobs, but no matches found in database for your profile")
+                        st.info("💡 The scraped jobs may not match your keywords/criteria, or there may be a database issue")
+                    else:
+                        st.warning("❌ No relevant jobs found in database and no new jobs were scraped")
+                        
+                        st.markdown("**This might be because:**")
+                        st.markdown("""
+                        - 🔍 Your search keywords are too specific
+                        - 📍 No jobs match your location preferences  
+                        - 💾 The database is empty - try running the general scraper first
+                        - 🌐 Indeed has limited results for your search terms
+                        - ⚙️ Database connection issues
+                        """)
+                        
+                        st.info("💡 **Recommended actions:**")
+                        st.markdown("""
+                        1. Try broader job search keywords
+                        2. Run `python indeed_scraper.py` to populate the database
+                        3. Check that the database file `indeed_jobs.db` exists
+                        4. Try the general job dashboard to see all available jobs
+                        """)
+                    
+                    # Show search details for debugging
+                    with st.expander("🔍 Search Details & Debugging"):
+                        st.json({
+                            "search_results": search_results,
+                            "user_id": user_session_id_for_run,
+                            "total_database_matches": total_existing_matches,
+                            "search_keywords": profile_data.get('job_title_keywords', []),
+                            "locations": profile_data.get('preferred_locations_dk', [])
+                        })
+                        
+                        # Database connection test
+                        try:
+                            import sqlite3
+                            import os
+                            
+                            db_path = "indeed_jobs.db"
+                            if os.path.exists(db_path):
+                                conn = sqlite3.connect(db_path)
+                                cursor = conn.cursor()
+                                cursor.execute("SELECT COUNT(*) FROM job_postings")
+                                total_jobs = cursor.fetchone()[0]
+                                conn.close()
+                                st.info(f"✅ Database connection OK. Total jobs in database: {total_jobs}")
+                            else:
+                                st.error(f"❌ Database file '{db_path}' not found")
+                        except Exception as db_e:
+                            st.error(f"❌ Database connection failed: {str(db_e)}")
+    
     # Add CV-Job Evaluation Section
     if (CV_EVALUATION_AVAILABLE and 
         st.session_state.get('job_search_completed', False) and 
