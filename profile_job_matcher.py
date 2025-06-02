@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 
 from indeed_scraper import scrape_indeed_jobs_with_profile, init_database, DB_NAME, TABLE_NAME
@@ -15,7 +15,25 @@ class ProfileJobMatcher:
     Integrates user profile data with job scraping to find relevant positions
     """
     
-    def __init__(self):
+    def __init__(self, max_job_age_days: int = 30, cleanup_strategy: str = "smart"):
+        """
+        Initialize matcher with database freshness configuration
+        
+        Args:
+            max_job_age_days: Maximum age for jobs before they're considered stale (default: 30 days)
+            cleanup_strategy: "aggressive" (daily clean), "smart" (selective refresh), or "conservative" (weekly)
+        """
+        self.max_job_age_days = max_job_age_days
+        self.cleanup_strategy = cleanup_strategy
+        
+        # Job freshness thresholds
+        self.freshness_thresholds = {
+            "fresh": 7,      # Jobs less than 7 days old
+            "recent": 14,    # Jobs less than 14 days old
+            "aging": 21,     # Jobs less than 21 days old
+            "stale": max_job_age_days  # Jobs older than max_job_age_days are removed
+        }
+        
         # Updated job type mapping to ONLY use Indeed's supported types
         self.job_type_mapping = {
             # Streamlit app options -> jobspy format (Indeed's ONLY supported types)
@@ -151,13 +169,310 @@ class ProfileJobMatcher:
             # "Don't care" or "Primarily Hybrid" - let jobspy find all types
             return None
 
-    def run_profile_based_search(self, profile_data: Dict, max_results_per_search: int = 50) -> Dict:
+    def init_database_with_freshness_tracking(self):
         """
-        Run job searches based on user profile and return summary
+        Initialize database with additional columns for tracking job freshness
         """
-        logger.info("Starting profile-based job search")
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
         
-        # Initialize database
+        try:
+            # Add freshness tracking columns if they don't exist
+            cursor.execute(f"""
+            ALTER TABLE {TABLE_NAME} 
+            ADD COLUMN last_seen_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            """)
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute(f"""
+            ALTER TABLE {TABLE_NAME} 
+            ADD COLUMN job_status TEXT DEFAULT 'active'
+            """)
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+            
+        try:
+            cursor.execute(f"""
+            ALTER TABLE {TABLE_NAME} 
+            ADD COLUMN refresh_count INTEGER DEFAULT 1
+            """)
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        # Create indexes for performance
+        try:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_last_seen ON {TABLE_NAME}(last_seen_timestamp)")
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_job_status ON {TABLE_NAME}(job_status)")
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_scraped_date ON {TABLE_NAME}(date(scraped_timestamp))")
+        except sqlite3.OperationalError:
+            pass
+        
+        conn.commit()
+        conn.close()
+
+    def clean_stale_jobs(self) -> Dict:
+        """
+        Remove jobs that are older than the maximum age threshold
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            cutoff_date = datetime.now() - timedelta(days=self.max_job_age_days)
+            
+            # Count jobs to be removed
+            cursor.execute(f"""
+            SELECT COUNT(*) FROM {TABLE_NAME} 
+            WHERE scraped_timestamp < ?
+            """, (cutoff_date.isoformat(),))
+            
+            stale_count = cursor.fetchone()[0]
+            
+            if stale_count > 0:
+                # Remove stale jobs
+                cursor.execute(f"""
+                DELETE FROM {TABLE_NAME} 
+                WHERE scraped_timestamp < ?
+                """, (cutoff_date.isoformat(),))
+                
+                conn.commit()
+                logger.info(f"Removed {stale_count} stale jobs older than {self.max_job_age_days} days")
+            
+            # Get remaining job age distribution
+            age_distribution = self.get_job_age_distribution()
+            
+            return {
+                "stale_jobs_removed": stale_count,
+                "cutoff_date": cutoff_date.isoformat(),
+                "remaining_jobs": age_distribution
+            }
+            
+        except Exception as e:
+            logger.error(f"Error cleaning stale jobs: {e}")
+            return {"error": str(e)}
+        finally:
+            conn.close()
+
+    def get_job_age_distribution(self) -> Dict:
+        """
+        Get distribution of jobs by age categories
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            now = datetime.now()
+            distribution = {}
+            
+            for category, days in self.freshness_thresholds.items():
+                cutoff = now - timedelta(days=days)
+                
+                if category == "stale":
+                    # Count jobs older than threshold
+                    cursor.execute(f"""
+                    SELECT COUNT(*) FROM {TABLE_NAME} 
+                    WHERE scraped_timestamp < ?
+                    """, (cutoff.isoformat(),))
+                else:
+                    # Count jobs within threshold
+                    cursor.execute(f"""
+                    SELECT COUNT(*) FROM {TABLE_NAME} 
+                    WHERE scraped_timestamp >= ?
+                    """, (cutoff.isoformat(),))
+                
+                distribution[category] = cursor.fetchone()[0]
+            
+            # Total count
+            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            distribution["total"] = cursor.fetchone()[0]
+            
+            return distribution
+            
+        except Exception as e:
+            logger.error(f"Error getting job age distribution: {e}")
+            return {}
+        finally:
+            conn.close()
+
+    def smart_database_refresh(self, force_full_refresh: bool = False) -> Dict:
+        """
+        Intelligent database refresh based on job age and user activity
+        """
+        refresh_stats = {
+            "strategy": self.cleanup_strategy,
+            "timestamp": datetime.now().isoformat(),
+            "actions_taken": [],
+            "before_stats": self.get_job_age_distribution(),
+            "after_stats": {}
+        }
+        
+        try:
+            if self.cleanup_strategy == "aggressive" or force_full_refresh:
+                # Daily complete refresh - nuclear option
+                refresh_stats["actions_taken"].append("full_database_clear")
+                self.clear_entire_database()
+                
+            elif self.cleanup_strategy == "smart":
+                # Selective refresh based on job age
+                refresh_stats["actions_taken"].append("stale_job_cleanup")
+                cleanup_result = self.clean_stale_jobs()
+                refresh_stats["cleanup_result"] = cleanup_result
+                
+                # Check if we need to refresh specific categories
+                age_dist = self.get_job_age_distribution()
+                
+                if age_dist.get("fresh", 0) < 50 and age_dist.get("total", 0) > 0:
+                    # Low fresh jobs - trigger targeted refresh
+                    refresh_stats["actions_taken"].append("targeted_fresh_job_scraping")
+                    
+            elif self.cleanup_strategy == "conservative":
+                # Weekly cleanup only
+                last_cleanup = self.get_last_cleanup_date()
+                if not last_cleanup or (datetime.now() - last_cleanup).days >= 7:
+                    refresh_stats["actions_taken"].append("weekly_cleanup")
+                    cleanup_result = self.clean_stale_jobs()
+                    refresh_stats["cleanup_result"] = cleanup_result
+                    self.record_cleanup_date()
+            
+            # Always update freshness tracking
+            self.init_database_with_freshness_tracking()
+            refresh_stats["after_stats"] = self.get_job_age_distribution()
+            
+            logger.info(f"Database refresh completed: {refresh_stats['actions_taken']}")
+            return refresh_stats
+            
+        except Exception as e:
+            logger.error(f"Error in smart database refresh: {e}")
+            refresh_stats["error"] = str(e)
+            return refresh_stats
+
+    def clear_entire_database(self):
+        """
+        Nuclear option: Clear entire job database for fresh start
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(f"DELETE FROM {TABLE_NAME}")
+            conn.commit()
+            logger.info("Entire job database cleared for fresh start")
+        except Exception as e:
+            logger.error(f"Error clearing database: {e}")
+        finally:
+            conn.close()
+
+    def get_last_cleanup_date(self) -> Optional[datetime]:
+        """
+        Get the last cleanup date from metadata table
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            # Create metadata table if it doesn't exist
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS database_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            cursor.execute("""
+            SELECT value FROM database_metadata 
+            WHERE key = 'last_cleanup_date'
+            """)
+            
+            result = cursor.fetchone()
+            if result:
+                return datetime.fromisoformat(result[0])
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting last cleanup date: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def record_cleanup_date(self):
+        """
+        Record the current date as last cleanup date
+        """
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+            INSERT OR REPLACE INTO database_metadata (key, value, updated_timestamp)
+            VALUES ('last_cleanup_date', ?, ?)
+            """, (datetime.now().isoformat(), datetime.now().isoformat()))
+            
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error recording cleanup date: {e}")
+        finally:
+            conn.close()
+
+    def get_database_health_report(self) -> Dict:
+        """
+        Comprehensive database health and freshness report
+        """
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "configuration": {
+                "max_job_age_days": self.max_job_age_days,
+                "cleanup_strategy": self.cleanup_strategy,
+                "freshness_thresholds": self.freshness_thresholds
+            }
+        }
+        
+        # Job age distribution
+        report["age_distribution"] = self.get_job_age_distribution()
+        
+        # Enrichment status
+        report["enrichment_status"] = self.get_database_enrichment_status()
+        
+        # Cleanup history
+        report["last_cleanup"] = self.get_last_cleanup_date()
+        
+        # Health recommendations
+        age_dist = report["age_distribution"]
+        recommendations = []
+        
+        if age_dist.get("stale", 0) > 100:
+            recommendations.append("Consider running stale job cleanup")
+        
+        if age_dist.get("fresh", 0) < 20 and age_dist.get("total", 0) > 0:
+            recommendations.append("Database needs fresh job scraping")
+        
+        if age_dist.get("total", 0) == 0:
+            recommendations.append("Database is empty - full scraping needed")
+        
+        freshness_ratio = (age_dist.get("fresh", 0) + age_dist.get("recent", 0)) / max(age_dist.get("total", 1), 1)
+        if freshness_ratio < 0.3:
+            recommendations.append("Low freshness ratio - consider more frequent scraping")
+        
+        report["recommendations"] = recommendations
+        report["freshness_ratio"] = round(freshness_ratio, 2)
+        
+        return report
+
+    def run_profile_based_search(self, profile_data: Dict, max_results_per_search: int = 50, auto_refresh: bool = True) -> Dict:
+        """
+        Run job searches based on user profile with automatic database freshness management
+        """
+        logger.info("Starting profile-based job search with freshness management")
+        
+        # Optional automatic refresh before search
+        if auto_refresh:
+            refresh_result = self.smart_database_refresh()
+            logger.info(f"Pre-search refresh: {refresh_result.get('actions_taken', [])}")
+        
+        # Initialize database with freshness tracking
+        self.init_database_with_freshness_tracking()
         init_database()
         
         # Extract search parameters
@@ -332,7 +647,7 @@ class ProfileJobMatcher:
         finally:
             conn.close()
 
-    def get_profile_job_matches(self, user_session_id: str, limit: int = 50) -> List[Dict]:
+    def get_profile_job_matches(self, user_session_id: str, limit: int = 50, include_stale: bool = False) -> List[Dict]:
         """
         Get job matches using SIMPLE search_term based matching - much faster and more reliable
         """
