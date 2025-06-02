@@ -1138,262 +1138,128 @@ def run_app():
                 with st.spinner("🤖 AI is analyzing your CV against job postings... This may take a moment."):
                     try:
                         evaluation_results = evaluate_user_cv_matches(user_session_id_for_run, max_jobs=10)
-                        st.session_state.cv_evaluation_results = evaluation_results
-                        st.session_state.cv_evaluation_completed = True
-                        st.rerun()
+                        
+                        # Debug: Show what we got back
+                        st.info(f"🔍 Debug: Received evaluation with {len(evaluation_results.get('evaluations', []))} evaluations")
+                        
+                        if "error" in evaluation_results:
+                            st.error(f"❌ Evaluation failed: {evaluation_results['error']}")
+                            st.session_state.cv_evaluation_started = False
+                        else:
+                            st.session_state.cv_evaluation_results = evaluation_results
+                            st.session_state.cv_evaluation_completed = True
+                            st.rerun()
                         
                     except Exception as e:
-                        st.error(f"❌ Error during CV evaluation: {str(e)}")
+                        st.error(f"❌ Error during evaluation: {str(e)}")
                         st.session_state.cv_evaluation_started = False
                         
+                        # Show detailed error info
                         with st.expander("🔍 Error Details"):
                             st.code(str(e))
-                            st.markdown("**Possible solutions:**")
-                            st.markdown("""
-                            - Check your Together AI API key
-                            - Ensure you have job matches in the database
-                            - Try reducing the number of jobs to analyze
-                            - Verify your profile data is complete
-                            """)
-            
+                            st.info("💡 This might be due to API limitations or network issues. Try again in a moment.")
+
             # Display evaluation results
             if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
                 evaluation_results = st.session_state.cv_evaluation_results
                 
+                # Debug information
+                with st.expander("🔍 Debug Information"):
+                    st.write("Evaluation Results Structure:")
+                    st.json({
+                        "evaluations_count": len(evaluation_results.get('evaluations', [])),
+                        "summary_keys": list(evaluation_results.get('summary', {}).keys()),
+                        "has_error": "error" in evaluation_results,
+                        "evaluation_status": evaluation_results.get('evaluation_status', 'normal')
+                    })
+                
                 if "error" in evaluation_results:
                     st.error(f"❌ Evaluation failed: {evaluation_results['error']}")
                 else:
-                    st.success("✅ CV analysis completed!")
-                    
-                    # Summary metrics
-                    summary = evaluation_results.get('summary', {})
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        avg_score = summary.get('average_match_score', 0)
-                        st.metric("Average Match Score", f"{avg_score}%", delta=f"{avg_score-60}%" if avg_score > 0 else None)
-                    
-                    with col2:
-                        jobs_analyzed = evaluation_results.get('jobs_evaluated', 0)
-                        st.metric("Jobs Analyzed", jobs_analyzed)
-                    
-                    with col3:
-                        evaluations = evaluation_results.get('evaluations', [])
-                        best_score = max([eval.get('match_score', 0) for eval in evaluations], default=0)
-                        st.metric("Best Match", f"{best_score}%")
-                    
-                    with col4:
-                        high_likelihood = len([eval for eval in evaluations 
-                                             if eval.get('likelihood', '').lower() in ['high', 'medium']])
-                        st.metric("High Interview Likelihood", high_likelihood)
-                    
-                    # Detailed job evaluations with enhanced display
-                    st.subheader("📊 Detailed Job Evaluations")
-                    
+                    # Check if we have valid evaluations
                     evaluations = evaluation_results.get('evaluations', [])
-                    
-                    # Debug: Show what we actually have
                     if not evaluations:
                         st.warning("⚠️ No evaluations found in results")
-                        with st.expander("🔍 Debug: Raw Evaluation Data"):
-                            st.json(evaluation_results)
+                        st.info("This might be due to parsing issues. Check the debug information above.")
                     else:
-                        # Sort by match score (highest first)
-                        evaluations_sorted = sorted(evaluations, key=lambda x: x.get('match_score', 0), reverse=True)
+                        st.success("✅ CV analysis completed!")
                         
-                        # Display top matches with enhanced information
-                        st.markdown("### 🏆 Your Best Job Matches")
+                        # Summary metrics with fallback handling
+                        summary = evaluation_results.get('summary', {})
+                        col1, col2, col3, col4 = st.columns(4)
                         
-                        for i, evaluation in enumerate(evaluations_sorted[:5]):  # Show top 5
-                            match_score = evaluation.get('match_score', 0)
+                        with col1:
+                            avg_score = summary.get('average_match_score', 0)
+                            st.metric("Average Match Score", f"{avg_score}%")
+                        
+                        with col2:
+                            jobs_count = evaluation_results.get('jobs_evaluated', len(evaluations))
+                            st.metric("Jobs Analyzed", jobs_count)
+                        
+                        with col3:
+                            best_score = 0
+                            if evaluations:
+                                best_score = max([e.get('match_score', 0) for e in evaluations])
+                            st.metric("Best Match", f"{best_score}%")
+                        
+                        with col4:
+                            high_likelihood = summary.get('high_interview_likelihood', 0)
+                            st.metric("High Interview Likelihood", high_likelihood)
+                        
+                        # Detailed job evaluations with enhanced display
+                        st.subheader("📊 Detailed Job Evaluations")
+                        
+                        if evaluations:
+                            # Sort evaluations by match score
+                            sorted_evaluations = sorted(evaluations, 
+                                                      key=lambda x: x.get('match_score', 0), 
+                                                      reverse=True)
                             
-                            # Color coding based on score
-                            if match_score >= 70:
-                                score_color = "🟢"
-                                score_class = "success"
-                            elif match_score >= 50:
-                                score_color = "🟡"
-                                score_class = "warning"
-                            else:
-                                score_color = "🔴"
-                                score_class = "error"
-                            
-                            with st.expander(f"**#{i+1} {evaluation.get('job_title', 'Unknown Position')}** {score_color} {match_score}%", expanded=i<3):
-                                # Main job information in columns
-                                info_col1, info_col2 = st.columns([2, 1])
-                                
-                                with info_col1:
-                                    st.markdown(f"### 🏢 {evaluation.get('company', 'Unknown Company')}")
+                            for i, evaluation in enumerate(sorted_evaluations):
+                                with st.expander(f"🎯 {evaluation.get('job_title', 'Unknown Position')} at {evaluation.get('company', 'Unknown Company')} - {evaluation.get('match_score', 0)}% Match"):
                                     
-                                    # Key job details
-                                    job_details = []
-                                    if evaluation.get('location'):
-                                        job_details.append(f"📍 {evaluation['location']}")
-                                    if evaluation.get('company_industry'):
-                                        job_details.append(f"🏭 {evaluation['company_industry']}")
+                                    # Basic job info
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.write(f"**Company:** {evaluation.get('company', 'N/A')}")
+                                        st.write(f"**Location:** {evaluation.get('location', 'N/A')}")
+                                        st.write(f"**Industry:** {evaluation.get('company_industry', 'N/A')}")
                                     
-                                    if job_details:
-                                        st.markdown(" • ".join(job_details))
+                                    with col2:
+                                        st.write(f"**Match Score:** {evaluation.get('match_score', 0)}%")
+                                        st.write(f"**Overall Fit:** {evaluation.get('overall_fit', 'N/A')}")
+                                        st.write(f"**Interview Likelihood:** {evaluation.get('likelihood', 'N/A')}")
                                     
-                                    # Overall fit and key metrics
-                                    st.markdown(f"**🎯 Overall Fit:** {evaluation.get('overall_fit', 'N/A')}")
-                                    st.markdown(f"**⚖️ Seniority Match:** {evaluation.get('seniority_match', 'N/A')}")
-                                    st.markdown(f"**📈 Interview Likelihood:** {evaluation.get('likelihood', 'N/A')}")
-                                
-                                with info_col2:
-                                    # Score visualization
-                                    st.markdown(f"### {score_color} {match_score}%")
-                                    st.progress(match_score / 100)
+                                    # Detailed analysis
+                                    if evaluation.get('reality_check'):
+                                        st.write("**💭 Reality Check:**")
+                                        st.write(evaluation['reality_check'])
                                     
-                                    # Quick actions
+                                    if evaluation.get('strengths'):
+                                        st.write("**✅ Your Strengths:**")
+                                        st.success(evaluation['strengths'])
+                                    
+                                    if evaluation.get('critical_gaps'):
+                                        st.write("**❗ Critical Gaps:**")
+                                        st.warning(evaluation['critical_gaps'])
+                                    
+                                    if evaluation.get('recommendations'):
+                                        st.write("**💡 Recommendations:**")
+                                        st.info(evaluation['recommendations'])
+                                    
+                                    # Link to job if available
                                     if evaluation.get('job_url'):
-                                        st.link_button("🔗 View Job Posting", evaluation['job_url'])
+                                        st.markdown(f"[🔗 View Job Posting]({evaluation['job_url']})")
                                     
-                                    # Experience gap indicator
-                                    exp_gap = evaluation.get('experience_gap', '')
-                                    if exp_gap:
-                                        if 'short' in exp_gap.lower():
-                                            st.info("📈 Experience match!")
-                                        else:
-                                            st.warning("⚠️ Experience gap")
-                                
-                                # Detailed analysis sections
-                                analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs(["✅ Strengths", "❌ Gaps", "💡 Advice"])
-                                
-                                with analysis_tab1:
-                                    strengths = evaluation.get('strengths', 'Not specified')
-                                    if strengths and strengths.lower() not in ['none', 'not specified', 'n/a']:
-                                        # Parse strengths into bullet points if comma-separated
-                                        if ',' in strengths:
-                                            for strength in strengths.split(','):
-                                                st.markdown(f"• {strength.strip()}")
-                                        else:
-                                            st.markdown(strengths)
-                                    else:
-                                        st.info("No specific strengths identified")
-                                
-                                with analysis_tab2:
-                                    # Critical gaps
-                                    critical_gaps = evaluation.get('critical_gaps', '')
-                                    minor_gaps = evaluation.get('minor_gaps', '')
-                                    
-                                    if critical_gaps and critical_gaps.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**⚠️ Critical Gaps:**")
-                                        st.markdown(critical_gaps)
-                                    
-                                    if minor_gaps and minor_gaps.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**ℹ️ Minor Gaps:**")
-                                        st.markdown(minor_gaps)
-                                    
-                                    if not critical_gaps and not minor_gaps:
-                                        st.success("🎉 No significant gaps identified!")
-                                
-                                with analysis_tab3:
-                                    # Recommendations
-                                    recommendations = evaluation.get('recommendations', '')
-                                    reality_check = evaluation.get('reality_check', '')
-                                    
-                                    if recommendations and recommendations.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**💡 Recommendations:**")
-                                        st.markdown(recommendations)
-                                    
-                                    if reality_check and reality_check.lower() not in ['none', 'not specified', 'n/a']:
-                                        st.markdown("**🎯 Reality Check:**")
-                                        st.markdown(reality_check)
-                                    
-                                    # Action buttons based on likelihood
-                                    likelihood = evaluation.get('likelihood', '').lower()
-                                    if likelihood in ['high', 'medium']:
-                                        st.success("🚀 This looks like a strong match - consider applying!")
-                                    elif likelihood == 'low':
-                                        st.warning("⚠️ Consider developing missing skills before applying")
-                                    else:
-                                        st.info("💭 Review the feedback above to decide next steps")
-                        
-                        # Show remaining jobs in a compact format
-                        if len(evaluations_sorted) > 5:
-                            st.markdown("### 📋 Additional Job Matches")
-                            
-                            for i, evaluation in enumerate(evaluations_sorted[5:], 6):
-                                match_score = evaluation.get('match_score', 0)
-                                score_color = "🟢" if match_score >= 70 else "🟡" if match_score >= 50 else "🔴"
-                                
-                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
-                                
-                                with col1:
-                                    st.markdown(f"**{evaluation.get('job_title', 'Unknown Position')}**")
-                                    st.caption(f"🏢 {evaluation.get('company', 'Unknown Company')}")
-                                
-                                with col2:
-                                    if evaluation.get('location'):
-                                        st.caption(f"📍 {evaluation['location']}")
-                                    if evaluation.get('overall_fit'):
-                                        st.caption(f"🎯 {evaluation['overall_fit']}")
-                                
-                                with col3:
-                                    st.markdown(f"{score_color} **{match_score}%**")
-                                
-                                with col4:
-                                    if evaluation.get('job_url'):
-                                        st.link_button("View", evaluation['job_url'])
-                        
-                        # Summary insights
-                        st.markdown("### 📈 Key Insights")
-                        
-                        insight_col1, insight_col2 = st.columns(2)
-                        
-                        with insight_col1:
-                            # Top recommendations
-                            top_recs = summary.get('top_recommendations', [])
-                            if top_recs:
-                                st.markdown("**🎯 Top Recommendations:**")
-                                for rec in top_recs[:3]:
-                                    if rec and rec.lower() not in ['none', 'not specified']:
-                                        st.markdown(f"• {rec}")
-                        
-                        with insight_col2:
-                            # Common gaps
-                            common_gaps = summary.get('critical_gaps', [])
-                            if common_gaps:
-                                st.markdown("**⚠️ Common Skill Gaps:**")
-                                for gap in common_gaps[:3]:
-                                    if gap and gap.lower() not in ['none', 'not specified']:
-                                        st.markdown(f"• {gap}")
-                
-                # Handle improvement plan generation
-                if (st.session_state.cv_evaluation_completed and 
-                    st.session_state.cv_evaluation_results and 
-                    'show_improvement_plan' in locals() and show_improvement_plan):
-                    
-                    with st.spinner("🤖 AI is creating your personalized improvement plan..."):
-                        improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
-                        
-                        if "error" not in improvement_plan:
-                            st.success("✅ Improvement plan generated!")
-                            
-                            st.subheader("🚀 Your Personalized Career Improvement Plan")
-                            st.markdown(improvement_plan.get('improvement_plan', 'Plan could not be generated'))
-                            
-                            # Add download option for improvement plan
-                            plan_text = improvement_plan.get('improvement_plan', '')
-                            if plan_text:
-                                st.download_button(
-                                    "📄 Download Improvement Plan",
-                                    plan_text,
-                                    file_name=f"career_improvement_plan_{user_session_id_for_run[:8]}.txt",
-                                    mime="text/plain"
-                                )
+                                    # Show any parsing issues
+                                    if evaluation.get('parsing_status'):
+                                        st.caption(f"ℹ️ {evaluation['parsing_status']}")
                         else:
-                            st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
+                            st.warning("⚠️ No detailed evaluations available")
+                            
+                            # Show raw summary if available
+                            if summary:
+                                st.write("**Available Summary Data:**")
+                                st.json(summary)
 
-    elif not CV_EVALUATION_AVAILABLE:
-        st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR}")
-        st.markdown("To enable CV evaluation:")
-        st.code("pip install langchain-together")
-
-    # --- Debugging: Show session state ---
-    # st.subheader("🔧 Debug: Session State")
-    # st.json(st.session_state)
-
-if __name__ == "__main__":
-    run_app()
+# ...existing code...
