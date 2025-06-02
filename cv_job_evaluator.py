@@ -2,6 +2,7 @@ import sqlite3
 import logging
 import os
 import json
+import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
@@ -97,7 +98,7 @@ class CVJobEvaluator:
             return None
         finally:
             conn.close()
-    
+
     def get_top_job_matches(self, user_session_id: str, limit: int = 10) -> List[Dict]:
         """Get top job matches for evaluation"""
         try:
@@ -115,7 +116,26 @@ class CVJobEvaluator:
         except Exception as e:
             logging.error(f"Error getting job matches: {e}")
             return []
-    
+
+    def format_jobs_for_evaluation(self, jobs: List[Dict]) -> str:
+        """Format job listings for AI evaluation"""
+        jobs_text = ""
+        
+        for i, job in enumerate(jobs):
+            job_num = i + 1
+            jobs_text += f"""
+JOB_{job_num}:
+Title: {job.get('title', 'Unknown')}
+Company: {job.get('company', 'Unknown')}
+Location: {job.get('location', 'Unknown')}
+Industry: {job.get('company_industry', 'Unknown')}
+Job Type: {job.get('job_type', 'Unknown')}
+Description: {job.get('description', 'No description')[:500]}{'...' if len(job.get('description', '')) > 500 else ''}
+
+"""
+        
+        return jobs_text
+
     def format_profile_for_evaluation(self, profile_data: Dict) -> str:
         """Format user profile data for AI evaluation"""
         # Extract key information
@@ -190,7 +210,7 @@ NOTE: Jobs found using enhanced search terms that may include modifiers like "st
         profile_text = self.format_profile_for_evaluation(profile_data)
         jobs_text = self.format_jobs_for_evaluation(job_matches)
         
-        # Create SIMPLIFIED evaluation prompt for better parsing
+        # Create evaluation prompt
         evaluation_prompt = f"""You are a Danish recruiter. Evaluate how well this candidate matches each job. Follow the EXACT format below.
 
 {profile_text}
@@ -212,71 +232,36 @@ MINOR_GAPS: Could improve communication skills, learn specific frameworks
 RECOMMENDATIONS: Apply to this role, highlight project experience, consider online courses
 LIKELIHOOD: Medium
 
-JOB_2:
-MATCH_SCORE: 45
-OVERALL_FIT: Fair
-SENIORITY_MATCH: Underqualified
-EXPERIENCE_GAP: 3 years short
-REALITY_CHECK: Challenging but education is strong foundation
-STRENGTHS: Relevant education, some transferable skills
-CRITICAL_GAPS: Significant experience gap, missing key technical skills
-MINOR_GAPS: Industry knowledge, professional network
-RECOMMENDATIONS: Focus on entry-level positions first, build experience
-LIKELIHOOD: Low
-
-SCORING GUIDELINES:
-- Score 80-100: Excellent match, should definitely apply
-- Score 60-79: Good match, competitive candidate
-- Score 40-59: Fair match, worth trying with strong application
-- Score 20-39: Poor match, significant gaps exist
-- Score 0-19: Very poor match, not suitable
-
 For each job, evaluate and respond with the exact format above. Start now:"""
 
         try:
-            # Get AI evaluation with more specific settings
+            # Get AI evaluation
             response = self.llm.invoke(evaluation_prompt)
             logging.info(f"Received evaluation response: {len(response)} characters")
             
-            # Debug: Log first part of response
-            logging.info(f"Response preview: {response[:500]}...")
-            
-            # Parse the response with enhanced parsing
+            # Parse the response
             evaluation_results = self.parse_simplified_evaluation_response(response, job_matches)
             
-            # Add metadata and validation
+            # Add metadata
             evaluation_results.update({
                 "user_session_id": user_session_id,
                 "evaluation_timestamp": datetime.now().isoformat(),
                 "jobs_evaluated": len(job_matches),
-                "profile_summary": {
-                    "overall_field": profile_data.get('overall_field'),
-                    "total_experience": profile_data.get('total_experience'),
-                    "skills_count": len(profile_data.get('current_skills_selected', []) + 
-                                      profile_data.get('current_skills_custom', [])),
-                    "education_count": len(profile_data.get('education_entries', [])),
-                    "experience_count": len(profile_data.get('work_experience_entries', []))
-                },
-                "evaluation_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                "evaluation_method": "simplified_structured_evaluation",
-                "raw_response_preview": response[:300]  # For debugging
+                "evaluation_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"
             })
             
-            # Apply balanced validation
+            # Apply validation and store results
             self.apply_balanced_validation(evaluation_results, profile_data)
-            
-            # Store evaluation results
             self.store_evaluation_results(user_session_id, evaluation_results)
             
             return evaluation_results
             
         except Exception as e:
             logging.error(f"Error during AI evaluation: {e}")
-            # Create fallback evaluation
             return self.create_fallback_evaluation(user_session_id, job_matches, profile_data, str(e))
 
     def parse_simplified_evaluation_response(self, response: str, jobs: List[Dict]) -> Dict:
-        """Parse AI evaluation response with MUCH more robust parsing"""
+        """Parse AI evaluation response with robust parsing"""
         results = {
             "evaluations": [],
             "summary": {
@@ -302,17 +287,11 @@ For each job, evaluate and respond with the exact format above. Start now:"""
             elif current_section:
                 current_section.append(line)
         
-        # Don't forget the last section
         if current_section:
             job_sections.append('\n'.join(current_section))
         
-        logging.info(f"Found {len(job_sections)} job sections in response")
-        
         # Parse each job section
         match_scores = []
-        all_critical_gaps = []
-        all_recommendations = []
-        
         for i, section in enumerate(job_sections):
             if i >= len(jobs):
                 break
@@ -320,26 +299,10 @@ For each job, evaluate and respond with the exact format above. Start now:"""
             eval_data = self.parse_single_job_evaluation(section, jobs[i], i)
             if eval_data:
                 results["evaluations"].append(eval_data)
-                
-                # Collect data for summary
                 if 'match_score' in eval_data:
                     match_scores.append(eval_data['match_score'])
-                
-                if eval_data.get('critical_gaps'):
-                    all_critical_gaps.append(eval_data['critical_gaps'])
-                
-                if eval_data.get('recommendations'):
-                    all_recommendations.append(eval_data['recommendations'])
         
-        # If we didn't get enough evaluations, create simple ones
-        if len(results["evaluations"]) < len(jobs):
-            logging.warning(f"Only parsed {len(results['evaluations'])} of {len(jobs)} jobs, creating simple evaluations for missing ones")
-            for i in range(len(results["evaluations"]), len(jobs)):
-                simple_eval = self.create_simple_evaluation(jobs[i], i)
-                results["evaluations"].append(simple_eval)
-                match_scores.append(simple_eval['match_score'])
-        
-        # Calculate summary statistics
+        # Calculate summary
         if match_scores:
             results["summary"]["average_match_score"] = round(sum(match_scores) / len(match_scores), 1)
             
@@ -350,22 +313,10 @@ For each job, evaluate and respond with the exact format above. Start now:"""
                 "low (0-39)": len([s for s in match_scores if s < 40])
             }
             
-            # Best matches (top 3)
+            # Best matches
             best_evals = sorted([e for e in results["evaluations"] if 'match_score' in e], 
                               key=lambda x: x.get('match_score', 0), reverse=True)
             results["summary"]["best_matches"] = best_evals[:3]
-            
-            # High likelihood count
-            high_likelihood = len([e for e in results["evaluations"] 
-                                 if e.get('likelihood', '').lower() in ['high', 'medium']])
-            results["summary"]["high_interview_likelihood"] = high_likelihood
-        
-        # Aggregate recommendations and gaps
-        results["summary"]["top_recommendations"] = list(set(all_recommendations))[:5]
-        results["summary"]["critical_gaps"] = list(set(all_critical_gaps))[:5]
-        
-        logging.info(f"Successfully parsed {len(results['evaluations'])} job evaluations")
-        logging.info(f"Average score: {results['summary']['average_match_score']}")
         
         return results
 
@@ -395,8 +346,6 @@ For each job, evaluate and respond with the exact format above. Start now:"""
             'likelihood': r'LIKELIHOOD:\s*(.+?)(?:\n|$)'
         }
         
-        import re
-        
         # Extract each field using regex
         for field, pattern in field_patterns.items():
             match = re.search(pattern, section, re.IGNORECASE | re.DOTALL)
@@ -405,56 +354,28 @@ For each job, evaluate and respond with the exact format above. Start now:"""
                 if field == 'match_score':
                     try:
                         score = int(value)
-                        eval_data[field] = max(0, min(100, score))  # Ensure valid range
+                        eval_data[field] = max(0, min(100, score))
                     except ValueError:
-                        eval_data[field] = 40  # Default score
-                        logging.warning(f"Could not parse score: {value}")
+                        eval_data[field] = 40
                 else:
                     eval_data[field] = value
             else:
-                # Provide defaults for missing fields
+                # Provide defaults
                 if field == 'match_score':
-                    eval_data[field] = 40  # Default score
+                    eval_data[field] = 40
                 else:
                     eval_data[field] = 'Not provided'
         
         return eval_data
 
-    def create_simple_evaluation(self, job: Dict, job_index: int) -> Dict:
-        """Create a simple evaluation when AI parsing fails"""
-        return {
-            "job_number": job_index + 1,
-            "job_title": job.get('title', ''),
-            "company": job.get('company', ''),
-            "location": job.get('location', ''),
-            "job_url": job.get('job_url', ''),
-            "job_id": job.get('id', ''),
-            "company_industry": job.get('company_industry', ''),
-            "match_score": 45,  # Neutral score
-            "overall_fit": "Fair",
-            "seniority_match": "Needs Assessment",
-            "experience_gap": "To be determined",
-            "reality_check": "Evaluation incomplete - manual review needed",
-            "strengths": "Profile shows potential",
-            "critical_gaps": "Detailed analysis needed",
-            "minor_gaps": "Various skills could be improved",
-            "recommendations": "Review job requirements and apply if interested",
-            "likelihood": "Medium",
-            "parsing_status": "Generated fallback evaluation"
-        }
-
     def create_fallback_evaluation(self, user_session_id: str, jobs: List[Dict], profile_data: Dict, error: str) -> Dict:
         """Create fallback evaluation results when AI evaluation fails"""
         logging.warning(f"Creating fallback evaluation due to error: {error}")
         
-        # Create simple evaluations for all jobs
         evaluations = []
         for i, job in enumerate(jobs):
-            eval_data = self.create_simple_evaluation(job, i)
-            eval_data["error_note"] = "AI evaluation failed, showing placeholder results"
-            evaluations.append(eval_data)
+            evaluations.append(self.create_simple_evaluation(job, i))
         
-        # Calculate basic summary
         scores = [eval_data['match_score'] for eval_data in evaluations]
         
         return {
@@ -466,24 +387,120 @@ For each job, evaluate and respond with the exact format above. Start now:"""
                     "medium (40-69)": len(scores),
                     "low (0-39)": 0
                 },
-                "top_recommendations": ["Manual review recommended", "Check job requirements carefully"],
-                "critical_gaps": ["AI evaluation failed - manual analysis needed"],
                 "best_matches": evaluations[:3],
-                "high_interview_likelihood": 0
             },
             "user_session_id": user_session_id,
             "evaluation_timestamp": datetime.now().isoformat(),
             "jobs_evaluated": len(jobs),
             "evaluation_error": error,
-            "evaluation_status": "fallback_used",
-            "profile_summary": {
-                "overall_field": profile_data.get('overall_field'),
-                "total_experience": profile_data.get('total_experience'),
-                "skills_count": len(profile_data.get('current_skills_selected', []) + 
-                                  profile_data.get('current_skills_custom', [])),
-                "education_count": len(profile_data.get('education_entries', [])),
-                "experience_count": len(profile_data.get('work_experience_entries', []))
-            }
+            "evaluation_status": "fallback_used"
+        }
+
+    def apply_balanced_validation(self, evaluation_results: Dict, profile_data: Dict):
+        """Apply balanced validation that's realistic but not crushing"""
+        # Simple validation - just ensure scores are reasonable
+        for evaluation in evaluation_results.get('evaluations', []):
+            current_score = evaluation.get('match_score', 0)
+            # Keep scores between 20-85 for realism
+            evaluation['match_score'] = max(20, min(85, current_score))
+
+    def store_evaluation_results(self, user_session_id: str, results: Dict):
+        """Store evaluation results in database"""
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cv_job_evaluations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_session_id TEXT,
+            evaluation_data TEXT,
+            evaluation_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            jobs_evaluated INTEGER,
+            average_match_score REAL
+        )
+        """)
+        
+        try:
+            cursor.execute("""
+            INSERT INTO cv_job_evaluations 
+            (user_session_id, evaluation_data, jobs_evaluated, average_match_score)
+            VALUES (?, ?, ?, ?)
+            """, (
+                user_session_id,
+                json.dumps(results),
+                results.get('jobs_evaluated', 0),
+                results.get('summary', {}).get('average_match_score', 0)
+            ))
+            
+            conn.commit()
+            logging.info(f"Stored evaluation results for user {user_session_id}")
+            
+        except Exception as e:
+            logging.error(f"Error storing evaluation results: {e}")
+        finally:
+            conn.close()
+
+    def get_latest_evaluation(self, user_session_id: str) -> Optional[Dict]:
+        """Get the latest evaluation results for a user"""
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+            SELECT evaluation_data FROM cv_job_evaluations 
+            WHERE user_session_id = ? 
+            ORDER BY evaluation_timestamp DESC LIMIT 1
+            """, (user_session_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                return json.loads(result[0])
+            return None
+            
+        except Exception as e:
+            logging.error(f"Error getting latest evaluation: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def generate_improvement_plan(self, user_session_id: str) -> Dict:
+        """Generate a personalized improvement plan based on evaluations"""
+        evaluation_results = self.get_latest_evaluation(user_session_id)
+        if not evaluation_results:
+            return {"error": "No evaluation results found"}
+        
+        profile_data = self.get_user_profile_data(user_session_id)
+        if not profile_data:
+            return {"error": "No profile data found"}
+        
+        # Create a simple improvement plan
+        improvement_plan = f"""Based on your evaluation results, here's a personalized improvement plan:
+
+CURRENT STATUS:
+- Average match score: {evaluation_results.get('summary', {}).get('average_match_score', 0)}%
+- Jobs evaluated: {evaluation_results.get('jobs_evaluated', 0)}
+
+IMMEDIATE ACTIONS (0-2 months):
+1. Update your CV to highlight relevant skills
+2. Apply to jobs with 60%+ match scores first
+3. Practice common interview questions
+
+MEDIUM TERM (2-4 months):
+1. Develop skills mentioned in job descriptions
+2. Network with professionals in your field
+3. Consider relevant certifications
+
+LONG TERM (4-6 months):
+1. Build portfolio projects
+2. Gain additional experience through projects
+3. Expand your professional network
+
+The system has analyzed your profile and found relevant opportunities. Focus on the highest-scoring matches first."""
+
+        return {
+            "user_session_id": user_session_id,
+            "improvement_plan": improvement_plan,
+            "generated_timestamp": datetime.now().isoformat()
         }
 
 # Convenience functions
