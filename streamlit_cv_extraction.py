@@ -37,8 +37,22 @@ except ImportError as e:
 
 # Import CV-job evaluation functionality
 try:
-    from cv_job_evaluator import evaluate_user_cv_matches, get_user_latest_evaluation, generate_user_improvement_plan
+    from cv_job_evaluator import CVJobEvaluator
     CV_EVALUATION_AVAILABLE = True
+    
+    # Create wrapper functions that work with the class
+    def evaluate_user_cv_matches(user_session_id: str, max_jobs: int = 10) -> Dict:
+        evaluator = CVJobEvaluator()
+        return evaluator.evaluate_cv_job_matches(user_session_id, max_jobs)
+    
+    def get_user_latest_evaluation(user_session_id: str) -> Dict:
+        evaluator = CVJobEvaluator()
+        return evaluator.get_latest_evaluation(user_session_id)
+    
+    def generate_user_improvement_plan(user_session_id: str) -> Dict:
+        evaluator = CVJobEvaluator()
+        return evaluator.generate_improvement_plan(user_session_id)
+        
 except ImportError as e:
     CV_EVALUATION_AVAILABLE = False
     CV_EVALUATION_ERROR = str(e)
@@ -238,11 +252,11 @@ def run_app():
                         
                         if cv_data.get('extraction_success', False):
                             # Auto-populate session state with extracted data
-                            if cv_data.get('education_entries'):
-                                st.session_state.education_entries = cv_data['education_entries']
                             if cv_data.get('experience_entries'):
                                 st.session_state.experience_entries = cv_data['experience_entries']
-                            
+                            if cv_data.get('education_entries'):
+                                st.session_state.education_entries = cv_data['education_entries']
+
                             # Store suggestions for form pre-population
                             st.session_state.cv_suggestions = {
                                 'overall_field': suggestions.get('overall_field', ''),
@@ -916,7 +930,7 @@ def run_app():
                             )
                         
                         # Apply filters and sorting
-                        filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance]
+                        filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance * 30]  # Convert 1-3 to 30-90
                         
                         # Apply sorting
                         if sort_by == "Date (newest first)":
@@ -945,12 +959,12 @@ def run_app():
                                 
                                 with header_col2:
                                     relevance_score = job.get('relevance_score', 1)
-                                    if relevance_score >= 8:
-                                        st.markdown("🎯 **Excellent**")
-                                    elif relevance_score >= 5:
-                                        st.markdown("🟡 **Good**")
+                                    if relevance_score >= 70:
+                                        st.success(f"🎯 {relevance_score}% Match")
+                                    elif relevance_score >= 50:
+                                        st.warning(f"🟡 {relevance_score}% Match")
                                     else:
-                                        st.markdown("🔴 **Fair**")
+                                        st.info(f"📊 {relevance_score}% Match")
                                 
                                 # Main job information
                                 info_col1, info_col2 = st.columns([3, 1])
@@ -963,10 +977,10 @@ def run_app():
                                     if job.get('location'):
                                         company_info.append(f"📍 {job['location']}")
                                     if job.get('job_type'):
-                                        company_info.append(f"💼 {job['job_type']}")
+                                        company_info.append(f"💼 {job['job_type'].title()}")
                                     
                                     if company_info:
-                                        st.markdown(" | ".join(company_info))
+                                        st.markdown(" • ".join(company_info))
                                     
                                     # Enhanced company information if available
                                     if job.get('company_industry'):
@@ -975,23 +989,22 @@ def run_app():
                                     # Job description preview
                                     description = job.get('description', '')
                                     if description and len(description) > 10:
-                                        # Clean up description and show preview
-                                        clean_desc = description.replace('\n', ' ').replace('\r', ' ')
-                                        preview_length = 200
-                                        if len(clean_desc) > preview_length:
-                                            clean_desc = clean_desc[:preview_length] + "..."
-                                        st.markdown(f"📝 {clean_desc}")
+                                        preview = description[:200] + "..." if len(description) > 200 else description
+                                        st.markdown(f"📝 **Description:** {preview}")
                                     else:
-                                        st.markdown("📝 *No description available*")
+                                        st.markdown("📝 **Description:** Not available")
+                                    
+                                    # Show matched keywords/skills if available
+                                    if job.get('matched_skills'):
+                                        st.markdown(f"🔧 **Matched Skills:** {', '.join(job['matched_skills'][:3])}")
                                     
                                     # Additional metadata
                                     metadata_parts = []
                                     if job.get('date_posted'):
                                         metadata_parts.append(f"📅 Posted: {job['date_posted']}")
                                     if job.get('scraped_timestamp'):
-                                        # Show just the date part
-                                        scraped_date = job['scraped_timestamp'].split(' ')[0] if ' ' in job['scraped_timestamp'] else job['scraped_timestamp']
-                                        metadata_parts.append(f"🔍 Found: {scraped_date}")
+                                        scraped_date = job['scraped_timestamp'][:10]  # Get just the date part
+                                        metadata_parts.append(f"🔄 Scraped: {scraped_date}")
                                     
                                     if metadata_parts:
                                         st.caption(" • ".join(metadata_parts))
@@ -1001,199 +1014,303 @@ def run_app():
                                     if job.get('job_url'):
                                         st.link_button("🔗 View Job", job['job_url'], use_container_width=True)
                                     
-                                    # Relevance score visualization - FIX THE PROGRESS BAR ERROR
-                                    score_percentage = min(100, max(0, (relevance_score / 10) * 100))  # Normalize to 0-100
-                                    progress_value = score_percentage / 100  # Convert to 0.0-1.0 for progress bar
-                                    st.progress(progress_value)
-                                    st.caption(f"Match: {score_percentage:.0f}%")
+                                    # Relevance score visualization - FIXED PROGRESS BAR
+                                    progress_value = min(1.0, max(0.0, relevance_score / 100))  # Convert to 0.0-1.0
+                                    st.progress(progress_value, text=f"Match: {relevance_score}%")
                                     
-                                    # Database source indicator
-                                    st.caption("💾 From Database")
-                        
-                        # Additional database statistics
-                        if total_existing_matches > 0:
-                            st.markdown("---")
-                            
-                            stats_col1, stats_col2, stats_col3 = st.columns(3)
-                            
-                            with stats_col1:
-                                excellent_matches = len([job for job in matches if job.get('relevance_score', 1) >= 8])
-                                st.metric("🎯 Excellent Matches", excellent_matches)
-                            
-                            with stats_col2:
-                                good_matches = len([job for job in matches if job.get('relevance_score', 1) >= 5 and job.get('relevance_score', 1) < 8])
-                                st.metric("🟡 Good Matches", good_matches)
-                            
-                            with stats_col3:
-                                companies = len(set([job.get('company', '').lower() for job in matches if job.get('company')]))
-                                st.metric("🏢 Unique Companies", companies)
+                                    # Match type indicator
+                                    match_type = job.get('match_type', 'unknown')
+                                    if match_type == 'search_term':
+                                        st.caption("🎯 Keyword Match")
+                                    elif match_type == 'recent':
+                                        st.caption("🕒 Recent Job")
+                                    else:
+                                        st.caption("📊 Database Match")
 
                     except Exception as e:
                         st.error(f"❌ Error displaying job matches: {str(e)}")
-                        st.info("💡 Jobs were found in database but couldn't be displayed properly")
-                        
-                        # Show raw count as fallback
-                        st.info(f"Found {total_existing_matches} job matches in database")
-                
-                else:
-                    # No matches found in database at all
-                    if search_results['total_jobs_found'] > 0:
-                        st.warning(f"⚠️ Scraped {search_results['total_jobs_found']} new jobs, but no matches found in database for your profile")
-                        st.info("💡 The scraped jobs may not match your keywords/criteria, or there may be a database issue")
-                    else:
-                        st.warning("❌ No relevant jobs found in database and no new jobs were scraped")
-                        
-                        st.markdown("**This might be because:**")
-                        st.markdown("""
-                        - 🔍 Your search keywords are too specific
-                        - 📍 No jobs match your location preferences  
-                        - 💾 The database is empty - try running the general scraper first
-                        - 🌐 Indeed has limited results for your search terms
-                        - ⚙️ Database connection issues
-                        """)
-                        
-                        st.info("💡 **Recommended actions:**")
-                        st.markdown("""
-                        1. Try broader job search keywords
-                        2. Run `python indeed_scraper.py` to populate the database
-                        3. Check that the database file `indeed_jobs.db` exists
-                        4. Try the general job dashboard to see all available jobs
-                        """)
-                    
-                    # Show search details for debugging
-                    with st.expander("🔍 Search Details & Debugging"):
-                        st.json({
-                            "search_results": search_results,
-                            "user_id": user_session_id_for_run,
-                            "total_database_matches": total_existing_matches,
-                            "search_keywords": profile_data.get('job_title_keywords', []),
-                            "locations": profile_data.get('preferred_locations_dk', [])
-                        })
-                        
-                        # Database connection test
-                        try:
-                            db_path = "indeed_jobs.db"
-                            if os.path.exists(db_path):
-                                conn = sqlite3.connect(db_path)
-                                cursor = conn.cursor()
-                                cursor.execute("SELECT COUNT(*) FROM job_postings")
-                                total_jobs = cursor.fetchone()[0]
-                                conn.close()
-                                st.info(f"✅ Database connection OK. Total jobs in database: {total_jobs}")
-                            else:
-                                st.error(f"❌ Database file '{db_path}' not found")
-                        except Exception as db_e:
-                            st.error(f"❌ Database connection failed: {str(db_e)}")
-    
-    # Add CV-Job Evaluation Section
-    if (CV_EVALUATION_AVAILABLE and 
-        st.session_state.get('job_search_completed', False) and 
-        st.session_state.get('job_search_results')):
-        
-        search_results = st.session_state.job_search_results
-        
-        if search_results.get('total_jobs_found', 0) > 0:
-            st.markdown("---")
-            st.subheader("🎯 AI-Powered CV-Job Match Analysis")
-            st.markdown("*Get detailed feedback on how well your profile matches available positions*")
-            
-            # Initialize evaluation state
-            if 'cv_evaluation_started' not in st.session_state:
-                st.session_state.cv_evaluation_started = False
-            if 'cv_evaluation_completed' not in st.session_state:
-                st.session_state.cv_evaluation_completed = False
-            if 'cv_evaluation_results' not in st.session_state:
-                st.session_state.cv_evaluation_results = None
+                        with st.expander("🔍 Error Details"):
+                            st.code(str(e))
 
-            col1, col2, col3 = st.columns([2, 1, 1])
-            
-            with col1:
-                if not st.session_state.cv_evaluation_started:
-                    start_evaluation = st.button("🤖 Analyze CV vs Jobs with AI", type="primary", key="start_cv_eval")
-                elif st.session_state.cv_evaluation_started and not st.session_state.cv_evaluation_completed:
-                    st.info("🤖 AI is analyzing your CV against job postings... Please wait.")
-                    start_evaluation = False
-                else:
-                    st.success("✅ CV-Job analysis completed!")
-                    start_evaluation = False
-            
-            with col2:
-                if st.session_state.cv_evaluation_completed:
-                    if st.button("🔄 Re-analyze", key="reanalyze_cv"):
-                        st.session_state.cv_evaluation_started = False
-                        st.session_state.cv_evaluation_completed = False
-                        st.session_state.cv_evaluation_results = None
-                        st.rerun()
-            
-            with col3:
-                if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
-                    show_improvement_plan = st.button("📈 Get Improvement Plan", key="show_improvement_plan")
-
-            # Handle improvement plan execution - ADD THIS SECTION
-            if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
-                if 'show_improvement_plan' in locals() and show_improvement_plan:
-                    with st.spinner("🤖 AI is generating your personalized improvement plan..."):
-                        try:
-                            improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
-                            
-                            if "error" not in improvement_plan:
-                                st.session_state.improvement_plan_results = improvement_plan
-                                st.success("✅ Improvement plan generated!")
-                                st.rerun()
-                            else:
-                                st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
+                    # CV-Job Evaluation Section (only if CV evaluation is available)
+                    if CV_EVALUATION_AVAILABLE and total_existing_matches > 0:
+                        st.markdown("---")
+                        st.subheader("🤖 AI-Powered CV Analysis")
+                        st.markdown("*Get detailed analysis of how well your CV matches the available jobs*")
                         
-                        except Exception as e:
-                            st.error(f"❌ Error generating improvement plan: {str(e)}")
-
-                # Display improvement plan if available
-                if st.session_state.get('improvement_plan_results'):
-                    improvement_plan = st.session_state.improvement_plan_results
-                    
-                    st.markdown("---")
-                    st.subheader("📈 Personalized Career Improvement Plan")
-                    
-                    # Display the improvement plan
-                    plan_text = improvement_plan.get('improvement_plan', 'No plan available')
-                    
-                    # Parse and display the improvement plan in a structured way
-                    st.markdown("### 🎯 Your Personalized Development Roadmap")
-                    
-                    # Split the plan into sections
-                    sections = plan_text.split('\n\n')
-                    
-                    for section in sections:
-                        if section.strip():
-                            if section.startswith('IMMEDIATE ACTIONS'):
-                                st.markdown("#### 🚀 Immediate Actions (0-2 months)")
-                                st.info(section.replace('IMMEDIATE ACTIONS (0-2 months):', '').strip())
-                            elif section.startswith('MEDIUM TERM'):
-                                st.markdown("#### ⚡ Medium Term (2-4 months)")
-                                st.warning(section.replace('MEDIUM TERM (2-4 months):', '').strip())
-                            elif section.startswith('LONG TERM'):
-                                st.markdown("#### 🎯 Long Term (4-6 months)")
-                                st.success(section.replace('LONG TERM (4-6 months):', '').strip())
-                            elif section.startswith('CURRENT STATUS'):
-                                st.markdown("#### 📊 Current Status")
-                                st.metric("Your Status", section.replace('CURRENT STATUS:', '').strip())
+                        # Initialize evaluation state
+                        if 'cv_evaluation_started' not in st.session_state:
+                            st.session_state.cv_evaluation_started = False
+                        if 'cv_evaluation_completed' not in st.session_state:
+                            st.session_state.cv_evaluation_completed = False
+                        if 'cv_evaluation_results' not in st.session_state:
+                            st.session_state.cv_evaluation_results = None
+                        
+                        eval_col1, eval_col2, eval_col3 = st.columns([2, 1, 1])
+                        
+                        with eval_col1:
+                            if not st.session_state.cv_evaluation_started:
+                                start_evaluation = st.button("🤖 Analyze My CV Against These Jobs", type="primary", key="start_cv_evaluation")
+                            elif st.session_state.cv_evaluation_started and not st.session_state.cv_evaluation_completed:
+                                st.info("🤖 AI is analyzing your CV... Please wait.")
+                                start_evaluation = False
                             else:
-                                st.markdown(section)
-                    
-                    # Add action buttons
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        if st.button("📧 Email Plan to Me", key="email_plan"):
-                            st.info("📧 Email feature not implemented yet")
-                    
-                    with col2:
-                        if st.button("📄 Download as PDF", key="download_plan"):
-                            st.info("📄 PDF download feature not implemented yet")
-                    
-                    with col3:
-                        if st.button("🔄 Generate New Plan", key="regenerate_plan"):
-                            del st.session_state.improvement_plan_results
+                                st.success("✅ CV analysis completed!")
+                                start_evaluation = False
+                        
+                        with eval_col2:
+                            if st.session_state.cv_evaluation_completed:
+                                if st.button("🔄 Re-analyze", key="restart_evaluation"):
+                                    st.session_state.cv_evaluation_started = False
+                                    st.session_state.cv_evaluation_completed = False
+                                    st.session_state.cv_evaluation_results = None
+                                    st.rerun()
+                        
+                        with eval_col3:
+                            show_improvement_plan = False  # Initialize the variable
+                            if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
+                                show_improvement_plan = st.button("📈 Get Improvement Plan", key="show_improvement_plan")
+                        
+                        # Handle evaluation execution
+                        if start_evaluation:
+                            st.session_state.cv_evaluation_started = True
                             st.rerun()
+                        
+                        # Execute evaluation if started but not completed
+                        if st.session_state.cv_evaluation_started and not st.session_state.cv_evaluation_completed:
+                            with st.spinner("🤖 AI is analyzing your CV against job requirements... This may take several minutes."):
+                                try:
+                                    evaluation_results = evaluate_user_cv_matches(user_session_id_for_run, max_jobs=min(10, total_existing_matches))
+                                    st.session_state.cv_evaluation_results = evaluation_results
+                                    st.session_state.cv_evaluation_completed = True
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Error during CV evaluation: {str(e)}")
+                                    st.session_state.cv_evaluation_started = False
+                                    
+                                    # Show detailed error info
+                                    with st.expander("🔍 Error Details"):
+                                        st.code(str(e))
+                                        st.markdown("**Possible solutions:**")
+                                        st.markdown("""
+                                        - Check your Together AI API key configuration
+                                        - Verify that cv_job_evaluator.py is working correctly
+                                        - Try with fewer jobs (the analysis is compute-intensive)
+                                        - Check internet connection for AI service access
+                                        """)
+
+                        # Handle improvement plan execution
+                        if st.session_state.get('cv_evaluation_completed', False) and st.session_state.get('cv_evaluation_results') and show_improvement_plan:
+                            with st.spinner("🤖 AI is generating your personalized improvement plan..."):
+                                try:
+                                    improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
+                                    
+                                    if "error" not in improvement_plan:
+                                        st.session_state.improvement_plan_results = improvement_plan
+                                        st.success("✅ Improvement plan generated!")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
+                                        
+                                        # Show more debugging info
+                                        with st.expander("🔍 Debug Information"):
+                                            st.write("User ID:", user_session_id_for_run)
+                                            st.write("Evaluation results available:", bool(st.session_state.cv_evaluation_results))
+                                            st.write("Error details:", improvement_plan)
+                                
+                                except Exception as e:
+                                    error_str = str(e)
+                                    st.error(f"❌ Error generating improvement plan: {error_str}")
+                                    
+                                    # Enhanced error handling with specific messages
+                                    if "503" in error_str or "Server" in error_str:
+                                        st.warning("🔄 **Together AI server is overloaded**")
+                                        st.info("💡 **Try these solutions:**")
+                                        st.markdown("""
+                                        - Wait 30-60 seconds and try again
+                                        - The service is experiencing high demand
+                                        - Your evaluation data is saved - you can retry later
+                                        """)
+                                        
+                                        # Offer fallback option
+                                        if st.button("🔄 Try Again Now", key="retry_improvement_plan"):
+                                            st.rerun()
+                                    
+                                    elif "rate" in error_str.lower() or "limit" in error_str.lower():
+                                        st.warning("⏱️ **API rate limit reached**")
+                                        st.info("Please wait a few minutes before trying again")
+                                    
+                                    else:
+                                        st.warning("🔧 **Technical Error**")
+                                        st.info("This might be a temporary issue. Please try again in a moment.")
+                                    
+                                    # Show debug details in expander
+                                    with st.expander("🔍 Technical Details"):
+                                        st.code(error_str)
+                                        st.write("User ID:", user_session_id_for_run)
+                                        st.write("Has evaluation results:", bool(st.session_state.cv_evaluation_results))
+
+                        # Display improvement plan if available
+                        if st.session_state.get('improvement_plan_results'):
+                            improvement_plan = st.session_state.improvement_plan_results
+                            
+                            st.markdown("---")
+                            st.subheader("📈 Personalized Career Improvement Plan")
+                            
+                            # Show if this is fallback mode
+                            if improvement_plan.get('fallback_mode'):
+                                st.info("📋 **Basic Plan** - AI service was unavailable, showing fundamental recommendations")
+                            
+                            # Display the improvement plan
+                            plan_text = improvement_plan.get('improvement_plan', 'No plan available')
+                            
+                            # Parse and display the improvement plan in a structured way
+                            st.markdown("### 🎯 Your Personalized Development Roadmap")
+                            
+                            # Split the plan into sections
+                            sections = plan_text.split('\n\n')
+                            
+                            for section in sections:
+                                if section.strip():
+                                    if 'IMMEDIATE ACTIONS' in section:
+                                        st.markdown("#### 🚀 Immediate Actions (0-2 months)")
+                                        st.markdown(section.replace('IMMEDIATE ACTIONS (0-2 months):', ''))
+                                    elif 'MEDIUM TERM' in section:
+                                        st.markdown("#### ⏳ Medium Term Goals (2-4 months)")
+                                        st.markdown(section.replace('MEDIUM TERM (2-4 months):', ''))
+                                    elif 'LONG TERM' in section:
+                                        st.markdown("#### 🎯 Long Term Strategy (4-6 months)")
+                                        st.markdown(section.replace('LONG TERM (4-6 months):', ''))
+                                    elif 'CURRENT STATUS' in section:
+                                        st.markdown("#### 📊 Current Status")
+                                        st.markdown(section.replace('CURRENT STATUS:', ''))
+                                    elif 'SKILL DEVELOPMENT' in section:
+                                        st.markdown("#### 🛠️ Skill Development Priorities")
+                                        st.markdown(section.replace('SKILL DEVELOPMENT PRIORITIES:', ''))
+                                    elif 'CERTIFICATION' in section:
+                                        st.markdown("#### 🏆 Certification Recommendations")
+                                        st.markdown(section.replace('CERTIFICATION RECOMMENDATIONS:', ''))
+                                    elif 'APPLICATION STRATEGY' in section:
+                                        st.markdown("#### 📝 Application Strategy")
+                                        st.markdown(section.replace('APPLICATION STRATEGY:', ''))
+                                    elif 'NETWORKING' in section:
+                                        st.markdown("#### 🤝 Networking Suggestions")
+                                        st.markdown(section.replace('NETWORKING SUGGESTIONS:', ''))
+                                    else:
+                                        st.markdown(section)
+                            
+                            # Add action buttons
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                if st.button("📧 Email Plan to Me", key="email_plan"):
+                                    st.info("📧 Email feature not implemented yet")
+                            
+                            with col2:
+                                if st.button("📄 Download as PDF", key="download_plan"):
+                                    st.info("📄 PDF download feature not implemented yet")
+                            
+                            with col3:
+                                if st.button("🔄 Generate New Plan", key="regenerate_plan"):
+                                    del st.session_state.improvement_plan_results
+                                    st.rerun()
+
+                        # Display evaluation results
+                        if st.session_state.get('cv_evaluation_completed', False) and st.session_state.get('cv_evaluation_results'):
+                            evaluation_results = st.session_state.cv_evaluation_results
+                            
+                            if "error" in evaluation_results:
+                                st.error(f"❌ Evaluation failed: {evaluation_results['error']}")
+                            else:
+                                # Check if we have valid evaluations
+                                evaluations = evaluation_results.get('evaluations', [])
+                                if not evaluations:
+                                    st.warning("⚠️ No evaluations found in results")
+                                    st.info("This might be due to parsing issues.")
+                                else:
+                                    st.success("✅ CV analysis completed!")
+                                    
+                                    # Summary metrics with fallback handling
+                                    summary = evaluation_results.get('summary', {})
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    
+                                    with col1:
+                                        avg_score = summary.get('average_match_score', 0)
+                                        st.metric("Average Match Score", f"{avg_score}%")
+                                    
+                                    with col2:
+                                        jobs_count = evaluation_results.get('jobs_evaluated', len(evaluations))
+                                        st.metric("Jobs Analyzed", jobs_count)
+                                    
+                                    with col3:
+                                        best_score = 0
+                                        if evaluations:
+                                            best_score = max([e.get('match_score', 0) for e in evaluations])
+                                        st.metric("Best Match", f"{best_score}%")
+                                    
+                                    with col4:
+                                        high_matches = len([e for e in evaluations if e.get('match_score', 0) >= 70])
+                                        st.metric("High Matches (70%+)", high_matches)
+                                
+                                # Detailed job evaluations with enhanced display
+                                st.subheader("📊 Detailed Job Evaluations")
+                                
+                                if evaluations:
+                                    # Sort evaluations by match score
+                                    sorted_evaluations = sorted(evaluations, 
+                                                              key=lambda x: x.get('match_score', 0), 
+                                                              reverse=True)
+                                    
+                                    for i, evaluation in enumerate(sorted_evaluations):
+                                        with st.expander(f"🎯 {evaluation.get('job_title', 'Unknown Position')} at {evaluation.get('company', 'Unknown Company')} - {evaluation.get('match_score', 0)}% Match"):
+                                            
+                                            # Basic job info
+                                            col1, col2 = st.columns(2)
+                                            with col1:
+                                                st.write(f"**Company:** {evaluation.get('company', 'N/A')}")
+                                                st.write(f"**Location:** {evaluation.get('location', 'N/A')}")
+                                                st.write(f"**Industry:** {evaluation.get('company_industry', 'N/A')}")
+                                            
+                                            with col2:
+                                                st.write(f"**Match Score:** {evaluation.get('match_score', 0)}%")
+                                                st.write(f"**Overall Fit:** {evaluation.get('overall_fit', 'N/A')}")
+                                                st.write(f"**Interview Likelihood:** {evaluation.get('likelihood', 'N/A')}")
+                                            
+                                            # Detailed analysis
+                                            if evaluation.get('reality_check'):
+                                                st.write("**💭 Reality Check:**")
+                                                st.write(evaluation['reality_check'])
+                                            
+                                            if evaluation.get('strengths'):
+                                                st.write("**✅ Your Strengths:**")
+                                                st.success(evaluation['strengths'])
+                                            
+                                            if evaluation.get('critical_gaps'):
+                                                st.write("**❗ Critical Gaps:**")
+                                                st.warning(evaluation['critical_gaps'])
+                                            
+                                            if evaluation.get('recommendations'):
+                                                st.write("**💡 Recommendations:**")
+                                                st.info(evaluation['recommendations'])
+                                            
+                                            # Link to job if available
+                                            if evaluation.get('job_url'):
+                                                st.markdown(f"[🔗 View Job Posting]({evaluation['job_url']})")
+                        else:
+                            st.info("🔍 No job matches found in database. Try running the job search first.")
+            
+            else:
+                st.info("🔍 No job search results available. Please run the job search first.")
+
+    # Show why certain features are not available  
+    elif not JOB_MATCHING_AVAILABLE:
+        st.warning(f"🔍 Job matching not available: {JOB_MATCHING_ERROR if 'JOB_MATCHING_ERROR' in globals() else 'profile_job_matcher not found'}")
+        st.info("To enable job matching, ensure profile_job_matcher.py is available")
+    
+    elif not CV_EVALUATION_AVAILABLE:
+        st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR if 'CV_EVALUATION_ERROR' in globals() else 'CVJobEvaluator not found'}")
+        st.info("To enable CV evaluation, ensure cv_job_evaluator.py is available")
 
 # make file runable
 if __name__ == "__main__":

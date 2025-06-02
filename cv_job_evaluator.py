@@ -1,9 +1,10 @@
-import sqlite3
-import logging
 import os
-import json
+import sqlite3
 import re
-from typing import Dict, List, Optional, Tuple
+import json
+import logging
+import time
+from typing import Dict, List, Optional
 from datetime import datetime
 
 # Load environment variables
@@ -60,12 +61,12 @@ class CVJobEvaluator:
         # Initialize LLM with the most advanced available model
         try:
             self.llm = Together(
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",  # Latest and most capable model
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 api_key=self.api_key,
-                temperature=0.1,  # Increased slightly for more balanced responses
+                temperature=0.1,
                 max_tokens=4096,   
-                top_p=0.9,         # Increased for more varied responses
-                repetition_penalty=1.1  # Reduced to avoid too repetitive conservative assessments
+                top_p=0.9,
+                repetition_penalty=1.1
             )
             
             # Test LLM connection
@@ -368,78 +369,6 @@ For each job, evaluate and respond with the exact format above. Start now:"""
         
         return eval_data
 
-    def create_fallback_evaluation(self, user_session_id: str, jobs: List[Dict], profile_data: Dict, error: str) -> Dict:
-        """Create fallback evaluation results when AI evaluation fails"""
-        logging.warning(f"Creating fallback evaluation due to error: {error}")
-        
-        evaluations = []
-        for i, job in enumerate(jobs):
-            evaluations.append(self.create_simple_evaluation(job, i))
-        
-        scores = [eval_data['match_score'] for eval_data in evaluations]
-        
-        return {
-            "evaluations": evaluations,
-            "summary": {
-                "average_match_score": round(sum(scores) / len(scores), 1) if scores else 0,
-                "score_distribution": {
-                    "high (70-100)": 0,
-                    "medium (40-69)": len(scores),
-                    "low (0-39)": 0
-                },
-                "best_matches": evaluations[:3],
-            },
-            "user_session_id": user_session_id,
-            "evaluation_timestamp": datetime.now().isoformat(),
-            "jobs_evaluated": len(jobs),
-            "evaluation_error": error,
-            "evaluation_status": "fallback_used"
-        }
-
-    def apply_balanced_validation(self, evaluation_results: Dict, profile_data: Dict):
-        """Apply balanced validation that's realistic but not crushing"""
-        # Simple validation - just ensure scores are reasonable
-        for evaluation in evaluation_results.get('evaluations', []):
-            current_score = evaluation.get('match_score', 0)
-            # Keep scores between 20-85 for realism
-            evaluation['match_score'] = max(20, min(85, current_score))
-
-    def store_evaluation_results(self, user_session_id: str, results: Dict):
-        """Store evaluation results in database"""
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS cv_job_evaluations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_session_id TEXT,
-            evaluation_data TEXT,
-            evaluation_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            jobs_evaluated INTEGER,
-            average_match_score REAL
-        )
-        """)
-        
-        try:
-            cursor.execute("""
-            INSERT INTO cv_job_evaluations 
-            (user_session_id, evaluation_data, jobs_evaluated, average_match_score)
-            VALUES (?, ?, ?, ?)
-            """, (
-                user_session_id,
-                json.dumps(results),
-                results.get('jobs_evaluated', 0),
-                results.get('summary', {}).get('average_match_score', 0)
-            ))
-            
-            conn.commit()
-            logging.info(f"Stored evaluation results for user {user_session_id}")
-            
-        except Exception as e:
-            logging.error(f"Error storing evaluation results: {e}")
-        finally:
-            conn.close()
-
     def get_latest_evaluation(self, user_session_id: str) -> Optional[Dict]:
         """Get the latest evaluation results for a user"""
         conn = sqlite3.connect(DB_NAME)
@@ -558,8 +487,8 @@ NETWORKING SUGGESTIONS:
 Be specific, actionable, and realistic. Focus on the Danish job market context."""
 
         try:
-            # Generate improvement plan with AI
-            response = self.llm.invoke(improvement_prompt)
+            # Generate improvement plan with AI - WITH RETRY LOGIC
+            response = self._generate_with_retry(improvement_prompt)
             
             return {
                 "user_session_id": user_session_id,
@@ -575,37 +504,230 @@ Be specific, actionable, and realistic. Focus on the Danish job market context."
         except Exception as e:
             logging.error(f"Error generating improvement plan: {e}")
             # Create fallback plan
-            fallback_plan = f"""PERSONALIZED CAREER IMPROVEMENT PLAN
+            return self.create_fallback_improvement_plan(user_session_id, evaluation_results, profile_data, str(e))
+
+    def _generate_with_retry(self, prompt: str, max_retries: int = 3) -> str:
+        """Generate AI response with retry logic for API failures"""
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.llm.invoke(prompt)
+                return response
+            except Exception as e:
+                logging.warning(f"AI generation attempt {attempt + 1} failed: {e}")
+                
+                if attempt < max_retries - 1:
+                    # Wait before retry (exponential backoff)
+                    wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                    logging.info(f"Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    # Final attempt failed
+                    raise e
+
+    def create_fallback_improvement_plan(self, user_session_id: str, evaluation_results: Dict, profile_data: Dict, error_message: str) -> Dict:
+        """Create a fallback improvement plan when AI fails"""
+        logging.info(f"Creating fallback improvement plan for user {user_session_id}")
+        
+        # Extract basic info
+        summary = evaluation_results.get('summary', {})
+        avg_score = summary.get('average_match_score', 0)
+        evaluations = evaluation_results.get('evaluations', [])
+        
+        # Create basic improvement plan
+        fallback_plan = f"""FALLBACK CAREER IMPROVEMENT PLAN
+(AI service temporarily unavailable - basic recommendations provided)
 
 CURRENT STATUS:
-- Average match score: {summary.get('average_match_score', 0)}%
-- Jobs evaluated: {evaluation_results.get('jobs_evaluated', 0)}
-- Primary field: {profile_data.get('overall_field', '')}
+Your profile shows an average match score of {avg_score}% across {len(evaluations)} job positions analyzed.
 
 IMMEDIATE ACTIONS (0-2 months):
-1. Update your CV to better highlight relevant skills mentioned in job descriptions
-2. Apply to jobs with 60%+ match scores first - these are your best opportunities
-3. Practice common interview questions for your field
-4. Optimize your LinkedIn profile with keywords from target job descriptions
+1. Update your LinkedIn profile with your most relevant skills and recent experience
+2. Review and improve your CV based on the job matches you've seen
+3. Apply to the highest-scoring job matches from your evaluation
+4. Research the companies that showed the best matches
 
 MEDIUM TERM (2-4 months):
-1. Develop the most commonly requested skills from your job matches
-2. Start networking with professionals in companies you're interested in
-3. Consider relevant certifications or online courses to fill skill gaps
-4. Build a portfolio or projects that demonstrate your capabilities
+1. Develop skills in areas that appeared frequently in job requirements
+2. Network with professionals in your target field through LinkedIn and industry events
+3. Consider additional certifications relevant to your field
+4. Practice interviewing for the types of roles you're targeting
 
 LONG TERM (4-6 months):
-1. Gain additional experience through projects, freelancing, or volunteering
-2. Expand your professional network and attend industry events
-3. Consider advanced training or specialization in high-demand areas
-4. Develop thought leadership through writing or speaking about your expertise
+1. Evaluate your progress and adjust your job search strategy
+2. Consider advanced training or courses if needed
+3. Expand your network in target companies
+4. Set up informational interviews with industry professionals
 
-The system identified specific opportunities for improvement. Focus on your highest-scoring job matches first, as these represent your best chances for success in the current market."""
+SKILL DEVELOPMENT PRIORITIES:
+Based on your profile in {profile_data.get('overall_field', 'your field')}, focus on:
+1. Technical skills that appeared in job descriptions
+2. Industry-specific knowledge and certifications
+3. Soft skills like communication and leadership
 
-            return {
-                "user_session_id": user_session_id,
-                "improvement_plan": fallback_plan,
-                "generated_timestamp": datetime.now().isoformat(),
-                "generation_method": "fallback_plan",
-                "error_note": str(e)
+APPLICATION STRATEGY:
+- Start with jobs that scored 70% or higher in your evaluation
+- Tailor your applications to highlight matching skills
+- Follow up on applications after 1-2 weeks
+
+Note: This is a basic plan. For detailed, personalized recommendations, try the AI analysis again when the service is available."""
+
+        return {
+            "user_session_id": user_session_id,
+            "improvement_plan": fallback_plan,
+            "generated_timestamp": datetime.now().isoformat(),
+            "ai_error": error_message,
+            "fallback_mode": True,
+            "based_on_evaluation": {
+                "average_score": avg_score,
+                "jobs_evaluated": len(evaluations),
+                "evaluation_date": evaluation_results.get('evaluation_timestamp')
             }
+        }
+
+    def create_fallback_evaluation(self, user_session_id: str, job_matches: List[Dict], profile_data: Dict, error_message: str) -> Dict:
+        """Create a fallback evaluation when AI analysis fails"""
+        logging.info(f"Creating fallback evaluation for user {user_session_id}")
+        
+        # Create basic evaluations based on simple matching
+        evaluations = []
+        
+        for i, job in enumerate(job_matches[:5]):  # Limit to 5 jobs for fallback
+            # Simple scoring based on keyword matching
+            title = job.get('title', '').lower()
+            description = job.get('description', '').lower()
+            
+            # Get user keywords and skills
+            user_keywords = profile_data.get('job_title_keywords', [])
+            user_skills = (profile_data.get('current_skills_selected', []) + 
+                          profile_data.get('current_skills_custom', []))
+            
+            # Calculate basic match score
+            match_score = 30  # Base score
+            
+            # Keyword matching
+            for keyword in user_keywords:
+                if keyword.lower() in title:
+                    match_score += 15
+                elif keyword.lower() in description:
+                    match_score += 8
+            
+            # Skill matching
+            for skill in user_skills[:5]:  # Top 5 skills
+                if skill.lower() in description:
+                    match_score += 5
+            
+            match_score = min(85, match_score)  # Cap at 85 for fallback
+            
+            # Create basic evaluation
+            evaluation = {
+                "job_number": i + 1,
+                "job_title": job.get('title', 'Unknown'),
+                "company": job.get('company', 'Unknown'),
+                "location": job.get('location', 'Unknown'),
+                "job_url": job.get('job_url', ''),
+                "job_id": job.get('id', ''),
+                "company_industry": job.get('company_industry', 'Unknown'),
+                "match_score": match_score,
+                "overall_fit": "Good" if match_score >= 60 else "Fair",
+                "seniority_match": "Appropriate",
+                "experience_gap": "Unknown - AI analysis failed",
+                "reality_check": f"Basic matching suggests {match_score}% compatibility. Full AI analysis unavailable.",
+                "strengths": "Profile matches some job requirements",
+                "critical_gaps": "Unknown - detailed analysis unavailable",
+                "minor_gaps": "Unknown - detailed analysis unavailable", 
+                "recommendations": "Consider applying if other factors align",
+                "likelihood": "Medium" if match_score >= 50 else "Low"
+            }
+            
+            evaluations.append(evaluation)
+        
+        # Calculate summary
+        if evaluations:
+            scores = [e['match_score'] for e in evaluations]
+            avg_score = sum(scores) / len(scores)
+            
+            summary = {
+                "average_match_score": round(avg_score, 1),
+                "score_distribution": {
+                    "high (70-100)": len([s for s in scores if s >= 70]),
+                    "medium (40-69)": len([s for s in scores if 40 <= s < 70]),
+                    "low (0-39)": len([s for s in scores if s < 40])
+                },
+                "best_matches": sorted(evaluations, key=lambda x: x['match_score'], reverse=True)[:3]
+            }
+        else:
+            summary = {
+                "average_match_score": 0,
+                "score_distribution": {"high (70-100)": 0, "medium (40-69)": 0, "low (0-39)": 0},
+                "best_matches": []
+            }
+        
+        return {
+            "user_session_id": user_session_id,
+            "evaluation_timestamp": datetime.now().isoformat(),
+            "jobs_evaluated": len(evaluations),
+            "evaluation_model": "fallback_simple_matching",
+            "ai_error": error_message,
+            "evaluations": evaluations,
+            "summary": summary,
+            "fallback_mode": True
+        }
+
+    def apply_balanced_validation(self, evaluation_results: Dict, profile_data: Dict):
+        """Apply balanced validation to ensure reasonable scores"""
+        evaluations = evaluation_results.get('evaluations', [])
+        
+        for evaluation in evaluations:
+            current_score = evaluation.get('match_score', 50)
+            
+            # Ensure no score is unreasonably high without strong justification
+            if current_score > 90:
+                evaluation['match_score'] = min(90, current_score)
+            
+            # Ensure minimum score for any reasonable match
+            if current_score < 20:
+                evaluation['match_score'] = max(20, current_score)
+        
+        # Recalculate summary if evaluations were modified
+        if evaluations:
+            scores = [e.get('match_score', 50) for e in evaluations]
+            evaluation_results['summary']['average_match_score'] = round(sum(scores) / len(scores), 1)
+
+    def store_evaluation_results(self, user_session_id: str, evaluation_results: Dict):
+        """Store evaluation results in database"""
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        try:
+            # Create evaluation table if it doesn't exist
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cv_job_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_session_id TEXT,
+                evaluation_data TEXT,
+                evaluation_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                jobs_evaluated INTEGER,
+                average_score REAL
+            )
+            """)
+            
+            # Store evaluation
+            cursor.execute("""
+            INSERT INTO cv_job_evaluations 
+            (user_session_id, evaluation_data, jobs_evaluated, average_score)
+            VALUES (?, ?, ?, ?)
+            """, (
+                user_session_id,
+                json.dumps(evaluation_results),
+                evaluation_results.get('jobs_evaluated', 0),
+                evaluation_results.get('summary', {}).get('average_match_score', 0)
+            ))
+            
+            conn.commit()
+            logging.info(f"Stored evaluation results for user {user_session_id}")
+            
+        except Exception as e:
+            logging.error(f"Error storing evaluation results: {e}")
+        finally:
+            conn.close()
