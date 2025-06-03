@@ -9,16 +9,16 @@ from typing import List
 import plotly.express as px
 import plotly.graph_objects as go
 
+st.set_page_config(page_title="Job Scraper Dashboard", page_icon="🔍", layout="wide")
+
+st.title("🔍 Indeed Job Scraper Dashboard")
+st.markdown("Configure and run job searches with real-time monitoring")
+
 # Import the scraper functions
 try:
     from indeed_scraper import scrape_indeed_jobs, init_database, get_database_stats, DB_NAME, TABLE_NAME
 except ImportError:
     st.error("Could not import indeed_scraper.py. Make sure it's in the same directory.")
-
-st.set_page_config(page_title="Job Scraper Dashboard", page_icon="🔍", layout="wide")
-
-st.title("🔍 Indeed Job Scraper Dashboard")
-st.markdown("Configure and run job searches with real-time monitoring")
 
 # Sidebar for configuration
 st.sidebar.header("⚙️ Scraper Configuration")

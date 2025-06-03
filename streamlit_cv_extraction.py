@@ -1017,15 +1017,6 @@ def run_app():
                                     # Relevance score visualization - FIXED PROGRESS BAR
                                     progress_value = min(1.0, max(0.0, relevance_score / 100))  # Convert to 0.0-1.0
                                     st.progress(progress_value, text=f"Match: {relevance_score}%")
-                                    
-                                    # Match type indicator
-                                    match_type = job.get('match_type', 'unknown')
-                                    if match_type == 'search_term':
-                                        st.caption("🎯 Keyword Match")
-                                    elif match_type == 'recent':
-                                        st.caption("🕒 Recent Job")
-                                    else:
-                                        st.caption("📊 Database Match")
 
                     except Exception as e:
                         st.error(f"❌ Error displaying job matches: {str(e)}")
