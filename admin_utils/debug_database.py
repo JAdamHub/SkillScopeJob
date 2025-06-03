@@ -18,13 +18,18 @@ try:
     print("Tables in the database:")
     for table in tables:
         print(f"- {table[0]}")
-    
-    # Show column names for the job_postings table
-    cursor.execute(f"PRAGMA table_info({table_name});")
-    columns = [col[1] for col in cursor.fetchall()]
-    print("\nColumns in job_postings:")
-    for col in columns:
-        print(f"- {col}")
+        
+        # For each table, show column information
+        cursor.execute(f"PRAGMA table_info({table[0]});")
+        columns_info = cursor.fetchall()
+        print(f"  Columns in {table[0]}:")
+        for col in columns_info:
+            # col structure: (cid, name, type, notnull, default_value, pk)
+            col_id, col_name, col_type, not_null, default_val, is_pk = col
+            pk_status = "PRIMARY KEY" if is_pk else ""
+            null_status = "NOT NULL" if not_null else "NULLABLE"
+            print(f"  - {col_name}: {col_type} {null_status} {pk_status}")
+        print()
     
     # Show a brief overview of the first 3 rows with ALL columns
     print("\nSample data (first 3 rows):")
@@ -33,6 +38,12 @@ try:
     # This shows all columns but limits the length of text fields
     query = f"SELECT * FROM {table_name} LIMIT 3;"
     df = pd.read_sql_query(query, conn)
+    
+    # Show data types from pandas perspective
+    print("\nColumn data types (pandas):")
+    for col_name, dtype in df.dtypes.items():
+        print(f"- {col_name}: {dtype}")
+    print()
     
     # Convert long text fields to shorter versions
     for col in df.columns:

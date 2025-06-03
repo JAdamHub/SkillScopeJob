@@ -3,6 +3,7 @@ import uuid
 import csv
 import json
 import logging
+import re
 import streamlit as st
 import streamlit.components.v1 as components
 import sqlite3
@@ -942,41 +943,31 @@ def run_app():
                     
                     try:
                         # Enhanced filter options
-                        filter_col1, filter_col2, filter_col3 = st.columns(3)
+                        filter_col1, filter_col2 = st.columns(2)
                         
                         with filter_col1:
                             show_all = st.checkbox("Show all matches", value=False, help="Show all matches or limit to top 15")
                         
                         with filter_col2:
-                            min_relevance = st.selectbox(
-                                "Minimum relevance score", 
-                                [1, 2, 3], 
-                                index=0,
-                                help="Filter by relevance: 3=Excellent, 2=Good, 1=Fair"
-                            )
-                        
-                        with filter_col3:
                             sort_by = st.selectbox(
                                 "Sort by",
-                                ["Relevance (highest first)", "Date (newest first)", "Company name"],
+                                ["Date (newest first)", "Company name"],
                                 help="Choose how to sort the job matches"
                             )
                         
-                        # Apply filters and sorting
-                        filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance * 30]
+                        # Apply sorting (no filtering by relevance score)
+                        filtered_matches = matches  # Show all matches, no filtering
                         
                         # Apply sorting
                         if sort_by == "Date (newest first)":
                             filtered_matches = sorted(filtered_matches, key=lambda x: x.get('scraped_timestamp', ''), reverse=True)
                         elif sort_by == "Company name":
                             filtered_matches = sorted(filtered_matches, key=lambda x: x.get('company', '').lower())
-                        else:  # Default: Relevance
-                            filtered_matches = sorted(filtered_matches, key=lambda x: x.get('relevance_score', 1), reverse=True)
                         
                         display_count = len(filtered_matches) if show_all else min(15, len(filtered_matches))
                         
                         # Show filtering results
-                        st.write(f"Displaying {display_count} of {len(filtered_matches)} matches (filtered from {total_existing_matches} total)")
+                        st.write(f"Displaying {display_count} of {len(filtered_matches)} matches")
                         
                         if len(filtered_matches) > display_count:
                             st.info(f"💡 {len(filtered_matches) - display_count} more matches available. Check 'Show all matches' to see them.")
@@ -1080,6 +1071,10 @@ def run_app():
                         st.subheader("🤖 AI-Powered CV Analysis")
                         st.markdown("*Get detailed analysis of how well your CV matches the available jobs*")
                         
+                        # Show which jobs will be analyzed
+                        jobs_to_analyze = matches[:min(10, len(matches))]  # Limit to first 10 jobs
+                        st.info(f"🎯 Will analyze the top {len(jobs_to_analyze)} jobs from your matches above")
+                        
                         # Initialize evaluation state
                         if 'cv_evaluation_started' not in st.session_state:
                             st.session_state.cv_evaluation_started = False
@@ -1088,7 +1083,7 @@ def run_app():
                         if 'cv_evaluation_results' not in st.session_state:
                             st.session_state.cv_evaluation_results = None
                         
-                        eval_col1, eval_col2, eval_col3 = st.columns([2, 1, 1])
+                        eval_col1, eval_col2 = st.columns([2, 1])
                         
                         with eval_col1:
                             if not st.session_state.cv_evaluation_started:
@@ -1108,11 +1103,6 @@ def run_app():
                                     st.session_state.cv_evaluation_results = None
                                     st.rerun()
                         
-                        with eval_col3:
-                            show_improvement_plan = False  # Initialize the variable
-                            if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
-                                show_improvement_plan = st.button("📈 Get Improvement Plan", key="show_improvement_plan")
-                        
                         # Handle evaluation execution
                         if start_evaluation:
                             st.session_state.cv_evaluation_started = True
@@ -1122,7 +1112,14 @@ def run_app():
                         if st.session_state.cv_evaluation_started and not st.session_state.cv_evaluation_completed:
                             with st.spinner("🤖 AI is analyzing your CV against job requirements... This may take several minutes."):
                                 try:
-                                    evaluation_results = evaluate_user_cv_matches(user_session_id_for_run, max_jobs=min(10, total_existing_matches))
+                                    # Pass the actual jobs from matches instead of fetching from database
+                                    # This ensures we analyze exactly the same jobs shown in the matches section
+                                    evaluator = CVJobEvaluator()
+                                    evaluation_results = evaluator.evaluate_cv_against_specific_jobs(
+                                        user_session_id_for_run, 
+                                        jobs_to_analyze,  # Use the exact same jobs
+                                        profile_data  # Pass profile data for context
+                                    )
                                     st.session_state.cv_evaluation_results = evaluation_results
                                     st.session_state.cv_evaluation_completed = True
                                     st.rerun()
@@ -1142,7 +1139,7 @@ def run_app():
                                         - Check internet connection for AI service access
                                         """)
 
-                        # DISPLAY CV EVALUATION RESULTS - THIS WAS MISSING!
+                        # DISPLAY CV EVALUATION RESULTS:
                         if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
                             evaluation_results = st.session_state.cv_evaluation_results
                             
@@ -1296,7 +1293,7 @@ def run_app():
                                 
                                 # Add action buttons section
                                 st.markdown("---")
-                                action_col1, action_col2, action_col3 = st.columns(3)
+                                action_col1, action_col2 = st.columns(2)
                                 
                                 with action_col1:
                                     if st.button("📊 Export Results", key="export_results"):
@@ -1330,33 +1327,29 @@ Recommendations: {eval.get('recommendations', 'None provided')}
                                         )
                                 
                                 with action_col2:
-                                    if st.button("🔄 Run New Analysis", key="new_analysis"):
-                                        # Reset evaluation state
-                                        st.session_state.cv_evaluation_started = False
-                                        st.session_state.cv_evaluation_completed = False
-                                        st.session_state.cv_evaluation_results = None
-                                        st.rerun()
-                                
-                                with action_col3:
-                                    # Show improvement plan button (this was already there)
-                                    pass
+                                    # Show improvement plan button
+                                    if st.button("📈 Get Improvement Plan", key="get_improvement_plan"):
+                                        st.session_state.show_improvement_plan = True
 
                         # Handle improvement plan execution
-                        if st.session_state.get('cv_evaluation_completed', False) and st.session_state.get('cv_evaluation_results') and show_improvement_plan:
+                        if st.session_state.get('show_improvement_plan', False) and st.session_state.get('cv_evaluation_completed', False):
                             with st.spinner("🤖 AI is generating your personalized improvement plan..."):
                                 try:
                                     improvement_plan = generate_user_improvement_plan(user_session_id_for_run)
                                     
                                     if "error" not in improvement_plan:
                                         st.session_state.improvement_plan_results = improvement_plan
+                                        st.session_state.show_improvement_plan = False  # Reset trigger
                                         st.success("✅ Improvement plan generated!")
                                         st.rerun()
                                     else:
                                         st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
+                                        st.session_state.show_improvement_plan = False
                                 
                                 except Exception as e:
                                     error_str = str(e)
                                     st.error(f"❌ Error generating improvement plan: {error_str}")
+                                    st.session_state.show_improvement_plan = False
 
                         # Display improvement plan if available
                         if st.session_state.get('improvement_plan_results'):
@@ -1369,366 +1362,77 @@ Recommendations: {eval.get('recommendations', 'None provided')}
                             if improvement_plan.get('fallback_mode'):
                                 st.info("📋 **Basic Plan** - AI service was unavailable, showing fundamental recommendations")
                             
-                            # Display the improvement plan
+                            # Display the improvement plan using Streamlit's markdown
                             plan_text = improvement_plan.get('improvement_plan', 'No plan available')
+                            st.markdown(plan_text)
                             
-                            # Parse and display the improvement plan in a structured way
-                            st.markdown("### 🎯 Your Personalized Development Roadmap")
-                            
-                            # Split the plan into sections
-                            sections = plan_text.split('\n\n')
-                            
-                            for section in sections:
-                                if section.strip():
-                                    if 'IMMEDIATE ACTIONS' in section:
-                                        st.markdown("#### 🚀 Immediate Actions (0-2 months)")
-                                        st.markdown(section.replace('IMMEDIATE ACTIONS (0-2 months):', ''))
-                                    elif 'MEDIUM TERM' in section:
-                                        st.markdown("#### ⏳ Medium Term Goals (2-4 months)")
-                                        st.markdown(section.replace('MEDIUM TERM (2-4 months):', ''))
-                                    elif 'LONG TERM' in section:
-                                        st.markdown("#### 🎯 Long Term Strategy (4-6 months)")
-                                        st.markdown(section.replace('LONG TERM (4-6 months):', ''))
-                                    elif 'CURRENT STATUS' in section:
-                                        st.markdown("#### 📊 Current Status")
-                                        st.markdown(section.replace('CURRENT STATUS:', ''))
-                                    elif 'SKILL DEVELOPMENT' in section:
-                                        st.markdown("#### 🛠️ Skill Development Priorities")
-                                        st.markdown(section.replace('SKILL DEVELOPMENT PRIORITIES:', ''))
-                                    elif 'CERTIFICATION' in section:
-                                        st.markdown("#### 🏆 Certification Recommendations")
-                                        st.markdown(section.replace('CERTIFICATION RECOMMENDATIONS:', ''))
-                                    elif 'APPLICATION STRATEGY' in section:
-                                        st.markdown("#### 📝 Application Strategy")
-                                        st.markdown(section.replace('APPLICATION STRATEGY:', ''))
-                                    elif 'NETWORKING' in section:
-                                        st.markdown("#### 🤝 Networking Suggestions")
-                                        st.markdown(section.replace('NETWORKING SUGGESTIONS:', ''))
-                                    else:
-                                        st.markdown(section)
-                            
-                            # Add action buttons
+                            # Simplified action buttons
                             col1, col2, col3 = st.columns(3)
                             
                             with col1:
-                                if st.button("📄 Download as PDF", key="download_plan"):
-                                    try:
-                                        # Create PDF content with markdown parsing
-                                        from reportlab.lib.pagesizes import A4
-                                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                                        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                                        from reportlab.lib.colors import HexColor
-                                        import io
-                                        import re
-                                        
-                                        # Create PDF in memory
-                                        buffer = io.BytesIO()
-                                        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=50, bottomMargin=50)
-                                        styles = getSampleStyleSheet()
-                                        
-                                        # Custom styles for better formatting
-                                        title_style = ParagraphStyle(
-                                            'CustomTitle',
-                                            parent=styles['Heading1'],
-                                            fontSize=20,
-                                            spaceAfter=30,
-                                            textColor=HexColor('#2E4A92'),
-                                            alignment=1  # Center alignment
-                                        )
-                                        
-                                        header_style = ParagraphStyle(
-                                            'CustomHeader',
-                                            parent=styles['Heading2'],
-                                            fontSize=14,
-                                            spaceAfter=15,
-                                            spaceBefore=20,
-                                            textColor=HexColor('#1E3A8A'),
-                                            leftIndent=0
-                                        )
-                                        
-                                        subheader_style = ParagraphStyle(
-                                            'CustomSubHeader',
-                                            parent=styles['Heading3'],
-                                            fontSize=12,
-                                            spaceAfter=10,
-                                            spaceBefore=15,
-                                            textColor=HexColor('#374151'),
-                                            leftIndent=10
-                                        )
-                                        
-                                        bullet_style = ParagraphStyle(
-                                            'BulletStyle',
-                                            parent=styles['Normal'],
-                                            fontSize=10,
-                                            spaceAfter=8,
-                                            leftIndent=20,
-                                            bulletIndent=10
-                                        )
-                                        
-                                        normal_style = ParagraphStyle(
-                                            'CustomNormal',
-                                            parent=styles['Normal'],
-                                            fontSize=10,
-                                            spaceAfter=12,
-                                            leftIndent=10
-                                        )
-                                        
-                                        def parse_markdown_to_paragraphs(text):
-                                            """Convert markdown-like text to reportlab paragraphs with comprehensive formatting"""
-                                            paragraphs = []
-                                            lines = text.split('\n')
-                                            current_section = []
-                                            in_list = False
-                                            
-                                            def format_inline_markdown(text_line):
-                                                """Handle inline markdown formatting like **bold**, *italic*, etc."""
-                                                # Handle **bold** text
-                                                text_line = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text_line)
-                                                
-                                                # Handle *italic* text (but not already processed bold)
-                                                text_line = re.sub(r'(?<!</b>)\*([^*]+?)\*(?!<b>)', r'<i>\1</i>', text_line)
-                                                
-                                                # Handle `code` text
-                                                text_line = re.sub(r'`([^`]+?)`', r'<font name="Courier">\1</font>', text_line)
-                                                
-                                                # Handle [link](url) - just show the text for PDF
-                                                text_line = re.sub(r'\[([^\]]+?)\]\([^)]+?\)', r'\1', text_line)
-                                                
-                                                # Handle emojis and special characters that might cause issues
-                                                emoji_replacements = {
-                                                    '🎯': '• ',
-                                                    '🚀': '• ',
-                                                    '💡': '• ',
-                                                    '✅': '• ',
-                                                    '📈': '• ',
-                                                    '🔧': '• ',
-                                                    '💼': '• ',
-                                                    '🏆': '• ',
-                                                    '📝': '• ',
-                                                    '🤝': '• ',
-                                                    '📊': '• ',
-                                                    '⏳': '• ',
-                                                    '🛠️': '• ',
-                                                    '🌟': '• '
-                                                }
-                                                
-                                                for emoji, replacement in emoji_replacements.items():
-                                                    text_line = text_line.replace(emoji, replacement)
-                                                
-                                                return text_line
-                                            
-                                            def add_current_section():
-                                                """Add current section as a paragraph"""
-                                                if current_section:
-                                                    section_text = ' '.join(current_section)
-                                                    formatted_text = format_inline_markdown(section_text)
-                                                    if formatted_text.strip():
-                                                        paragraphs.append(Paragraph(formatted_text, normal_style))
-                                                    current_section.clear()
-                                            
-                                            for line in lines:
-                                                line = line.strip()
-                                                
-                                                if not line:
-                                                    # Empty line - end current section
-                                                    add_current_section()
-                                                    in_list = False
-                                                    continue
-                                                
-                                                # Handle different header levels
-                                                if line.startswith('####'):
-                                                    add_current_section()
-                                                    header_text = line.replace('####', '').strip()
-                                                    if header_text:
-                                                        formatted_header = format_inline_markdown(header_text)
-                                                        paragraphs.append(Spacer(1, 10))
-                                                        paragraphs.append(Paragraph(formatted_header, subheader_style))
-                                                    in_list = False
-                                                
-                                                elif line.startswith('###'):
-                                                    add_current_section()
-                                                    header_text = line.replace('###', '').strip()
-                                                    if header_text:
-                                                        formatted_header = format_inline_markdown(header_text)
-                                                        paragraphs.append(Spacer(1, 15))
-                                                        paragraphs.append(Paragraph(formatted_header, header_style))
-                                                    in_list = False
-                                                
-                                                elif line.startswith('##'):
-                                                    add_current_section()
-                                                    header_text = line.replace('##', '').strip()
-                                                    if header_text:
-                                                        formatted_header = format_inline_markdown(header_text)
-                                                        paragraphs.append(Spacer(1, 20))
-                                                        paragraphs.append(Paragraph(formatted_header, header_style))
-                                                    in_list = False
-                                                
-                                                elif line.startswith('#'):
-                                                    add_current_section()
-                                                    header_text = line.replace('#', '').strip()
-                                                    if header_text:
-                                                        formatted_header = format_inline_markdown(header_text)
-                                                        paragraphs.append(Spacer(1, 25))
-                                                        paragraphs.append(Paragraph(formatted_header, title_style))
-                                                    in_list = False
-                                                
-                                                # Handle different types of bullet points and numbered lists
-                                                elif (line.startswith('•') or line.startswith('-') or 
-                                                      line.startswith('*') or line.startswith('+') or
-                                                      re.match(r'^\d+\.', line)):
-                                                    
-                                                    add_current_section()
-                                                    
-                                                    # Extract bullet text
-                                                    if re.match(r'^\d+\.', line):
-                                                        # Numbered list
-                                                        bullet_text = re.sub(r'^\d+\.\s*', '', line).strip()
-                                                        bullet_symbol = "1. "
-                                                    else:
-                                                        # Regular bullet
-                                                        bullet_text = re.sub(r'^[•\-\*\+]\s*', '', line).strip()
-                                                        bullet_symbol = "• "
-                                                    
-                                                    if bullet_text:
-                                                        formatted_bullet = format_inline_markdown(bullet_text)
-                                                        paragraphs.append(Paragraph(f"{bullet_symbol}{formatted_bullet}", bullet_style))
-                                                    in_list = True
-                                                
-                                                # Handle bold lines that might be standalone (like **SECTION:**)
-                                                elif re.match(r'^\*\*.*\*\*:?\s*$', line):
-                                                    add_current_section()
-                                                    formatted_line = format_inline_markdown(line)
-                                                    paragraphs.append(Spacer(1, 10))
-                                                    paragraphs.append(Paragraph(formatted_line, subheader_style))
-                                                    in_list = False
-                                                
-                                                # Handle lines that are clearly section headers (ALL CAPS with colons)
-                                                elif re.match(r'^[A-Z\s]+:?\s*$', line) and len(line) < 50:
-                                                    add_current_section()
-                                                    formatted_line = format_inline_markdown(line)
-                                                    paragraphs.append(Spacer(1, 12))
-                                                    paragraphs.append(Paragraph(f"<b>{formatted_line}</b>", subheader_style))
-                                                    in_list = False
-                                                
-                                                # Regular text - add to current section
-                                                else:
-                                                    current_section.append(line)
-                                                    in_list = False
-                                            
-                                            # Add any remaining content
-                                            add_current_section()
-                                            
-                                            return paragraphs
-                                        
-                                        # Build PDF content
-                                        story = []
-                                        
-                                        # Title with better emoji handling
-                                        story.append(Paragraph("Career Improvement Plan", title_style))
-                                        story.append(Spacer(1, 30))
-                                        
-                                        # User info section
-                                        user_field = profile_data.get('overall_field', 'Unknown')
-                                        user_exp = profile_data.get('total_experience', 'Unknown')
-                                        generation_date = datetime.now().strftime('%Y-%m-%d %H:%M')
-                                        
-                                        story.append(Paragraph("<b>Profile Overview</b>", header_style))
-                                        story.append(Paragraph(f"<b>Field:</b> {user_field}", normal_style))
-                                        story.append(Paragraph(f"<b>Experience Level:</b> {user_exp}", normal_style))
-                                        story.append(Paragraph(f"<b>Generated:</b> {generation_date}", normal_style))
-                                        story.append(Spacer(1, 25))
-                                        
-                                        # Parse and add improvement plan content
-                                        plan_text = improvement_plan.get('improvement_plan', 'No plan available')
-                                        
-                                        # Add a section header for the plan
-                                        story.append(Paragraph("<b>Development Plan</b>", header_style))
-                                        story.append(Spacer(1, 15))
-                                        
-                                        # Convert markdown to paragraphs
-                                        try:
-                                            parsed_paragraphs = parse_markdown_to_paragraphs(plan_text)
-                                            story.extend(parsed_paragraphs)
-                                        except Exception as parse_error:
-                                            # Fallback if parsing fails
-                                            logging.error(f"Markdown parsing failed: {parse_error}")
-                                            # Just add the raw text with basic formatting
-                                            clean_text = re.sub(r'[#*`]', '', plan_text)
-                                            for paragraph in clean_text.split('\n\n'):
-                                                if paragraph.strip():
-                                                    story.append(Paragraph(paragraph.strip(), normal_style))
-                                                    story.append(Spacer(1, 12))
-                                        
-                                        # Add footer
-                                        story.append(Spacer(1, 30))
-                                        story.append(Paragraph("Generated by SkillScope Career Assistant", 
-                                                             ParagraphStyle('Footer', parent=styles['Normal'],                                                              fontSize=8, textColor=HexColor('#6B7280'), 
-                                                                          alignment=1)))
-                                        
-                                        # Build PDF
-                                        doc.build(story)
-                                        buffer.seek(0)
-                                        
-                                        # Create download button
-                                        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                                        user_field_clean = re.sub(r'[^\w\-_]', '_', user_field)
-                                        filename = f"career_plan_{user_field_clean}_{timestamp}.pdf"
-                                        
-                                        st.download_button(
-                                            label="📥 Download Formatted PDF",
-                                            data=buffer.getvalue(),
-                                            file_name=filename,
-                                            mime="application/pdf",
-                                            key="pdf_download_btn"
-                                        )
-                                        
-                                        st.success("✅ PDF generated with proper formatting!")
-                                        st.info("💡 The PDF includes parsed markdown with headers, bullets, and proper styling")
-                                        
-                                    except ImportError:
-                                        st.error("📄 PDF generation requires reportlab. Install with: pip install reportlab")
-                                        st.info("💡 Install command: `pip install reportlab`")
-                                        
-                                        # Offer alternative - plain text download
-                                        plan_text = improvement_plan.get('improvement_plan', '')
-                                        if plan_text:
-                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                                            filename = f"career_plan_{timestamp}.txt"
-                                            
-                                            st.download_button(
-                                                label="📄 Download as Text File",
-                                                data=plan_text.encode('utf-8'),
-                                                file_name=filename,
-                                                mime="text/plain",
-                                                key="txt_download_btn"
-                                            )
-                                            
-                                    except Exception as e:
-                                        st.error(f"❌ Error generating PDF: {str(e)}")
-                                        
-                                        # Enhanced error handling with fallback
-                                        if "reportlab" in str(e).lower():
-                                            st.info("💡 Try installing reportlab: `pip install reportlab`")
-                                        
-                                        # Offer text file as fallback
-                                        st.info("📄 **Alternative:** Download as text file")
-                                        plan_text = improvement_plan.get('improvement_plan', '')
-                                        if plan_text:
-                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                                            filename = f"career_plan_{timestamp}.txt"
-                                            
-                                            # Clean up markdown for text file
-                                            clean_text = re.sub(r'#{1,4}\s*', '', plan_text)  # Remove headers
-                                            clean_text = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_text)  # Remove bold
-                                            clean_text = re.sub(r'\*(.*?)\*', r'\1', clean_text)  # Remove italics
-                                            
-                                            st.download_button(
-                                                label="📄 Download Clean Text Version",
-                                                data=clean_text.encode('utf-8'),
-                                                file_name=filename,
-                                                mime="text/plain",
-                                                key="txt_fallback_btn"
-                                            )
+                                # Create downloadable markdown file
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                                user_field = profile_data.get('overall_field', 'Unknown')
+                                user_field_clean = re.sub(r'[^\w\-_]', '_', user_field)
+                                filename = f"career_plan_{user_field_clean}_{timestamp}.md"
+                                
+                                # Create markdown content with header
+                                markdown_content = f"""# Career Improvement Plan
+
+**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}  
+**Field:** {profile_data.get('overall_field', 'Unknown')}  
+**Experience:** {profile_data.get('total_experience', 'Unknown')}  
+
+---
+
+{plan_text}
+
+---
+*Generated by SkillScope Career Assistant*
+"""
+                                
+                                st.download_button(
+                                    label="📄 Download as Markdown",
+                                    data=markdown_content.encode('utf-8'),
+                                    file_name=filename,
+                                    mime="text/markdown",
+                                    key="markdown_download_btn"
+                                )
+                            
+                            with col2:
+                                # Text file alternative
+                                txt_filename = f"career_plan_{user_field_clean}_{timestamp}.txt"
+                                
+                                # Clean markdown for text file
+                                clean_text = re.sub(r'#{1,4}\s*', '', plan_text)  # Remove headers
+                                clean_text = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_text)  # Remove bold
+                                clean_text = re.sub(r'\*(.*?)\*', r'\1', clean_text)  # Remove italics
+                                
+                                txt_content = f"""Career Improvement Plan
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Field: {profile_data.get('overall_field', 'Unknown')}
+Experience: {profile_data.get('total_experience', 'Unknown')}
+
+{clean_text}
+
+Generated by SkillScope Career Assistant
+"""
+                                
+                                st.download_button(
+                                    label="📄 Download as Text",
+                                    data=txt_content.encode('utf-8'),
+                                    file_name=txt_filename,
+                                    mime="text/plain",
+                                    key="txt_download_btn"
+                                )
+                            
+                            with col3:
+                                if st.button("🔄 Generate New Plan", key="new_plan_btn"):
+                                    # Clear the current plan and trigger regeneration
+                                    if 'improvement_plan_results' in st.session_state:
+                                        del st.session_state.improvement_plan_results
+                                    st.session_state.show_improvement_plan = True
+                                    st.rerun()
 
 # make file runable
 if __name__ == "__main__":

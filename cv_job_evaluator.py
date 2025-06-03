@@ -77,60 +77,6 @@ class CVJobEvaluator:
             logging.error(f"Failed to initialize LLM: {e}")
             raise e
     
-    def get_top_job_matches(self, user_session_id: str, limit: int = 10) -> List[Dict]:
-        """Get top job matches specifically from the profile matcher results"""
-        try:
-            # Import here to avoid circular imports
-            from profile_job_matcher import get_user_job_matches
-            
-            # Get matches using the profile matcher - this ensures we get the EXACT same jobs
-            # that the profile matcher identified as relevant
-            matches = get_user_job_matches(user_session_id, limit=limit * 2)  # Get more to filter
-            
-            if not matches:
-                logging.warning(f"No job matches found for user {user_session_id}")
-                return []
-            
-            # Enhanced filtering for jobs with sufficient information for AI evaluation
-            filtered_matches = []
-            for job in matches:
-                # Ensure job has the minimum required information for meaningful evaluation
-                title = job.get('title', '').strip()
-                company = job.get('company', '').strip()
-                description = job.get('description', '').strip()
-                relevance_score = job.get('relevance_score', 0)
-                
-                # More lenient filtering to ensure we get jobs for evaluation
-                if (title and company and description and 
-                    len(description) > 50 and  # Reduced from 100 to 50
-                    relevance_score > 10):     # Reduced from 20 to 10
-                    
-                    # Add match type if missing
-                    if 'match_type' not in job:
-                        job['match_type'] = 'profile_match'
-                    
-                    filtered_matches.append(job)
-            
-            # Sort by relevance score to get the best matches for evaluation
-            filtered_matches = sorted(filtered_matches, 
-                                    key=lambda x: x.get('relevance_score', 0), 
-                                    reverse=True)
-            
-            # Return top matches up to the limit
-            result = filtered_matches[:limit]
-            
-            logging.info(f"Selected {len(result)} high-quality job matches for CV evaluation from {len(matches)} total matches")
-            
-            # Enhanced logging of which jobs we're evaluating for debugging
-            for i, job in enumerate(result):
-                logging.info(f"CV Evaluation Job {i+1}: '{job.get('title')}' at '{job.get('company')}' (Score: {job.get('relevance_score', 0)}%) - Description length: {len(job.get('description', ''))}")
-            
-            return result
-            
-        except Exception as e:
-            logging.error(f"Error getting job matches for CV evaluation: {e}")
-            return []
-
     def get_user_profile_data(self, user_session_id: str) -> Optional[Dict]:
         """Get user profile data from database with enhanced error handling"""
         conn = sqlite3.connect(DB_NAME)
@@ -158,494 +104,149 @@ class CVJobEvaluator:
         finally:
             conn.close()
 
-    def parse_single_job_evaluation(self, section: str, job: Dict, job_index: int) -> Dict:
-        """Parse a single job evaluation section with enhanced pattern matching and more robust extraction"""
-        eval_data = {
-            "job_number": job_index + 1,
-            "job_title": job.get('title', ''),
-            "company": job.get('company', ''),
-            "location": job.get('location', ''),
-            "job_url": job.get('job_url', ''),
-            "job_id": job.get('id', ''),
-            "company_industry": job.get('company_industry', ''),
-            "profile_match_score": job.get('relevance_score', 0),
-            "match_type": job.get('match_type', 'unknown')
-        }
-        
-        logging.info(f"Parsing evaluation for: {eval_data['job_title']} at {eval_data['company']}")
-        logging.info(f"Section content: {section[:200]}...")
-        
-        # Enhanced field patterns with more variations and formats
-        field_patterns = {
-            'match_score': [
-                r'MATCH[_\s]*SCORE[:\s]*(\d+)',
-                r'Score[:\s]*(\d+)',
-                r'Match[:\s]*(\d+)',
-                r'(\d+)%?\s*match',
-                r'(\d+)/100',
-                r'(\d+)\s*out\s*of\s*100',
-                r'score[:\s]*(\d+)',
-                r'rating[:\s]*(\d+)',
-                r'(\d+)%',
-                # More flexible patterns
-                r'(?:match|score|rating)\D*(\d+)',
-                r'(\d{1,2})\s*(?:%|percent|out of)',
-            ],
-            'overall_fit': [
-                r'OVERALL[_\s]*FIT[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Overall[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Fit[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'OVERALL_FIT[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'(?:Overall|Fit)[:\s]*([A-Za-z\s]+?)(?=\n|\.|,|$)',
-            ],
-            'seniority_match': [
-                r'SENIORITY[_\s]*MATCH[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Seniority[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Level[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'SENIORITY_MATCH[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Experience\s+level[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'experience_gap': [
-                r'EXPERIENCE[_\s]*GAP[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Experience[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Gap[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'EXPERIENCE_GAP[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Missing\s+experience[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'reality_check': [
-                r'REALITY[_\s]*CHECK[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Reality[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Assessment[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'REALITY_CHECK[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Realistic\s+assessment[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'strengths': [
-                r'STRENGTHS[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Strength[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Strong[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Positives[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Your\s+strengths[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'critical_gaps': [
-                r'CRITICAL[_\s]*GAPS[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Critical[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Missing[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'CRITICAL_GAPS[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Key\s+missing[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Major\s+gaps[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'minor_gaps': [
-                r'MINOR[_\s]*GAPS[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Minor[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Small[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'MINOR_GAPS[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Areas\s+for\s+improvement[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'recommendations': [
-                r'RECOMMENDATIONS[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Recommend[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Advice[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Suggestions[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Action\s+items[:\s]*([^\n\r]+?)(?=\n|$)',
-            ],
-            'likelihood': [
-                r'LIKELIHOOD[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Chance[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Probability[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Success[:\s]*([^\n\r]+?)(?=\n|$)',
-                r'Interview\s+chance[:\s]*([^\n\r]+?)(?=\n|$)',
-            ]
-        }
-        
-        # Extract each field using multiple patterns with better matching
-        fields_found = 0
-        extraction_details = {}
-        
-        for field, patterns in field_patterns.items():
-            value_found = False
-            extracted_value = None
-            pattern_used = None
-            
-            for pattern in patterns:
-                try:
-                    matches = re.findall(pattern, section, re.IGNORECASE | re.DOTALL)
-                    if matches:
-                        # Take the first match
-                        match_value = matches[0].strip()
-                        
-                        if field == 'match_score':
-                            # Extract numeric score
-                            numbers = re.findall(r'\d+', match_value)
-                            if numbers:
-                                score = int(numbers[0])
-                                if 0 <= score <= 100:  # Valid score range
-                                    eval_data[field] = score
-                                    extracted_value = score
-                                    pattern_used = pattern
-                                    logging.info(f"Found match score: {score} using pattern: {pattern}")
-                                    fields_found += 1
-                                    value_found = True
-                                    break
-                        else:
-                            # For text fields, clean up the match
-                            if match_value and len(match_value.strip()) > 2:
-                                clean_value = match_value.strip()[:300]  # Limit length
-                                eval_data[field] = clean_value
-                                extracted_value = clean_value[:50] + "..." if len(clean_value) > 50 else clean_value
-                                pattern_used = pattern
-                                logging.info(f"Found {field}: {extracted_value}")
-                                fields_found += 1
-                                value_found = True
-                                break
-                except Exception as e:
-                    logging.warning(f"Pattern matching error for {field} with pattern {pattern}: {e}")
-                    continue
-            
-            # Store extraction details for debugging
-            extraction_details[field] = {
-                'found': value_found,
-                'value': extracted_value,
-                'pattern': pattern_used
-            }
-            
-            # Provide intelligent defaults if not found
-            if not value_found:
-                if field == 'match_score':
-                    # Use profile match score as fallback with reasonable adjustment
-                    base_score = job.get('relevance_score', 40)
-                    adjusted_score = max(25, min(85, base_score + 5))
-                    eval_data[field] = adjusted_score
-                    logging.warning(f"No AI match score found, using adjusted profile score: {adjusted_score}")
-                else:
-                    # Provide more helpful default messages
-                    default_messages = {
-                        'overall_fit': 'Good potential match based on profile scoring',
-                        'seniority_match': 'Experience level compatibility needs manual review',
-                        'experience_gap': 'Detailed experience analysis not available in AI response',
-                        'reality_check': f'Based on profile matching ({job.get("relevance_score", 40)}% compatibility), this position shows potential. Manual review recommended for detailed assessment.',
-                        'strengths': 'Your profile shows alignment with key job requirements based on initial matching',
-                        'critical_gaps': 'Specific skill gaps require detailed job posting review - AI analysis was not accessible',
-                        'minor_gaps': 'Consider reviewing job requirements for additional qualifications',
-                        'recommendations': 'Review job posting carefully and tailor application to highlight relevant experience',
-                        'likelihood': 'Medium - depends on detailed skill alignment and application quality'
-                    }
-                    eval_data[field] = default_messages.get(field, 'Analysis not available in AI response')
-        
-        # Log extraction summary
-        logging.info(f"Successfully extracted {fields_found} fields for {eval_data['job_title']}")
-        logging.info(f"Extraction details: {extraction_details}")
-        
-        # Validation: if we found very few fields, log more details
-        if fields_found < 4:
-            logging.warning(f"Only found {fields_found} fields - possible AI response formatting issue")
-            logging.warning(f"Section being parsed: {section}")
-        
-        # Add flag if this seems to be a parsing issue
-        if fields_found < 3:
-            eval_data['parsing_warning'] = True
-            eval_data['fields_extracted'] = fields_found
-        
-        return eval_data
-
-    def evaluate_cv_job_matches(self, user_session_id: str, max_jobs: int = 10) -> Dict:
+    def evaluate_cv_against_specific_jobs(self, user_session_id: str, jobs_list: List[Dict], profile_data: Dict = None) -> Dict:
         """
-        Evaluate how well user's CV matches the SPECIFIC jobs found by profile matcher
+        Evaluate CV against a specific list of jobs (rather than fetching from database)
+        This ensures we analyze exactly the same jobs shown in the UI
         """
-        logging.info(f"Starting CV-job evaluation for user {user_session_id}")
-        
-        # Get user profile
-        profile_data = self.get_user_profile_data(user_session_id)
-        if not profile_data:
-            return {"error": "User profile not found. Please ensure you've saved your profile first."}
-        
-        # Get the SPECIFIC job matches that the profile matcher identified
-        job_matches = self.get_top_job_matches(user_session_id, max_jobs)
-        if not job_matches:
-            return {
-                "error": "No suitable job matches found for evaluation. Please run job search first to find relevant positions.",
-                "user_session_id": user_session_id,
-                "profile_field": profile_data.get('overall_field', 'Unknown')
-            }
-        
-        logging.info(f"Evaluating {len(job_matches)} specifically matched jobs against user profile")
-        logging.info(f"User profile field: {profile_data.get('overall_field', 'Unknown')}")
-        
-        # Enhanced logging of which jobs we're evaluating
-        for i, job in enumerate(job_matches):
-            logging.info(f"Evaluating Job {i+1}: '{job.get('title')}' at '{job.get('company')}' (Relevance: {job.get('relevance_score', 0)}%)")
-        
-        # Format data for AI with enhanced context
-        profile_text = self.format_profile_for_evaluation(profile_data)
-        jobs_text = self.format_jobs_for_evaluation(job_matches)
-        
-        # Create IMPROVED evaluation prompt with clearer formatting instructions
-        evaluation_prompt = f"""You are an expert Danish career counselor and recruiter. Evaluate how well this candidate's CV/profile matches specific job opportunities.
-
-CRITICAL FORMATTING: You must respond with EXACTLY this format for each job. Do not deviate from this structure.
-
-{profile_text}
-
-JOBS TO EVALUATE:
-{jobs_text}
-
-RESPONSE FORMAT REQUIRED:
-For each job, use EXACTLY this format (no extra text, no markdown, no bullets):
-
-JOB_1:
-MATCH_SCORE: 75
-OVERALL_FIT: Good
-SENIORITY_MATCH: Good Fit
-EXPERIENCE_GAP: Missing 2 years of senior experience but strong technical skills compensate
-REALITY_CHECK: Strong candidate with 75% compatibility. Good chance of progressing to interview stage if application is well-tailored
-STRENGTHS: Excellent Python skills, relevant project experience, strong analytical background matches job requirements well
-CRITICAL_GAPS: Senior leadership experience needed, specific domain knowledge in fintech would strengthen application
-MINOR_GAPS: Could benefit from certification in data visualization tools, public speaking experience
-RECOMMENDATIONS: Emphasize Python projects and analytical achievements in application, consider highlighting transferable leadership experience
-LIKELIHOOD: Medium
-
-JOB_2:
-MATCH_SCORE: 82
-OVERALL_FIT: Excellent
-SENIORITY_MATCH: Perfect Match
-EXPERIENCE_GAP: No significant gaps, experience level aligns well with requirements
-REALITY_CHECK: Excellent candidate with 82% compatibility. High probability of securing interview with proper application
-STRENGTHS: Perfect experience match, strong technical skills in required technologies, proven track record in similar roles
-CRITICAL_GAPS: None identified - strong alignment across all key requirements
-MINOR_GAPS: Additional cloud platform experience would be beneficial but not critical
-RECOMMENDATIONS: Apply immediately, highlight specific achievements with quantified results, prepare for technical interview
-LIKELIHOOD: High
-
-IMPORTANT RULES:
-- Use EXACTLY the field names shown (MATCH_SCORE, OVERALL_FIT, etc.)
-- MATCH_SCORE must be a number 0-100
-- OVERALL_FIT: Excellent/Good/Fair/Poor
-- LIKELIHOOD: High/Medium/Low
-- Keep each field response concise but informative
-- Be realistic with scores - most jobs should score 40-80%
-
-Start evaluation now:"""
-
         try:
-            # Get AI evaluation with enhanced retry logic
-            response = self._generate_with_retry(evaluation_prompt, max_retries=2)
-            logging.info(f"Received evaluation response: {len(response)} characters")
+            # Get user profile data if not provided
+            if not profile_data:
+                profile_data = self.get_user_profile_data(user_session_id)
+                if not profile_data:
+                    return {"error": "Could not retrieve user profile data"}
             
-            # Log first part of response for debugging
-            logging.info(f"AI Response preview: {response[:300]}...")
+            # Format the specific jobs for evaluation
+            jobs_text = self.format_jobs_for_evaluation(jobs_list)
             
-            # Parse the response with improved error handling
-            evaluation_results = self.parse_simplified_evaluation_response(response, job_matches)
+            # Format user profile
+            profile_text = self.format_profile_for_evaluation(profile_data)
             
-            # Check if parsing was successful
-            parsed_evaluations = evaluation_results.get('evaluations', [])
-            if not parsed_evaluations:
-                logging.error("No evaluations were successfully parsed from AI response")
-                # Try alternative parsing or create fallback
-                return self.create_fallback_evaluation(user_session_id, job_matches, profile_data, "AI response parsing failed completely")
+            # Log the evaluation attempt
+            logging.info(f"Starting CV evaluation for user {user_session_id} against {len(jobs_list)} specific jobs")
             
-            # Check for parsing warnings
-            parsing_issues = sum(1 for eval in parsed_evaluations if eval.get('parsing_warning', False))
-            if parsing_issues > 0:
-                logging.warning(f"{parsing_issues} evaluations had parsing issues")
-            
-            # Add enhanced metadata
-            evaluation_results.update({
-                "user_session_id": user_session_id,
+            # Try AI evaluation first
+            if self.api_key and self.api_key.strip():
+                try:
+                    # Pass the actual jobs to the AI evaluation
+                    evaluation_result = self._evaluate_with_ai(profile_text, jobs_text, len(jobs_list), actual_jobs=jobs_list)
+                    
+                    # Store evaluation in database with job references
+                    self._store_evaluation_result(user_session_id, evaluation_result, jobs_list)
+                    
+                    # Add metadata
+                    evaluation_result.update({
+                        'evaluation_timestamp': datetime.now().isoformat(),
+                        'jobs_evaluated': len(jobs_list),
+                        'evaluation_source': 'specific_jobs_list',
+                        'user_session_id': user_session_id
+                    })
+                    
+                    logging.info(f"CV evaluation completed successfully for {len(jobs_list)} jobs")
+                    return evaluation_result
+                    
+                except Exception as ai_error:
+                    logging.error(f"AI evaluation failed: {ai_error}")
+                    # Fall back to basic evaluation
+                    return self._fallback_evaluation(profile_data, jobs_list, str(ai_error))
+            else:
+                logging.warning("No API key available, using fallback evaluation")
+                return self._fallback_evaluation(profile_data, jobs_list, "No API key configured")
+                
+        except Exception as e:
+            logging.error(f"Error in evaluate_cv_against_specific_jobs: {e}")
+            return {
+                "error": f"Evaluation failed: {str(e)}",
                 "evaluation_timestamp": datetime.now().isoformat(),
-                "jobs_evaluated": len(job_matches),
-                "evaluation_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                "profile_field": profile_data.get('overall_field', 'Unknown'),
-                "user_experience_level": profile_data.get('total_experience', 'Unknown'),
-                "evaluation_type": "profile_matched_jobs",
-                "average_job_relevance": round(sum(job.get('relevance_score', 0) for job in job_matches) / len(job_matches), 1) if job_matches else 0,
-                "parsing_success_rate": round((len(parsed_evaluations) - parsing_issues) / len(parsed_evaluations) * 100, 1) if parsed_evaluations else 0
-            })
+                "jobs_evaluated": len(jobs_list) if jobs_list else 0
+            }
+
+    def _fallback_evaluation(self, profile_data: Dict, jobs_list: List[Dict], error_reason: str) -> Dict:
+        """
+        Provide basic evaluation when AI is not available
+        """
+        try:
+            evaluations = []
+            total_score = 0
             
-            # Apply validation and store results
-            self.apply_balanced_validation(evaluation_results, profile_data)
-            self.store_evaluation_results(user_session_id, evaluation_results)
+            # Extract user skills for matching
+            user_skills = set()
+            user_skills.update(profile_data.get('current_skills_selected', []))
+            user_skills.update(profile_data.get('current_skills_custom', []))
+            user_skills = {skill.lower().strip() for skill in user_skills if skill}
             
-            logging.info(f"CV evaluation completed successfully for {len(job_matches)} jobs")
-            logging.info(f"Parsing success rate: {evaluation_results['parsing_success_rate']}%")
+            for job in jobs_list:
+                # Basic skill matching
+                job_description = job.get('description', '').lower()
+                job_title = job.get('title', '').lower()
+                
+                # Count skill matches
+                skill_matches = sum(1 for skill in user_skills if skill in job_description or skill in job_title)
+                max_possible_matches = max(len(user_skills), 1)
+                match_score = min(90, int((skill_matches / max_possible_matches) * 100))
+                
+                # Basic assessment
+                if match_score >= 70:
+                    overall_fit = "Strong match based on skills alignment"
+                    likelihood = "Medium"
+                elif match_score >= 50:
+                    overall_fit = "Moderate match with some skill overlap"
+                    likelihood = "Medium"
+                else:
+                    overall_fit = "Limited match, may require skill development"
+                    likelihood = "Low"
+                
+                evaluation = {
+                    'job_title': job.get('title', 'Unknown'),
+                    'company': job.get('company', 'Unknown'),
+                    'location': job.get('location', 'Unknown'),
+                    'match_score': match_score,
+                    'overall_fit': overall_fit,
+                    'reality_check': f"Basic compatibility assessment - {skill_matches} skills matched",
+                    'strengths': f"Matched skills: {', '.join([s for s in user_skills if s in job_description or s in job_title])}" if skill_matches > 0 else "Profile alignment with job requirements",
+                    'critical_gaps': "Detailed gap analysis requires AI evaluation",
+                    'recommendations': f"Focus on highlighting relevant experience and consider skill development",
+                    'seniority_match': 'Not assessed in basic mode',
+                    'likelihood': likelihood,
+                    'experience_gap': 'Detailed experience analysis requires AI evaluation',
+                    'job_url': job.get('job_url', ''),
+                    'fallback_mode': True
+                }
+                
+                evaluations.append(evaluation)
+                total_score += match_score
             
-            return evaluation_results
+            # Create summary
+            avg_score = int(total_score / len(jobs_list)) if jobs_list else 0
+            high_matches = sum(1 for e in evaluations if e['match_score'] >= 70)
+            medium_matches = sum(1 for e in evaluations if 50 <= e['match_score'] < 70)
+            low_matches = sum(1 for e in evaluations if e['match_score'] < 50)
+            
+            return {
+                'evaluations': evaluations,
+                'summary': {
+                    'average_match_score': avg_score,
+                    'score_distribution': {
+                        'high (70-100)': high_matches,
+                        'medium (50-69)': medium_matches,
+                        'low (0-49)': low_matches
+                    }
+                },
+                'evaluation_model': f'Fallback mode: {error_reason}',
+                'evaluation_timestamp': datetime.now().isoformat(),
+                'jobs_evaluated': len(jobs_list),
+                'fallback_mode': True,
+                'evaluation_source': 'specific_jobs_fallback'
+            }
             
         except Exception as e:
-            error_msg = str(e)
-            logging.error(f"Error during AI evaluation: {error_msg}")
-            
-            # Enhanced error handling with specific error types
-            if "503" in error_msg or "502" in error_msg:
-                return {
-                    "error": "AI service temporarily unavailable. Please try again in a few moments.",
-                    "error_type": "service_unavailable",
-                    "user_session_id": user_session_id,
-                    "jobs_available": len(job_matches),
-                    "retry_suggestion": "The evaluation can be retried - your job matches are saved."
-                }
-            elif "rate" in error_msg.lower() or "limit" in error_msg.lower():
-                return {
-                    "error": "API rate limit reached. Please wait a few minutes before trying again.",
-                    "error_type": "rate_limit",
-                    "user_session_id": user_session_id,
-                    "jobs_available": len(job_matches)
-                }
-            else:
-                # Fallback evaluation for other errors
-                return self.create_fallback_evaluation(user_session_id, job_matches, profile_data, error_msg)
-
-    def parse_simplified_evaluation_response(self, response: str, jobs: List[Dict]) -> Dict:
-        """Parse AI evaluation response with enhanced robustness and debugging"""
-        results = {
-            "evaluations": [],
-            "summary": {
-                "average_match_score": 0,
-                "score_distribution": {},
-                "top_recommendations": [],
-                "critical_gaps": [],
-                "best_matches": []
+            logging.error(f"Fallback evaluation failed: {e}")
+            return {
+                "error": f"Both AI and fallback evaluation failed: {str(e)}",
+                "evaluation_timestamp": datetime.now().isoformat(),
+                "jobs_evaluated": len(jobs_list) if jobs_list else 0,
+                "fallback_mode": True
             }
-        }
-        
-        logging.info(f"Parsing AI response: {len(response)} characters")
-        logging.info(f"Expected to parse {len(jobs)} job evaluations")
-        
-        # Log the first 500 characters for debugging
-        logging.info(f"Response preview: {response[:500]}...")
-        
-        # More robust job section detection with multiple strategies
-        job_sections = []
-        
-        # Strategy 1: Look for JOB_X: patterns
-        import re
-        job_pattern = r'(JOB_\d+:.*?)(?=JOB_\d+:|$)'
-        matches = re.findall(job_pattern, response, re.DOTALL | re.IGNORECASE)
-        
-        if matches:
-            job_sections = matches
-            logging.info(f"Strategy 1: Found {len(job_sections)} job sections using regex pattern")
-        else:
-            # Strategy 2: Split by lines containing JOB
-            lines = response.split('\n')
-            current_section = []
-            section_found = False
-            
-            for line in lines:
-                line = line.strip()
-                # Look for job section markers (more flexible)
-                if (line.startswith('JOB_') or 
-                    line.startswith('Job ') or 
-                    line.startswith('**JOB') or
-                    ('JOB' in line.upper() and any(c.isdigit() for c in line))):
-                    
-                    if current_section and section_found:
-                        job_sections.append('\n'.join(current_section))
-                    current_section = [line]
-                    section_found = True
-                elif current_section and section_found:
-                    current_section.append(line)
-            
-            # Add the last section
-            if current_section and section_found:
-                job_sections.append('\n'.join(current_section))
-            
-            logging.info(f"Strategy 2: Found {len(job_sections)} job sections using line parsing")
-        
-        # Strategy 3: If still no sections, try alternative patterns
-        if not job_sections:
-            logging.warning("No structured job sections found, attempting alternative parsing")
-            # Try to split by numbers or other patterns
-            alt_pattern = r'(?:JOB[_\s]*\d+|Job\s+\d+|^\d+\.)'
-            parts = re.split(alt_pattern, response, flags=re.IGNORECASE | re.MULTILINE)
-            if len(parts) > 1:
-                job_sections = [part.strip() for part in parts[1:] if part.strip()]  # Skip first empty part
-                logging.info(f"Strategy 3: Alternative parsing found {len(job_sections)} sections")
-        
-        # If we still have no sections, create a fallback section for each job
-        if not job_sections and jobs:
-            logging.warning("Creating fallback sections - AI response may not be properly formatted")
-            # Try to parse the entire response as one block and extract information
-            job_sections = [response] * len(jobs)  # Use same response for all jobs as fallback
-        
-        logging.info(f"Final: {len(job_sections)} job sections will be processed")
-        
-        # Parse each job section
-        match_scores = []
-        for i, section in enumerate(job_sections):
-            if i >= len(jobs):
-                logging.warning(f"More job sections ({len(job_sections)}) than jobs ({len(jobs)})")
-                break
-                
-            logging.info(f"Processing section {i+1}: {section[:100]}...")
-            
-            eval_data = self.parse_single_job_evaluation(section, jobs[i], i)
-            if eval_data and eval_data.get('match_score', 0) > 0:
-                results["evaluations"].append(eval_data)
-                match_scores.append(eval_data['match_score'])
-                logging.info(f"Successfully parsed evaluation {i+1}: {eval_data.get('job_title')} - Score: {eval_data.get('match_score', 0)}%")
-            else:
-                logging.warning(f"Failed to parse evaluation {i+1} or got invalid score")
-                # Add a fallback evaluation
-                fallback_eval = self.create_fallback_single_evaluation(jobs[i], i)
-                results["evaluations"].append(fallback_eval)
-                match_scores.append(fallback_eval['match_score'])
-                logging.info(f"Created fallback evaluation {i+1}: Score: {fallback_eval['match_score']}%")
-        
-        logging.info(f"Successfully processed {len(results['evaluations'])} evaluations with scores: {match_scores}")
-        
-        # Calculate summary
-        if match_scores:
-            results["summary"]["average_match_score"] = round(sum(match_scores) / len(match_scores), 1)
-            
-            # Score distribution
-            results["summary"]["score_distribution"] = {
-                "high (70-100)": len([s for s in match_scores if s >= 70]),
-                "medium (40-69)": len([s for s in match_scores if 40 <= s < 70]),
-                "low (0-39)": len([s for s in match_scores if s < 40])
-            }
-            
-            # Best matches
-            best_evals = sorted([e for e in results["evaluations"] if 'match_score' in e], 
-                              key=lambda x: x.get('match_score', 0), reverse=True)
-            results["summary"]["best_matches"] = best_evals[:3]
-            
-            logging.info(f"Summary calculated: Avg={results['summary']['average_match_score']}%, Distribution={results['summary']['score_distribution']}")
-        else:
-            logging.error("No valid match scores found in any evaluation - this is a critical parsing failure")
-            results["summary"]["average_match_score"] = 0
-            results["summary"]["score_distribution"] = {"high (70-100)": 0, "medium (40-69)": 0, "low (0-39)": 0}
-        
-        return results
-
-    def create_fallback_single_evaluation(self, job: Dict, job_index: int) -> Dict:
-        """Create a fallback evaluation when parsing fails"""
-        # Use the profile matching score as base
-        base_score = job.get('relevance_score', 40)
-        # Add some variance to make it more realistic
-        adjusted_score = max(25, min(75, base_score + 5))
-        
-        return {
-            "job_number": job_index + 1,
-            "job_title": job.get('title', 'Unknown'),
-            "company": job.get('company', 'Unknown'),
-            "location": job.get('location', 'Unknown'),
-            "job_url": job.get('job_url', ''),
-            "job_id": job.get('id', ''),
-            "company_industry": job.get('company_industry', 'Unknown'),
-            "match_score": adjusted_score,
-            "profile_match_score": job.get('relevance_score', 0),
-            "match_type": job.get('match_type', 'unknown'),
-            "overall_fit": "Fair" if adjusted_score >= 50 else "Needs Review",
-            "seniority_match": "Parsing failed - using fallback analysis",
-            "experience_gap": "Detailed analysis unavailable due to parsing issues",
-            "reality_check": f"Basic compatibility assessment: {adjusted_score}% match based on profile scoring. Full AI analysis was not accessible.",
-            "strengths": "Profile matching suggests this position aligns with your background",
-            "critical_gaps": "Unable to identify specific gaps - manual review recommended",
-            "minor_gaps": "Consider reviewing job requirements carefully",
-            "recommendations": "Review job posting manually and consider applying if requirements align with your skills",
-            "likelihood": "Medium" if adjusted_score >= 50 else "Low",
-            "parsing_fallback": True
-        }
 
     def format_profile_for_evaluation(self, profile_data: Dict) -> str:
         """Format user profile data for AI evaluation"""
@@ -783,29 +384,6 @@ Description: {description}
         
         raise Exception("All retry attempts failed")
 
-    def apply_balanced_validation(self, evaluation_results: Dict, profile_data: Dict):
-        """Apply validation to ensure reasonable scores and feedback"""
-        evaluations = evaluation_results.get('evaluations', [])
-        
-        for evaluation in evaluations:
-            # Ensure match scores are reasonable
-            match_score = evaluation.get('match_score', 50)
-            if match_score > 95:
-                evaluation['match_score'] = 95
-                evaluation['validation_note'] = 'Score capped at 95% for realism'
-            elif match_score < 10:
-                evaluation['match_score'] = 15
-                evaluation['validation_note'] = 'Score raised to minimum 15%'
-            
-            # Ensure likelihood matches score
-            likelihood = evaluation.get('likelihood', 'Medium')
-            if match_score >= 75 and likelihood == 'Low':
-                evaluation['likelihood'] = 'Medium'
-            elif match_score >= 85 and likelihood in ['Low', 'Medium']:
-                evaluation['likelihood'] = 'High'
-            elif match_score < 40 and likelihood == 'High':
-                evaluation['likelihood'] = 'Low'
-
     def store_evaluation_results(self, user_session_id: str, evaluation_results: Dict):
         """Store evaluation results in database for future reference"""
         conn = sqlite3.connect(DB_NAME)
@@ -868,63 +446,6 @@ Description: {description}
         finally:
             conn.close()
 
-    def create_fallback_evaluation(self, user_session_id: str, job_matches: List[Dict], profile_data: Dict, error_msg: str) -> Dict:
-        """Create a fallback evaluation when AI analysis fails"""
-        fallback_evaluations = []
-        
-        for i, job in enumerate(job_matches):
-            # Use profile matching score as basis
-            base_score = job.get('relevance_score', 40)
-            adjusted_score = max(25, min(85, base_score + 5))
-            
-            fallback_eval = {
-                "job_number": i + 1,
-                "job_title": job.get('title', 'Unknown'),
-                "company": job.get('company', 'Unknown'),
-                "location": job.get('location', 'Unknown'),
-                "job_url": job.get('job_url', ''),
-                "job_id": job.get('id', ''),
-                "company_industry": job.get('company_industry', 'Unknown'),
-                "match_score": adjusted_score,
-                "profile_match_score": job.get('relevance_score', 0),
-                "match_type": job.get('match_type', 'unknown'),
-                "overall_fit": "Good" if adjusted_score >= 60 else ("Fair" if adjusted_score >= 40 else "Needs Review"),
-                "seniority_match": "AI analysis unavailable - review job requirements manually",
-                "experience_gap": "Detailed gap analysis unavailable due to technical issues",
-                "reality_check": f"Based on profile matching ({job.get('relevance_score', 40)}% compatibility), this position shows potential. Full AI analysis was not available due to: {error_msg}",
-                "strengths": "Profile matching suggests alignment with key requirements",
-                "critical_gaps": "Unable to identify specific gaps - manual review recommended",
-                "minor_gaps": "Consider reviewing job requirements for additional qualifications",
-                "recommendations": "Review job posting carefully and consider applying if requirements align with your skills",
-                "likelihood": "Medium" if adjusted_score >= 50 else "Low",
-                "fallback_mode": True,
-                "fallback_reason": error_msg
-            }
-            fallback_evaluations.append(fallback_eval)
-        
-        # Calculate summary
-        scores = [e['match_score'] for e in fallback_evaluations]
-        avg_score = round(sum(scores) / len(scores), 1) if scores else 0
-        
-        return {
-            "user_session_id": user_session_id,
-            "evaluation_timestamp": datetime.now().isoformat(),
-            "jobs_evaluated": len(job_matches),
-            "evaluation_model": "fallback_mode",
-            "fallback_mode": True,
-            "fallback_reason": error_msg,
-            "evaluations": fallback_evaluations,
-            "summary": {
-                "average_match_score": avg_score,
-                "score_distribution": {
-                    "high (70-100)": len([s for s in scores if s >= 70]),
-                    "medium (40-69)": len([s for s in scores if 40 <= s < 70]),
-                    "low (0-39)": len([s for s in scores if s < 40])
-                },
-                "best_matches": sorted(fallback_evaluations, key=lambda x: x['match_score'], reverse=True)[:3]
-            }
-        }
-
     def generate_improvement_plan(self, user_session_id: str) -> Dict:
         """Generate personalized improvement plan based on evaluation results"""
         try:
@@ -954,50 +475,46 @@ Description: {description}
                 if eval.get('strengths'):
                     common_strengths.append(eval['strengths'])
             
-            # Create improvement plan prompt
-            improvement_prompt = f"""
-You are a senior career coach creating a personalized 6-month improvement plan. Based on the CV evaluation results, create a detailed development roadmap.
+            # Create improved, more focused improvement plan prompt
+            improvement_prompt = f"""Create a concise, actionable 6-month career improvement plan for a Danish job seeker.
 
-USER PROFILE:
-- Field: {profile_data.get('overall_field', 'Unknown')}
-- Experience: {profile_data.get('total_experience', 'Unknown')}
-- Current Skills: {', '.join(profile_data.get('current_skills_selected', []))}
-- Target Roles: {', '.join(profile_data.get('target_roles_industries_selected', []))}
+PROFILE CONTEXT:
+Field: {profile_data.get('overall_field', 'Unknown')}
+Experience: {profile_data.get('total_experience', 'Unknown')}
+Skills: {', '.join(profile_data.get('current_skills_selected', [])[:5])}
+Targets: {', '.join(profile_data.get('target_roles_industries_selected', [])[:3])}
 
-EVALUATION SUMMARY:
-- Average Match Score: {avg_score}%
-- Jobs Analyzed: {len(evaluations)}
-- Common Strengths: {' | '.join(common_strengths[:3])}
-- Common Gaps: {' | '.join(common_gaps[:3])}
+EVALUATION INSIGHTS:
+Key Strengths: {' | '.join(common_strengths[:2])}
+Main Gaps: {' | '.join(common_gaps[:2])}
 
-Create a structured improvement plan with these sections:
+OUTPUT STRUCTURE (keep each section to 2-3 bullet points max):
 
 CURRENT STATUS:
-[Brief assessment of where they stand]
+[One sentence assessment of market position]
 
 IMMEDIATE ACTIONS (0-2 months):
-[3-4 specific actions they can take right away]
+[3 specific, actionable steps they can start immediately]
 
 MEDIUM TERM (2-4 months):
-[2-3 skills/certifications to develop]
+[2-3 skills/certifications to develop based on Danish job market]
 
 LONG TERM (4-6 months):
-[Strategic positioning and advanced goals]
+[2 strategic positioning goals]
 
 SKILL DEVELOPMENT PRIORITIES:
-[Top 3 technical/soft skills to focus on]
+[Top 3 skills ranked by Danish market demand]
 
 CERTIFICATION RECOMMENDATIONS:
-[Relevant certifications for their field]
+[2-3 specific, relevant certifications]
 
 APPLICATION STRATEGY:
-[How to improve job applications based on gaps found]
+[3 tactical improvements for Danish job applications]
 
 NETWORKING SUGGESTIONS:
-[Industry-specific networking advice]
+[2-3 Denmark-specific networking approaches]
 
-Make it actionable, specific, and motivating. Focus on realistic steps they can take.
-"""
+Focus on Denmark job market, be specific and actionable. Keep concise - quality over quantity."""
             
             try:
                 response = self._generate_with_retry(improvement_prompt, max_retries=2)
@@ -1068,3 +585,219 @@ NETWORKING SUGGESTIONS:
             "fallback_mode": True,
             "avg_score_context": avg_score
         }
+    
+    def _evaluate_with_ai(self, profile_text: str, jobs_text: str, num_jobs: int, actual_jobs: List[Dict] = None) -> Dict:
+        """
+        Perform AI evaluation using actual job data
+        """
+        # Create evaluation prompt using the same format as the main method
+        evaluation_prompt = f"""You are an expert Danish career counselor and recruiter. Evaluate how well this candidate's CV/profile matches specific job opportunities.
+
+CRITICAL FORMATTING: You must respond with EXACTLY this format for each job. Do not deviate from this structure.
+
+{profile_text}
+
+JOBS TO EVALUATE:
+{jobs_text}
+
+RESPONSE FORMAT REQUIRED:
+For each job, use EXACTLY this format (no extra text, no markdown, no bullets):
+
+JOB_1:
+MATCH_SCORE: 75
+OVERALL_FIT: Good
+SENIORITY_MATCH: Good Fit
+EXPERIENCE_GAP: Missing 2 years of senior experience but strong technical skills compensate
+REALITY_CHECK: Strong candidate with 75% compatibility. Good chance of progressing to interview stage if application is well-tailored
+STRENGTHS: Excellent Python skills, relevant project experience, strong analytical background matches job requirements well
+CRITICAL_GAPS: Senior leadership experience needed, specific domain knowledge in fintech would strengthen application
+MINOR_GAPS: Could benefit from certification in data visualization tools, public speaking experience
+RECOMMENDATIONS: Emphasize Python projects and analytical achievements in application, consider highlighting transferable leadership experience
+LIKELIHOOD: Medium
+
+JOB_2:
+MATCH_SCORE: 82
+OVERALL_FIT: Excellent
+SENIORITY_MATCH: Perfect Match
+EXPERIENCE_GAP: No significant gaps, experience level aligns well with requirements
+REALITY_CHECK: Excellent candidate with 82% compatibility. High probability of securing interview with proper application
+STRENGTHS: Perfect experience match, strong technical skills in required technologies, proven track record in similar roles
+CRITICAL_GAPS: None identified - strong alignment across all key requirements
+MINOR_GAPS: Additional cloud platform experience would be beneficial but not critical
+RECOMMENDATIONS: Apply immediately, highlight specific achievements with quantified results, prepare for technical interview
+LIKELIHOOD: High
+
+IMPORTANT RULES:
+- Use EXACTLY the field names shown (MATCH_SCORE, OVERALL_FIT, etc.)
+- MATCH_SCORE must be a number 0-100
+- OVERALL_FIT: Excellent/Good/Fair/Poor
+- LIKELIHOOD: High/Medium/Low
+- Keep each field response concise but informative
+- Be realistic with scores - most jobs should score 40-80%
+
+Start evaluation now:"""
+
+        try:
+            # Get AI evaluation with enhanced retry logic
+            response = self._generate_with_retry(evaluation_prompt, max_retries=2)
+            logging.info(f"Received evaluation response: {len(response)} characters")
+            
+            # Log first part of response for debugging
+            logging.info(f"AI Response preview: {response[:300]}...")
+            
+            # Simple parsing for specific jobs evaluation
+            evaluations = []
+            total_score = 0
+            
+            # Split response by job sections
+            job_sections = response.split('JOB_')[1:]  # Remove empty first element
+            
+            for i, section in enumerate(job_sections[:num_jobs]):
+                # Use actual job data if provided, otherwise use defaults
+                if actual_jobs and i < len(actual_jobs):
+                    job_data = actual_jobs[i]
+                    job_title = job_data.get('title', f'Job {i+1}')
+                    company = job_data.get('company', 'Unknown')
+                    location = job_data.get('location', 'Unknown')
+                    job_url = job_data.get('job_url', '')
+                    job_id = job_data.get('id', f'job_{i+1}')
+                    company_industry = job_data.get('company_industry', 'Unknown')
+                else:
+                    job_title = f'Job {i+1}'
+                    company = 'Unknown'
+                    location = 'Unknown'
+                    job_url = ''
+                    job_id = f'job_{i+1}'
+                    company_industry = 'Unknown'
+                
+                # Basic parsing to extract match score
+                match_score = 50  # Default fallback score
+                
+                # Look for MATCH_SCORE pattern
+                import re
+                score_match = re.search(r'MATCH_SCORE[:\s]*(\d+)', section, re.IGNORECASE)
+                if score_match:
+                    try:
+                        match_score = int(score_match.group(1))
+                        match_score = max(0, min(100, match_score))  # Clamp between 0-100
+                    except ValueError:
+                        match_score = 50
+                
+                # Extract other fields with basic regex
+                overall_fit = "Fair"
+                fit_match = re.search(r'OVERALL[_\s]*FIT[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if fit_match:
+                    overall_fit = fit_match.group(1).strip()
+                
+                likelihood = "Medium"
+                likelihood_match = re.search(r'LIKELIHOOD[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if likelihood_match:
+                    likelihood = likelihood_match.group(1).strip()
+                
+                # Extract seniority match
+                seniority_match = "Requires assessment"
+                seniority_search = re.search(r'SENIORITY[_\s]*MATCH[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if seniority_search:
+                    seniority_match = seniority_search.group(1).strip()
+                
+                # Extract experience gap with better default
+                experience_gap = "Experience level appears suitable for this role"
+                exp_gap_search = re.search(r'EXPERIENCE[_\s]*GAP[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if exp_gap_search:
+                    experience_gap = exp_gap_search.group(1).strip()
+                
+                # Extract strengths, gaps, recommendations with fallbacks
+                strengths = "Profile shows relevant experience and skills"
+                strengths_match = re.search(r'STRENGTHS[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if strengths_match:
+                    strengths = strengths_match.group(1).strip()
+                
+                critical_gaps = "No critical gaps identified through automated analysis"
+                gaps_match = re.search(r'CRITICAL[_\s]*GAPS[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if gaps_match:
+                    critical_gaps = gaps_match.group(1).strip()
+                
+                # Extract minor gaps
+                minor_gaps = "Minor skill enhancements could be beneficial"
+                minor_gaps_search = re.search(r'MINOR[_\s]*GAPS[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if minor_gaps_search:
+                    minor_gaps = minor_gaps_search.group(1).strip()
+                
+                recommendations = "Tailor application to highlight relevant skills and experience"
+                rec_match = re.search(r'RECOMMENDATIONS[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if rec_match:
+                    recommendations = rec_match.group(1).strip()
+                
+                reality_check = f"AI assessment indicates {match_score}% compatibility with this position"
+                reality_match = re.search(r'REALITY[_\s]*CHECK[:\s]*([^\n\r]+)', section, re.IGNORECASE)
+                if reality_match:
+                    reality_check = reality_match.group(1).strip()
+                
+                evaluation = {
+                    'job_number': i + 1,
+                    'job_title': job_title,
+                    'company': company,
+                    'location': location,
+                    'job_id': job_id,
+                    'job_url': job_url,
+                    'company_industry': company_industry,
+                    'match_score': match_score,
+                    'overall_fit': overall_fit,
+                    'seniority_match': seniority_match,
+                    'experience_gap': experience_gap,
+                    'reality_check': reality_check,
+                    'strengths': strengths,
+                    'critical_gaps': critical_gaps,
+                    'minor_gaps': minor_gaps,
+                    'recommendations': recommendations,
+                    'likelihood': likelihood,
+                    'ai_parsed': True
+                }
+                
+                evaluations.append(evaluation)
+                total_score += match_score
+            
+            # Calculate summary
+            avg_score = round(total_score / len(evaluations), 1) if evaluations else 0
+            
+            high_matches = sum(1 for e in evaluations if e['match_score'] >= 70)
+            medium_matches = sum(1 for e in evaluations if 50 <= e['match_score'] < 70)
+            low_matches = sum(1 for e in evaluations if e['match_score'] < 50)
+            
+            evaluation_results = {
+                "evaluations": evaluations,
+                "summary": {
+                    "average_match_score": avg_score,
+                    "score_distribution": {
+                        "high (70-100)": high_matches,
+                        "medium (50-69)": medium_matches,
+                        "low (0-49)": low_matches
+                    },
+                    "best_matches": sorted(evaluations, key=lambda x: x['match_score'], reverse=True)[:3]
+                },
+                "evaluation_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "evaluation_type": "specific_jobs_ai",
+                "parsing_success_rate": round(len(evaluations) / num_jobs * 100, 1) if num_jobs > 0 else 0
+            }
+            
+            logging.info(f"AI evaluation completed successfully for {num_jobs} jobs")
+            logging.info(f"Parsing success rate: {evaluation_results['parsing_success_rate']}%")
+            
+            return evaluation_results
+            
+        except Exception as e:
+            logging.error(f"Error in _evaluate_with_ai: {e}")
+            raise e
+
+    def _store_evaluation_result(self, user_session_id: str, evaluation_result: Dict, jobs_list: List[Dict]):
+        """
+        Store evaluation results in database with job references
+        """
+        try:
+            # Use the existing store_evaluation_results method
+            self.store_evaluation_results(user_session_id, evaluation_result)
+            logging.info(f"Stored evaluation results for {len(jobs_list)} specific jobs")
+            
+        except Exception as e:
+            logging.error(f"Error storing evaluation result: {e}")
+            # Don't raise the error - this is not critical for the evaluation to work
