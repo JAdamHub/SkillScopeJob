@@ -4,7 +4,7 @@ import re
 import json
 import logging
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from datetime import datetime
 
 # Load environment variables
@@ -31,6 +31,16 @@ try:
 except ImportError as e:
     print(f"Could not import required modules: {e}")
     exit(1)
+
+# Database and ORM imports
+import sqlite3 # Keep for now if other methods still use it (e.g., storing evaluations)
+from database_models import (
+    SessionLocal, UserProfile, 
+    UserProfileTargetRole, UserProfileKeyword, UserProfileSkill,
+    UserProfileLanguage, UserProfileJobType, UserProfileLocation,
+    UserEducation, UserExperience, CVJobEvaluation, JobEvaluationDetail, JobPosting
+) # Add all necessary models
+from sqlalchemy.orm import joinedload, Session # Add Session for type hinting
 
 # Configuration
 TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY')
@@ -78,31 +88,70 @@ class CVJobEvaluator:
             raise e
     
     def get_user_profile_data(self, user_session_id: str) -> Optional[Dict]:
-        """Get user profile data from database with enhanced error handling"""
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
+        """Get user profile data from database using SQLAlchemy ORM."""
+        session: Session = SessionLocal()
         try:
-            cursor.execute("""
-            SELECT profile_data FROM user_profiles 
-            WHERE user_session_id = ? 
-            ORDER BY last_search_timestamp DESC LIMIT 1
-            """, (user_session_id,))
-            
-            result = cursor.fetchone()
-            if result:
-                profile_data = json.loads(result[0])
-                logging.info(f"Retrieved profile for user {user_session_id}: {profile_data.get('overall_field', 'Unknown field')}")
-                return profile_data
-            else:
-                logging.warning(f"No profile found for user {user_session_id}")
+            user_profile = (
+                session.query(UserProfile)
+                .options(
+                    joinedload(UserProfile.target_roles),
+                    joinedload(UserProfile.keywords),
+                    joinedload(UserProfile.skills),
+                    joinedload(UserProfile.languages),
+                    joinedload(UserProfile.job_types),
+                    joinedload(UserProfile.preferred_locations),
+                    joinedload(UserProfile.education_entries),
+                    joinedload(UserProfile.experience_entries),
+                )
+                .filter(UserProfile.user_session_id == user_session_id)
+                .order_by(UserProfile.last_search_timestamp.desc().nullslast(), UserProfile.created_timestamp.desc().nullslast())
+                .first()
+            )
+
+            if not user_profile:
+                logging.warning(f"No UserProfile found for user_session_id: {user_session_id} in CVJobEvaluator")
                 return None
+
+            profile_dict = {
+                "user_session_id": user_profile.user_session_id,
+                "submission_timestamp": user_profile.submission_timestamp.isoformat() if user_profile.submission_timestamp else None,
+                "user_id_input": user_profile.user_id_input,
+                "overall_field": user_profile.overall_field,
+                "personal_description": user_profile.personal_description,
+                "total_experience": user_profile.total_experience,
+                "remote_openness": user_profile.remote_openness,
+                "analysis_preference": user_profile.analysis_preference,
+                "target_roles_industries_selected": [tr.role_or_industry_name for tr in user_profile.target_roles if tr.role_or_industry_name],
+                 # Assuming custom roles are merged into target_roles_industries_selected from the form, 
+                 # or would need a separate field if stored differently. For now, this matches profile_job_matcher's typical output.
+                "target_roles_industries_custom": [], # Placeholder if this distinct list is needed and not part of target_roles
+                "job_title_keywords": [kw.keyword for kw in user_profile.keywords if kw.keyword],
+                "current_skills_selected": [s.skill_name for s in user_profile.skills if s.skill_name],
+                "current_skills_custom": [], # Placeholder, similar to custom roles
+                "job_languages": [lang.language_name for lang in user_profile.languages if lang.language_name],
+                "job_types": [jt.job_type_name for jt in user_profile.job_types if jt.job_type_name],
+                "preferred_locations_dk": [loc.location_name for loc in user_profile.preferred_locations if loc.location_name],
+                "education_entries": [{
+                    "id": str(edu.id), "degree": edu.degree, "field_of_study": edu.field_of_study,
+                    "institution": edu.institution, "graduation_year": edu.graduation_year
+                } for edu in user_profile.education_entries],
+                "work_experience_entries": [{
+                    "id": str(exp.id), "job_title": exp.job_title, "company": exp.company,
+                    "years_in_role": exp.years_in_role, 
+                    "skills_responsibilities": exp.skills_responsibilities
+                } for exp in user_profile.experience_entries],
+                "created_timestamp": user_profile.created_timestamp.isoformat() if user_profile.created_timestamp else None,
+                "last_search_timestamp": user_profile.last_search_timestamp.isoformat() if user_profile.last_search_timestamp else None,
+            }
+            logging.info(f"Retrieved and normalized UserProfile for {user_session_id} in CVJobEvaluator.")
+            return profile_dict
             
         except Exception as e:
-            logging.error(f"Error getting user profile: {e}")
+            logging.error(f"Error getting user profile via SQLAlchemy in CVJobEvaluator: {e}")
+            session.rollback() # Rollback on error
             return None
         finally:
-            conn.close()
+            session.close()
 
     def evaluate_cv_against_specific_jobs(self, user_session_id: str, jobs_list: List[Dict], profile_data: Dict = None) -> Dict:
         """
