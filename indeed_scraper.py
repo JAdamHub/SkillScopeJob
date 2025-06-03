@@ -1,7 +1,7 @@
 import sqlite3
 import logging
 import pandas as pd
-from typing import List
+from typing import List, Dict
 from jobspy import scrape_jobs
 
 # configuration parameters
@@ -257,96 +257,143 @@ def get_recent_jobs_count(days: int = 7) -> int:
         conn.close()
 
 def scrape_indeed_jobs_with_profile(search_term: str, location: str, job_type: str = None, 
-                                   is_remote: bool = None, max_results: int = 50) -> int:
-    """Enhanced scraper that accepts profile-specific parameters"""
-    
-    # Check existing jobs first
-    existing_count = check_existing_jobs_for_terms([search_term], location)
-    recent_count = get_recent_jobs_count(7)
-    
-    logging.info(f"starting profile-based indeed job scrape for '{search_term}' in '{location}'")
-    logging.info(f"existing jobs for this search: {existing_count}")
-    logging.info(f"recent jobs (last 7 days): {recent_count}")
-    
-    if job_type:
-        logging.info(f"job type filter: {job_type}")
-    if is_remote is not None:
-        logging.info(f"remote filter: {is_remote}")
+                                   is_remote: bool = None, max_results: int = 50) -> Dict:
+    """
+    Enhanced function that returns both job count AND actual job data from Indeed search
+    Still prevents duplicates in database but provides fresh data to frontend
+    """
+    logging.info(f"Starting enhanced Indeed search: '{search_term}' in '{location}' (max: {max_results})")
     
     try:
-        # Build scrape_jobs parameters with safer parameter handling
+        # Initialize database
+        init_database()
+        
+        # Build scrape_jobs parameters - only include valid parameters
         scrape_params = {
             "site_name": ["indeed"],
             "search_term": search_term,
             "location": location,
             "results_wanted": max_results,
-            "country_indeed": COUNTRY,
+            "country_indeed": "denmark",
             "verbose": 1,
             "description_format": "markdown"
         }
         
-        # Add profile-specific filters if supported
-        if job_type:
+        # Only add optional parameters if they have valid values
+        if job_type is not None and job_type.strip():
             scrape_params["job_type"] = job_type
-        if is_remote is not None:
+            
+        if is_remote is not None:  # Only add if explicitly True or False, not None
             scrape_params["is_remote"] = is_remote
         
-        # Try with different parameter combinations to handle version differences
+        logging.info(f"Scraping with parameters: {scrape_params}")
+        
+        # Scrape jobs using jobspy with error handling for parameter compatibility
         try:
-            # First try with hours_old parameter
-            jobs_df = scrape_jobs(**scrape_params, hours_old=HOURS_OLD)
+            df = scrape_jobs(**scrape_params)
         except TypeError as e:
-            if "hours_old" in str(e):
-                logging.warning("hours_old parameter not supported, trying without it")
-                try:
-                    jobs_df = scrape_jobs(**scrape_params)
-                except TypeError as e2:
-                    # If still failing, try with minimal parameters
-                    logging.warning(f"Some parameters not supported: {e2}")
-                    minimal_params = {
-                        "site_name": ["indeed"],
-                        "search_term": search_term,
-                        "location": location,
-                        "results_wanted": max_results
-                    }
-                    jobs_df = scrape_jobs(**minimal_params)
-            else:
-                raise e
+            # If there's a parameter error, try with minimal parameters
+            logging.warning(f"Parameter error: {e}. Trying with minimal parameters...")
+            minimal_params = {
+                "site_name": ["indeed"],
+                "search_term": search_term,
+                "location": location,
+                "results_wanted": max_results
+            }
+            df = scrape_jobs(**minimal_params)
         
-        logging.info(f"scraped {len(jobs_df)} jobs from indeed with profile filters")
+        if df is None or df.empty:
+            logging.warning(f"No jobs found for search: '{search_term}' in '{location}'")
+            return {
+                "total_jobs_found": 0,
+                "new_jobs_added": 0,
+                "jobs_from_search": [],
+                "search_summary": {
+                    "search_term": search_term,
+                    "location": location,
+                    "job_type": job_type,
+                    "is_remote": is_remote,
+                    "status": "no_results"
+                },
+                "timestamp": pd.Timestamp.now().isoformat()
+            }
         
-        if jobs_df.empty:
-            logging.warning("no jobs found with current filters")
-            return 0
+        logging.info(f"Indeed returned {len(df)} jobs for '{search_term}'")
         
-        # Log description statistics
-        jobs_with_descriptions = jobs_df['description'].notna().sum()
-        logging.info(f"jobs with descriptions: {jobs_with_descriptions}/{len(jobs_df)}")
+        # Convert DataFrame to records with search metadata
+        job_records = convert_dataframe_to_records(df, search_term, location)
         
-        # convert to database records with search metadata
-        records = convert_dataframe_to_records(jobs_df, search_term, location)
+        # Check for existing jobs in database to avoid duplicates
+        existing_jobs = set()
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
         
-        # Add profile search metadata to records
-        for record in records:
-            record['search_job_type'] = job_type
-            record['search_is_remote'] = is_remote
+        try:
+            cursor.execute("SELECT title, company, location FROM job_postings")
+            existing_jobs = {(row[0], row[1], row[2]) for row in cursor.fetchall()}
+            logging.info(f"Found {len(existing_jobs)} existing jobs in database")
+        except Exception as e:
+            logging.warning(f"Could not check existing jobs: {e}")
+        finally:
+            conn.close()
         
-        logging.info(f"converted {len(records)} records for database insertion")
+        # Separate new jobs from duplicates
+        new_jobs_for_db = []
+        all_jobs_from_search = []
         
-        if not records:
-            logging.error("no records created from dataframe")
-            return 0
+        for job in job_records:
+            job_key = (job.get('title', ''), job.get('company', ''), job.get('location', ''))
+            
+            # Add to search results regardless (fresh from Indeed)
+            all_jobs_from_search.append(job)
+            
+            # Only add to database if it's new
+            if job_key not in existing_jobs:
+                new_jobs_for_db.append(job)
+                existing_jobs.add(job_key)  # Update set to avoid duplicates within this batch
         
-        # insert into database
-        inserted_count = insert_job_records_enhanced(records)
-        logging.info(f"successfully inserted {inserted_count} new job postings")
+        # Insert only new jobs into database
+        new_jobs_count = 0
+        if new_jobs_for_db:
+            new_jobs_count = insert_job_records_enhanced(new_jobs_for_db)
+            logging.info(f"Added {new_jobs_count} new jobs to database")
+        else:
+            logging.info("All jobs from Indeed search already exist in database")
         
-        return inserted_count
+        # Return comprehensive results including fresh job data
+        return {
+            "total_jobs_found": len(all_jobs_from_search),
+            "new_jobs_added": new_jobs_count,
+            "jobs_from_search": all_jobs_from_search,  # Fresh data from Indeed
+            "search_summary": {
+                "search_term": search_term,
+                "location": location,
+                "job_type": job_type,
+                "is_remote": is_remote,
+                "indeed_results": len(df),
+                "new_in_database": new_jobs_count,
+                "duplicates_found": len(all_jobs_from_search) - new_jobs_count,
+                "status": "success"
+            },
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
         
     except Exception as e:
-        logging.error(f"error during profile-based job scraping: {e}")
-        logging.error(f"error details: {type(e).__name__}: {str(e)}")
-        return 0
+        error_msg = f"Error during Indeed scraping: {str(e)}"
+        logging.error(error_msg)
+        return {
+            "total_jobs_found": 0,
+            "new_jobs_added": 0,
+            "jobs_from_search": [],
+            "search_summary": {
+                "search_term": search_term,
+                "location": location,
+                "error": error_msg,
+                "status": "error"
+            },
+            "error": error_msg,
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
 
 def insert_job_records_enhanced(records: List[dict]) -> int:
     """Enhanced insert function that handles additional profile search metadata"""
