@@ -54,7 +54,14 @@ def init_database():
         company_logo TEXT,
         scraped_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         search_term TEXT,
-        search_location TEXT
+        search_location TEXT,
+        search_job_type TEXT,
+        search_is_remote BOOLEAN,
+        job_status TEXT DEFAULT 'active',
+        refresh_count INTEGER DEFAULT 1,
+        job_freshness TEXT,
+        enrichment_status TEXT,
+        user_profile_match REAL
     )
     """)
     

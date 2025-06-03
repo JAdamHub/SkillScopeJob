@@ -143,6 +143,56 @@ def init_database_with_freshness_tracking():
     conn.close()
     logging.info("Database freshness tracking initialized")
 
+def _update_job_freshness_categories(conn: sqlite3.Connection, max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS):
+    """
+    Update the job_freshness column for all jobs based on their scraped_timestamp.
+    """
+    cursor = conn.cursor()
+    now = datetime.now()
+    
+    # Define freshness categories and their thresholds (days from now)
+    # Order matters: from freshest to stalest
+    categories = [
+        ("fresh", FRESHNESS_THRESHOLDS["fresh"]),
+        ("recent", FRESHNESS_THRESHOLDS["recent"]),
+        ("aging", FRESHNESS_THRESHOLDS["aging"]),
+        ("stale", max_job_age_days) # Anything older than max_job_age_days is stale
+    ]
+
+    try:
+        # Fetch all job ids and their scraped_timestamps
+        cursor.execute(f"SELECT id, scraped_timestamp FROM {TABLE_NAME}")
+        jobs_to_update = cursor.fetchall()
+        
+        updated_count = 0
+        for job_id, scraped_timestamp_str in jobs_to_update:
+            if not scraped_timestamp_str:
+                continue
+            
+            scraped_date = datetime.fromisoformat(scraped_timestamp_str)
+            age_days = (now - scraped_date).days
+            
+            current_freshness = "stale" # Default to stale
+            if age_days < categories[0][1]: # fresh
+                current_freshness = categories[0][0]
+            elif age_days < categories[1][1]: # recent
+                current_freshness = categories[1][0]
+            elif age_days < categories[2][1]: # aging
+                current_freshness = categories[2][0]
+            # else remains stale
+
+            cursor.execute(f"UPDATE {TABLE_NAME} SET job_freshness = ? WHERE id = ?", (current_freshness, job_id))
+            if cursor.rowcount > 0:
+                updated_count += 1
+        
+        conn.commit()
+        logging.info(f"Updated job_freshness for {updated_count} jobs.")
+
+    except Exception as e:
+        logging.error(f"Error updating job_freshness categories: {e}")
+        conn.rollback()
+    # No finally conn.close() as connection is managed by caller
+
 def get_job_age_distribution(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
     """
     Get distribution of jobs by age categories
@@ -344,8 +394,14 @@ def smart_database_refresh(cleanup_strategy: str = "smart", max_job_age_days: in
                 days_since_cleanup = (datetime.now() - last_cleanup).days
                 logging.info(f"⏭️ Skipping cleanup - last cleanup was {days_since_cleanup} days ago")
         
-        # Always update freshness tracking
+        # Always update freshness tracking and job_freshness categories
         init_database_with_freshness_tracking()
+        conn = sqlite3.connect(DB_NAME)
+        try:
+            _update_job_freshness_categories(conn, max_job_age_days)
+        finally:
+            conn.close()
+
         refresh_stats["after_stats"] = get_job_age_distribution(max_job_age_days)
         
         logging.info(f"🔄 Database refresh completed: {refresh_stats['actions_taken']}")
@@ -719,6 +775,24 @@ def batch_enrichment(batch_size=15):
                         if cursor.rowcount > 0:
                             updated_count += 1
                             logging.info(f"✅ Updated job {job_id}: {list(filtered_updates.keys())}")
+
+                            # Determine enrichment status
+                            # Fetch the updated record to check all relevant fields
+                            cursor.execute(f"SELECT company, company_industry, company_description FROM {TABLE_NAME} WHERE id = ?", (int(job_id),))
+                            updated_job_details = cursor.fetchone()
+                            current_company, current_industry, current_comp_desc = updated_job_details if updated_job_details else (None, None, None)
+
+                            enrich_status = 'pending' # Default
+                            if current_company and current_industry and current_comp_desc and \
+                               current_company.strip() and current_industry.strip() and current_comp_desc.strip():
+                                enrich_status = 'full'
+                            elif (current_company and current_company.strip()) or \
+                                 (current_industry and current_industry.strip()) or \
+                                 (current_comp_desc and current_comp_desc.strip()):
+                                enrich_status = 'partial'
+                            
+                            cursor.execute(f"UPDATE {TABLE_NAME} SET enrichment_status = ? WHERE id = ?", (enrich_status, int(job_id)))
+                            logging.info(f"Job {job_id} enrichment_status set to {enrich_status}")
                         else:
                             logging.warning(f"❌ No rows updated for job {job_id}")
                     else:
