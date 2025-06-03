@@ -329,17 +329,6 @@ def run_app():
     # --- Load ontologies ---
     default_roles = ["Software Engineer", "Data Scientist", "Project Manager", "UX Designer"]
     default_skills = ["Python", "Java", "SQL", "Data Analysis", "Machine Learning"]
-    default_education = [
-        ("B.Sc.", "Computer Science", "University of Copenhagen"),
-        ("M.Sc.", "Software Engineering", "Aalborg University"),
-        ("Cand.merc.", "International Business", "Copenhagen Business School"),
-        ("PhD", "Artificial Intelligence", "Technical University of Denmark"),
-        ("Computer Science Diploma", "", "Business Academy Aarhus"),
-        ("HA", "", "University of Southern Denmark"),
-        ("Cand.polit", "", "University of Copenhagen"),
-        ("Master", "Computer Science", "University of Southern Denmark"),
-        ("Bachelor", "Economics", "Aarhus University")
-    ]
     default_overall_fields = ["Data Science & AI", "Software Development", "Project Management", "UX/UI Design", "Marketing & Sales", "Finance & Economics", "Engineering", "Healthcare", "International Business"]
     
     roles_options = load_ontology_data(ROLES_INDUSTRIES_ONTOLOGY_FILE, "name", default_roles)
@@ -1195,113 +1184,145 @@ def run_app():
                             col1, col2, col3 = st.columns(3)
                             
                             with col1:
-                                if st.button("📧 Email Plan to Me", key="email_plan"):
-                                    st.info("📧 Email feature not implemented yet")
+                                # Download plan as PDF
+                                if st.button("📄 Download Plan as PDF", key="download_plan"):
+                                    try:
+                                        # Create PDF content
+                                        from reportlab.lib.pagesizes import letter, A4
+                                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                                        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                                        from reportlab.lib.units import inch
+                                        import io
+                                        
+                                        # Create PDF in memory
+                                        buffer = io.BytesIO()
+                                        doc = SimpleDocTemplate(buffer, pagesize=A4)
+                                        styles = getSampleStyleSheet()
+                                        
+                                        # Custom styles
+                                        title_style = ParagraphStyle(
+                                            'CustomTitle',
+                                            parent=styles['Heading1'],
+                                            fontSize=18,
+                                            spaceAfter=20,
+                                            textColor='darkblue'
+                                        )
+                                        
+                                        header_style = ParagraphStyle(
+                                            'CustomHeader',
+                                            parent=styles['Heading2'],
+                                            fontSize=14,
+                                            spaceAfter=10,
+                                            textColor='darkgreen'
+                                        )
+                                        
+                                        # Build PDF content
+                                        story = []
+                                        
+                                        # Title
+                                        story.append(Paragraph("🎯 Personalized Career Improvement Plan", title_style))
+                                        story.append(Spacer(1, 20))
+                                        
+                                        # User info
+                                        user_field = profile_data.get('overall_field', 'Unknown')
+                                        user_exp = profile_data.get('total_experience', 'Unknown')
+                                        story.append(Paragraph(f"<b>Field:</b> {user_field}", styles['Normal']))
+                                        story.append(Paragraph(f"<b>Experience:</b> {user_exp}", styles['Normal']))
+                                        story.append(Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
+                                        story.append(Spacer(1, 20))
+                                        
+                                        # Add improvement plan content
+                                        plan_text = improvement_plan.get('improvement_plan', 'No plan available')
+                                        
+                                        # Parse sections and add to PDF
+                                        sections = plan_text.split('\n\n')
+                                        
+                                        for section in sections:
+                                            if section.strip():
+                                                # Clean up section text
+                                                clean_section = section.strip()
+                                                
+                                                # Add headers for different sections
+                                                if 'CURRENT STATUS' in clean_section:
+                                                    story.append(Paragraph("📊 Current Status", header_style))
+                                                    content = clean_section.replace('CURRENT STATUS:', '').strip()
+                                                elif 'IMMEDIATE ACTIONS' in clean_section:
+                                                    story.append(Paragraph("🚀 Immediate Actions (0-2 months)", header_style))
+                                                    content = clean_section.replace('IMMEDIATE ACTIONS (0-2 months):', '').strip()
+                                                elif 'MEDIUM TERM' in clean_section:
+                                                    story.append(Paragraph("⏳ Medium Term Goals (2-4 months)", header_style))
+                                                    content = clean_section.replace('MEDIUM TERM (2-4 months):', '').strip()
+                                                elif 'LONG TERM' in clean_section:
+                                                    story.append(Paragraph("🎯 Long Term Strategy (4-6 months)", header_style))
+                                                    content = clean_section.replace('LONG TERM (4-6 months):', '').strip()
+                                                elif 'SKILL DEVELOPMENT' in clean_section:
+                                                    story.append(Paragraph("🛠️ Skill Development Priorities", header_style))
+                                                    content = clean_section.replace('SKILL DEVELOPMENT PRIORITIES:', '').strip()
+                                                elif 'CERTIFICATION' in clean_section:
+                                                    story.append(Paragraph("🏆 Certification Recommendations", header_style))
+                                                    content = clean_section.replace('CERTIFICATION RECOMMENDATIONS:', '').strip()
+                                                elif 'APPLICATION STRATEGY' in clean_section:
+                                                    story.append(Paragraph("📝 Application Strategy", header_style))
+                                                    content = clean_section.replace('APPLICATION STRATEGY:', '').strip()
+                                                elif 'NETWORKING' in clean_section:
+                                                    story.append(Paragraph("🤝 Networking Suggestions", header_style))
+                                                    content = clean_section.replace('NETWORKING SUGGESTIONS:', '').strip()
+                                                else:
+                                                    content = clean_section
+                                                
+                                                # Add content
+                                                if content:
+                                                    # Split by bullet points or line breaks
+                                                    lines = content.split('•')
+                                                    for line in lines:
+                                                        line = line.strip()
+                                                        if line:
+                                                            if line.startswith('•'):
+                                                                story.append(Paragraph(f"• {line[1:].strip()}", styles['Normal']))
+                                                            else:
+                                                                story.append(Paragraph(line, styles['Normal']))
+                                                
+                                                story.append(Spacer(1, 12))
+                                        
+                                        # Build PDF
+                                        doc.build(story)
+                                        buffer.seek(0)
+                                        
+                                        # Create download
+                                        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                                        filename = f"career_improvement_plan_{timestamp}.pdf"
+                                        
+                                        st.download_button(
+                                            label="📥 Download PDF",
+                                            data=buffer.getvalue(),
+                                            file_name=filename,
+                                            mime="application/pdf",
+                                            key="pdf_download_btn"
+                                        )
+                                        
+                                        st.success("✅ PDF ready for download!")
+                                        
+                                    except ImportError:
+                                        st.error("📄 PDF generation requires reportlab. Install with: pip install reportlab")
+                                        st.info("Alternative: Copy the text above and save it manually")
+                                    except Exception as e:
+                                        st.error(f"❌ Error generating PDF: {str(e)}")
+                                        st.info("💡 Try copying the text above and saving it manually")
                             
                             with col2:
-                                if st.button("📄 Download as PDF", key="download_plan"):
-                                    st.info("📄 PDF download feature not implemented yet")
+                                # Copy to clipboard functionality
+                                plan_text = improvement_plan.get('improvement_plan', '')
+                                if st.button("📋 Copy to Clipboard", key="copy_plan"):
+                                    # Use streamlit's built-in clipboard functionality
+                                    st.code(plan_text, language=None)
+                                    st.info("📋 Plan content displayed above - use Ctrl+A, Ctrl+C to copy")
                             
                             with col3:
                                 if st.button("🔄 Generate New Plan", key="regenerate_plan"):
                                     del st.session_state.improvement_plan_results
                                     st.rerun()
 
-                        # Display evaluation results
-                        if st.session_state.get('cv_evaluation_completed', False) and st.session_state.get('cv_evaluation_results'):
-                            evaluation_results = st.session_state.cv_evaluation_results
-                            
-                            if "error" in evaluation_results:
-                                st.error(f"❌ Evaluation failed: {evaluation_results['error']}")
-                            else:
-                                # Check if we have valid evaluations
-                                evaluations = evaluation_results.get('evaluations', [])
-                                if not evaluations:
-                                    st.warning("⚠️ No evaluations found in results")
-                                    st.info("This might be due to parsing issues.")
-                                else:
-                                    st.success("✅ CV analysis completed!")
-                                    
-                                    # Summary metrics with fallback handling
-                                    summary = evaluation_results.get('summary', {})
-                                    col1, col2, col3, col4 = st.columns(4)
-                                    
-                                    with col1:
-                                        avg_score = summary.get('average_match_score', 0)
-                                        st.metric("Average Match Score", f"{avg_score}%")
-                                    
-                                    with col2:
-                                        jobs_count = evaluation_results.get('jobs_evaluated', len(evaluations))
-                                        st.metric("Jobs Analyzed", jobs_count)
-                                    
-                                    with col3:
-                                        best_score = 0
-                                        if evaluations:
-                                            best_score = max([e.get('match_score', 0) for e in evaluations])
-                                        st.metric("Best Match", f"{best_score}%")
-                                    
-                                    with col4:
-                                        high_matches = len([e for e in evaluations if e.get('match_score', 0) >= 70])
-                                        st.metric("High Matches (70%+)", high_matches)
-                                
-                                # Detailed job evaluations with enhanced display
-                                st.subheader("📊 Detailed Job Evaluations")
-                                
-                                if evaluations:
-                                    # Sort evaluations by match score
-                                    sorted_evaluations = sorted(evaluations, 
-                                                              key=lambda x: x.get('match_score', 0), 
-                                                              reverse=True)
-                                    
-                                    for i, evaluation in enumerate(sorted_evaluations):
-                                        with st.expander(f"🎯 {evaluation.get('job_title', 'Unknown Position')} at {evaluation.get('company', 'Unknown Company')} - {evaluation.get('match_score', 0)}% Match"):
-                                            
-                                            # Basic job info
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                st.write(f"**Company:** {evaluation.get('company', 'N/A')}")
-                                                st.write(f"**Location:** {evaluation.get('location', 'N/A')}")
-                                                st.write(f"**Industry:** {evaluation.get('company_industry', 'N/A')}")
-                                            
-                                            with col2:
-                                                st.write(f"**Match Score:** {evaluation.get('match_score', 0)}%")
-                                                st.write(f"**Overall Fit:** {evaluation.get('overall_fit', 'N/A')}")
-                                                st.write(f"**Interview Likelihood:** {evaluation.get('likelihood', 'N/A')}")
-                                            
-                                            # Detailed analysis
-                                            if evaluation.get('reality_check'):
-                                                st.write("**💭 Reality Check:**")
-                                                st.write(evaluation['reality_check'])
-                                            
-                                            if evaluation.get('strengths'):
-                                                st.write("**✅ Your Strengths:**")
-                                                st.success(evaluation['strengths'])
-                                            
-                                            if evaluation.get('critical_gaps'):
-                                                st.write("**❗ Critical Gaps:**")
-                                                st.warning(evaluation['critical_gaps'])
-                                            
-                                            if evaluation.get('recommendations'):
-                                                st.write("**💡 Recommendations:**")
-                                                st.info(evaluation['recommendations'])
-                                            
-                                            # Link to job if available
-                                            if evaluation.get('job_url'):
-                                                st.markdown(f"[🔗 View Job Posting]({evaluation['job_url']})")
-                        else:
-                            st.info("🔍 No job matches found in database. Try running the job search first.")
-            
-            else:
-                st.info("🔍 No job search results available. Please run the job search first.")
-
-    # Show why certain features are not available  
-    elif not JOB_MATCHING_AVAILABLE:
-        st.warning(f"🔍 Job matching not available: {JOB_MATCHING_ERROR if 'JOB_MATCHING_ERROR' in globals() else 'profile_job_matcher not found'}")
-        st.info("To enable job matching, ensure profile_job_matcher.py is available")
-    
-    elif not CV_EVALUATION_AVAILABLE:
-        st.info(f"🤖 CV-Job evaluation not available: {CV_EVALUATION_ERROR if 'CV_EVALUATION_ERROR' in globals() else 'CVJobEvaluator not found'}")
-        st.info("To enable CV evaluation, ensure cv_job_evaluator.py is available")
+# ...existing code...
 
 # make file runable
 if __name__ == "__main__":
