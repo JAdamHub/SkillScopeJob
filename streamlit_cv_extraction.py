@@ -867,41 +867,85 @@ def run_app():
             if st.session_state.job_search_completed and st.session_state.job_search_results:
                 search_results = st.session_state.job_search_results
                 
-                # ALWAYS fetch existing matches from database - this is the primary source
-                try:
-                    matches = get_user_job_matches(user_session_id_for_run, limit=100)
-                    total_existing_matches = len(matches) if matches else 0
-                    
-                    # Log database fetch for debugging
-                    import logging
-                    logging.info(f"Fetched {total_existing_matches} job matches from database for user {user_session_id_for_run}")
-                    
-                except Exception as e:
-                    matches = []
-                    total_existing_matches = 0
-                    st.error(f"❌ Error fetching jobs from database: {str(e)}")
-                    st.info("💡 Check that the database exists and contains job data")
+                # Determine what source was used and get jobs accordingly
+                source = search_results.get('source', 'unknown')
+                fallback_used = search_results.get('fallback_used', False)
+                total_jobs_found = search_results.get('total_jobs_found', 0)
                 
-                # Show results - focus on database matches, not scraping results
-                if total_existing_matches > 0:
-                    # Success message based on whether new jobs were scraped
-                    if search_results['total_jobs_found'] > 0:
-                        st.success(f"✅ Found {search_results['total_jobs_found']} new jobs and loaded {total_existing_matches} total relevant positions from database.")
+                if source == 'live_scraping':
+                    # PRIMARY: Live scraping was successful
+                    if total_jobs_found > 0:
+                        st.success(f"✅ Found {total_jobs_found} fresh jobs directly from Indeed!")
+                        
+                        # Get jobs from search results (they should be fresh from scraping)
+                        matches = search_results.get('jobs', [])
+                        if not matches:
+                            # If jobs not in results, try to get them from database
+                            matches = get_user_job_matches(user_session_id_for_run, limit=100)
+                            if matches:
+                                st.info(f"📊 Jobs have been saved to database. Displaying {len(matches)} matches.")
+                        
                     else:
-                        st.success(f"✅ Search completed! Loaded {total_existing_matches} relevant positions from database.")
-                        st.info("ℹ️ No new jobs were scraped (they may already exist in database)")
+                        st.warning("⚠️ Live scraping completed but found no new jobs matching your profile")
+                        st.info("💡 Try adjusting your job search keywords or locations for broader results")
+                        matches = []
+                
+                elif source == 'database_fallback':
+                    # FALLBACK: Database was used because scraping failed
+                    scraping_error = search_results.get('scraping_error', 'Unknown error')
+                    st.warning(f"⚠️ Live job scraping failed, using database fallback")
+                    st.info(f"📊 Found {total_jobs_found} jobs from local database")
                     
-                    st.subheader("🎯 Your Job Matches (from Database)")
+                    with st.expander("🔍 Why did live scraping fail?"):
+                        st.write("**Scraping Error:**", scraping_error)
+                        st.markdown("""
+                        **Common reasons for scraping failure:**
+                        - Network connectivity issues
+                        - Indeed temporarily blocking requests
+                        - Changes in Indeed's website structure
+                        - Rate limiting or IP restrictions
+                        
+                        **What this means:**
+                        - You're seeing jobs from our local database
+                        - These may be slightly older but still relevant
+                        - Try again later for fresh live results
+                        """)
                     
-                    # Show database source information
-                    st.info(f"📊 Showing jobs from local database. Total matches found: {total_existing_matches}")
+                    matches = search_results.get('jobs', [])
+                
+                else:
+                    # FAILED: Both sources failed
+                    st.error("❌ Both live scraping and database search failed")
+                    error_msg = search_results.get('error', 'Unknown error')
+                    st.error(f"Error details: {error_msg}")
+                    
+                    st.markdown("""
+                    **What you can try:**
+                    1. Check your internet connection
+                    2. Try again in a few minutes
+                    3. Reduce the number of job search keywords
+                    4. Contact support if the problem persists
+                    """)
+                    matches = []
+
+                # Display jobs if we have any
+                total_existing_matches = len(matches) if matches else 0
+                
+                if total_existing_matches > 0:
+                    st.subheader("🎯 Your Job Matches")
+                    
+                    # Show source information with appropriate styling
+                    if source == 'live_scraping':
+                        st.success(f"🔥 **Live Data Source**: {total_existing_matches} fresh jobs from Indeed")
+                    elif source == 'database_fallback':
+                        st.info(f"📊 **Database Source**: {total_existing_matches} jobs from local storage (fallback)")
                     
                     try:
-                        # Add enhanced filter options
+                        # Enhanced filter options
                         filter_col1, filter_col2, filter_col3 = st.columns(3)
                         
                         with filter_col1:
-                            show_all = st.checkbox("Show all matches", value=False, help="Show all matches or limit to top 10")
+                            show_all = st.checkbox("Show all matches", value=False, help="Show all matches or limit to top 15")
                         
                         with filter_col2:
                             min_relevance = st.selectbox(
@@ -919,7 +963,7 @@ def run_app():
                             )
                         
                         # Apply filters and sorting
-                        filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance * 30]  # Convert 1-3 to 30-90
+                        filtered_matches = [job for job in matches if job.get('relevance_score', 1) >= min_relevance * 30]
                         
                         # Apply sorting
                         if sort_by == "Date (newest first)":
@@ -937,6 +981,12 @@ def run_app():
                         if len(filtered_matches) > display_count:
                             st.info(f"💡 {len(filtered_matches) - display_count} more matches available. Check 'Show all matches' to see them.")
                         
+                        # Add data freshness indicator
+                        if source == 'live_scraping':
+                            st.success("🕐 **Data Freshness**: These jobs were scraped within the last few minutes")
+                        elif source == 'database_fallback':
+                            st.info("🕐 **Data Freshness**: These jobs may be from previous scraping sessions")
+                        
                         # Display job matches with enhanced information
                         for i, job in enumerate(filtered_matches[:display_count]):
                             with st.container(border=True):
@@ -945,6 +995,9 @@ def run_app():
                                 
                                 with header_col1:
                                     st.markdown(f"### **{job.get('title', 'Unknown Title')}**")
+                                    # Add freshness indicator
+                                    if source == 'live_scraping':
+                                        st.markdown("🔥 **Fresh from Indeed**")
                                 
                                 with header_col2:
                                     relevance_score = job.get('relevance_score', 1)
@@ -955,11 +1008,11 @@ def run_app():
                                     else:
                                         st.info(f"📊 {relevance_score}% Match")
                                 
-                                # Main job information
-                                info_col1, info_col2 = st.columns([3, 1])
+                                # Main job information - in two columns
+                                info_col1, info_col2 = st.columns([2, 1])
                                 
                                 with info_col1:
-                                    # Company and location
+                                    # Company and location information
                                     company_info = []
                                     if job.get('company'):
                                         company_info.append(f"🏢 **{job['company']}**")
@@ -967,52 +1020,61 @@ def run_app():
                                         company_info.append(f"📍 {job['location']}")
                                     if job.get('job_type'):
                                         company_info.append(f"💼 {job['job_type'].title()}")
+                                    if job.get('company_industry'):
+                                        company_info.append(f"🏭 {job['company_industry']}")
                                     
                                     if company_info:
                                         st.markdown(" • ".join(company_info))
                                     
-                                    # Enhanced company information if available
-                                    if job.get('company_industry'):
-                                        st.markdown(f"🏭 **Industry:** {job['company_industry']}")
-                                    
-                                    # Job description preview
+                                    # Quick overview of the job
                                     description = job.get('description', '')
-                                    if description and len(description) > 10:
-                                        preview = description[:200] + "..." if len(description) > 200 else description
-                                        st.markdown(f"📝 **Description:** {preview}")
+                                    if description and len(description.strip()) > 10:
+                                        # Show a brief preview
+                                        preview = description[:150] + "..." if len(description) > 150 else description
+                                        st.markdown(f"📝 **Quick overview:** {preview}")
+                                        
+                                        # Expandable full description
+                                        with st.expander("📖 View Full Job Description", expanded=False):
+                                            # Clean up the description for better display
+                                            clean_description = description.replace('\n\n', '\n').strip()
+                                            st.markdown(clean_description)
                                     else:
                                         st.markdown("📝 **Description:** Not available")
                                     
-                                    # Show matched keywords/skills if available
-                                    if job.get('matched_skills'):
-                                        st.markdown(f"🔧 **Matched Skills:** {', '.join(job['matched_skills'][:3])}")
-                                    
-                                    # Additional metadata
+                                    # Additional metadata in compact format
                                     metadata_parts = []
                                     if job.get('date_posted'):
-                                        metadata_parts.append(f"📅 Posted: {job['date_posted']}")
-                                    if job.get('scraped_timestamp'):
-                                        scraped_date = job['scraped_timestamp'][:10]  # Get just the date part
-                                        metadata_parts.append(f"🔄 Scraped: {scraped_date}")
+                                        metadata_parts.append(f"📅 {job['date_posted']}")
+                                    if job.get('is_remote'):
+                                        metadata_parts.append("🏠 Remote")
+                                    elif job.get('is_remote') is False:
+                                        metadata_parts.append("🏢 On-site")
                                     
                                     if metadata_parts:
                                         st.caption(" • ".join(metadata_parts))
                                 
                                 with info_col2:
-                                    # Action buttons and score
+                                    # Action buttons and scoring
                                     if job.get('job_url'):
-                                        st.link_button("🔗 View Job", job['job_url'], use_container_width=True)
+                                        st.link_button("🔗 View on Indeed", job['job_url'], use_container_width=True)
+                                    else:
+                                        st.info("🔗 No direct link available")
                                     
-                                    # Relevance score visualization - FIXED PROGRESS BAR
-                                    progress_value = min(1.0, max(0.0, relevance_score / 100))  # Convert to 0.0-1.0
+                                    # Relevance score visualization
+                                    progress_value = min(1.0, max(0.0, relevance_score / 100))
                                     st.progress(progress_value, text=f"Match: {relevance_score}%")
-
+                    
                     except Exception as e:
                         st.error(f"❌ Error displaying job matches: {str(e)}")
-                        with st.expander("🔍 Error Details"):
-                            st.code(str(e))
+                        st.markdown("**Debug info:**")
+                        st.write(f"Number of matches: {len(matches) if matches else 0}")
+                        st.write(f"Search source: {source}")
+                        st.write(f"Error details: {str(e)}")
+                        
+                        # Show fallback message
+                        st.info("💡 Try refreshing the page or running a new job search")
 
-                    # CV-Job Evaluation Section (only if CV evaluation is available)
+                    # CV-Job Evaluation Section - MOVED TO CORRECT POSITION (after job display, when we have matches)
                     if CV_EVALUATION_AVAILABLE and total_existing_matches > 0:
                         st.markdown("---")
                         st.subheader("🤖 AI-Powered CV Analysis")
@@ -1080,6 +1142,205 @@ def run_app():
                                         - Check internet connection for AI service access
                                         """)
 
+                        # DISPLAY CV EVALUATION RESULTS - THIS WAS MISSING!
+                        if st.session_state.cv_evaluation_completed and st.session_state.cv_evaluation_results:
+                            evaluation_results = st.session_state.cv_evaluation_results
+                            
+                            # Check if evaluation was successful
+                            if "error" in evaluation_results:
+                                st.error(f"❌ CV Evaluation Error: {evaluation_results['error']}")
+                                
+                                # Show fallback options
+                                if evaluation_results.get('fallback_mode'):
+                                    st.info("📋 Using basic compatibility assessment based on profile matching")
+                                else:
+                                    st.info("💡 Try running the evaluation again or check your profile data")
+                            
+                            else:
+                                # Display successful evaluation results
+                                st.markdown("### 📊 CV Analysis Results")
+                                
+                                # Show summary statistics
+                                summary = evaluation_results.get('summary', {})
+                                avg_score = summary.get('average_match_score', 0)
+                                jobs_evaluated = evaluation_results.get('jobs_evaluated', 0)
+                                
+                                # Create summary cards
+                                summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+                                
+                                with summary_col1:
+                                    st.metric(
+                                        label="📈 Average Match Score",
+                                        value=f"{avg_score}%",
+                                        delta=f"vs {sum(job.get('relevance_score', 0) for job in matches[:jobs_evaluated])//max(jobs_evaluated,1)}% profile score" if matches else None
+                                    )
+                                
+                                with summary_col2:
+                                    st.metric(
+                                        label="🎯 Jobs Analyzed", 
+                                        value=jobs_evaluated
+                                    )
+                                
+                                with summary_col3:
+                                    score_dist = summary.get('score_distribution', {})
+                                    high_matches = score_dist.get('high (70-100)', 0)
+                                    st.metric(
+                                        label="⭐ High Matches", 
+                                        value=high_matches,
+                                        delta=f"{round(high_matches/max(jobs_evaluated,1)*100,1)}%" if jobs_evaluated > 0 else "0%"
+                                    )
+                                
+                                with summary_col4:
+                                    model_used = evaluation_results.get('evaluation_model', 'AI Analysis')
+                                    if 'fallback' in model_used.lower():
+                                        st.metric(label="🤖 Analysis Type", value="Basic")
+                                    else:
+                                        st.metric(label="🤖 Analysis Type", value="AI-Powered")
+                                
+                                # Display individual job evaluations
+                                st.markdown("---")
+                                st.markdown("### 🔍 Detailed Job Analysis")
+                                
+                                evaluations = evaluation_results.get('evaluations', [])
+                                if evaluations:
+                                    # Sort evaluations by match score
+                                    sorted_evaluations = sorted(evaluations, 
+                                                              key=lambda x: x.get('match_score', 0), 
+                                                              reverse=True)
+                                    
+                                    for i, evaluation in enumerate(sorted_evaluations):
+                                        with st.container(border=True):
+                                            # Job header
+                                            job_col1, job_col2 = st.columns([3, 1])
+                                            
+                                            with job_col1:
+                                                job_title = evaluation.get('job_title', 'Unknown Position')
+                                                company = evaluation.get('company', 'Unknown Company')
+                                                st.markdown(f"#### 💼 {job_title}")
+                                                st.markdown(f"**🏢 {company}** • {evaluation.get('location', 'Unknown Location')}")
+                                            
+                                            with job_col2:
+                                                match_score = evaluation.get('match_score', 0)
+                                                if match_score >= 80:
+                                                    st.success(f"🌟 {match_score}% Match")
+                                                elif match_score >= 60:
+                                                    st.warning(f"⚡ {match_score}% Match")
+                                                else:
+                                                    st.info(f"📊 {match_score}% Match")
+                                            
+                                            # Main evaluation content
+                                            eval_col1, eval_col2 = st.columns([2, 1])
+                                            
+                                            with eval_col1:
+                                                # Core assessment
+                                                overall_fit = evaluation.get('overall_fit', 'Not assessed')
+                                                reality_check = evaluation.get('reality_check', 'No assessment available')
+                                                
+                                                st.markdown("**🎯 Overall Assessment:**")
+                                                st.markdown(f"*{overall_fit}* - {reality_check}")
+                                                
+                                                # Strengths and gaps
+                                                strengths = evaluation.get('strengths', 'No strengths identified')
+                                                critical_gaps = evaluation.get('critical_gaps', 'No critical gaps identified')
+                                                
+                                                st.markdown("**✅ Your Strengths for this Role:**")
+                                                st.markdown(f"{strengths}")
+                                                
+                                                if critical_gaps and critical_gaps != 'No critical gaps identified':
+                                                    st.markdown("**🔍 Areas to Address:**")
+                                                    st.markdown(f"{critical_gaps}")
+                                                
+                                                # Recommendations
+                                                recommendations = evaluation.get('recommendations', 'No specific recommendations')
+                                                if recommendations and recommendations != 'No specific recommendations':
+                                                    st.markdown("**💡 Action Items:**")
+                                                    st.markdown(f"{recommendations}")
+                                            
+                                            with eval_col2:
+                                                # Quick facts sidebar
+                                                st.markdown("**📋 Quick Facts:**")
+                                                
+                                                seniority_match = evaluation.get('seniority_match', 'Not assessed')
+                                                if seniority_match != 'Not assessed':
+                                                    st.markdown(f"**Experience Level:** {seniority_match}")
+                                                
+                                                likelihood = evaluation.get('likelihood', 'Unknown')
+                                                if likelihood == 'High':
+                                                    st.success(f"🎯 Interview Chance: {likelihood}")
+                                                elif likelihood == 'Medium':
+                                                    st.warning(f"⚡ Interview Chance: {likelihood}")
+                                                else:
+                                                    st.info(f"📊 Interview Chance: {likelihood}")
+                                                
+                                                # Experience gap info
+                                                exp_gap = evaluation.get('experience_gap', '')
+                                                if exp_gap and len(exp_gap) > 10 and 'not available' not in exp_gap.lower():
+                                                    st.markdown(f"**Experience Gap:** {exp_gap[:100]}{'...' if len(exp_gap) > 100 else ''}")
+                                                
+                                                # Show job URL if available
+                                                job_url = evaluation.get('job_url', '')
+                                                if job_url:
+                                                    st.link_button("🔗 View Job", job_url, use_container_width=True)
+                                                
+                                                # Progress bar for match score
+                                                progress_value = min(1.0, max(0.0, match_score / 100))
+                                                st.progress(progress_value, text=f"AI Match: {match_score}%")
+                                            
+                                            # Show if this was fallback analysis
+                                            if evaluation.get('fallback_mode') or evaluation.get('parsing_fallback'):
+                                                st.caption("⚠️ Basic analysis (AI parsing limited)")
+                                
+                                else:
+                                    st.warning("No individual job evaluations available")
+                                    st.info("This might be due to parsing issues with the AI response")
+                                
+                                # Add action buttons section
+                                st.markdown("---")
+                                action_col1, action_col2, action_col3 = st.columns(3)
+                                
+                                with action_col1:
+                                    if st.button("📊 Export Results", key="export_results"):
+                                        # Create downloadable results
+                                        results_text = f"""CV Analysis Results
+Generated: {evaluation_results.get('evaluation_timestamp', 'Unknown')}
+Average Match Score: {avg_score}%
+Jobs Analyzed: {jobs_evaluated}
+
+DETAILED RESULTS:
+"""
+                                        for eval in evaluations:
+                                            results_text += f"""
+{eval.get('job_title', 'Unknown')} at {eval.get('company', 'Unknown')}
+Match Score: {eval.get('match_score', 0)}%
+Overall Fit: {eval.get('overall_fit', 'Not assessed')}
+Strengths: {eval.get('strengths', 'Not listed')}
+Recommendations: {eval.get('recommendations', 'None provided')}
+---
+"""
+                                        
+                                        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                                        filename = f"cv_analysis_{timestamp}.txt"
+                                        
+                                        st.download_button(
+                                            label="📥 Download Analysis",
+                                            data=results_text.encode('utf-8'),
+                                            file_name=filename,
+                                            mime="text/plain",
+                                            key="download_analysis_btn"
+                                        )
+                                
+                                with action_col2:
+                                    if st.button("🔄 Run New Analysis", key="new_analysis"):
+                                        # Reset evaluation state
+                                        st.session_state.cv_evaluation_started = False
+                                        st.session_state.cv_evaluation_completed = False
+                                        st.session_state.cv_evaluation_results = None
+                                        st.rerun()
+                                
+                                with action_col3:
+                                    # Show improvement plan button (this was already there)
+                                    pass
+
                         # Handle improvement plan execution
                         if st.session_state.get('cv_evaluation_completed', False) and st.session_state.get('cv_evaluation_results') and show_improvement_plan:
                             with st.spinner("🤖 AI is generating your personalized improvement plan..."):
@@ -1092,44 +1353,10 @@ def run_app():
                                         st.rerun()
                                     else:
                                         st.error(f"❌ Could not generate improvement plan: {improvement_plan['error']}")
-                                        
-                                        # Show more debugging info
-                                        with st.expander("🔍 Debug Information"):
-                                            st.write("User ID:", user_session_id_for_run)
-                                            st.write("Evaluation results available:", bool(st.session_state.cv_evaluation_results))
-                                            st.write("Error details:", improvement_plan)
                                 
                                 except Exception as e:
                                     error_str = str(e)
                                     st.error(f"❌ Error generating improvement plan: {error_str}")
-                                    
-                                    # Enhanced error handling with specific messages
-                                    if "503" in error_str or "Server" in error_str:
-                                        st.warning("🔄 **Together AI server is overloaded**")
-                                        st.info("💡 **Try these solutions:**")
-                                        st.markdown("""
-                                        - Wait 30-60 seconds and try again
-                                        - The service is experiencing high demand
-                                        - Your evaluation data is saved - you can retry later
-                                        """)
-                                        
-                                        # Offer fallback option
-                                        if st.button("🔄 Try Again Now", key="retry_improvement_plan"):
-                                            st.rerun()
-                                    
-                                    elif "rate" in error_str.lower() or "limit" in error_str.lower():
-                                        st.warning("⏱️ **API rate limit reached**")
-                                        st.info("Please wait a few minutes before trying again")
-                                    
-                                    else:
-                                        st.warning("🔧 **Technical Error**")
-                                        st.info("This might be a temporary issue. Please try again in a moment.")
-                                    
-                                    # Show debug details in expander
-                                    with st.expander("🔍 Technical Details"):
-                                        st.code(error_str)
-                                        st.write("User ID:", user_session_id_for_run)
-                                        st.write("Has evaluation results:", bool(st.session_state.cv_evaluation_results))
 
                         # Display improvement plan if available
                         if st.session_state.get('improvement_plan_results'):
@@ -1184,145 +1411,324 @@ def run_app():
                             col1, col2, col3 = st.columns(3)
                             
                             with col1:
-                                # Download plan as PDF
-                                if st.button("📄 Download Plan as PDF", key="download_plan"):
+                                if st.button("📄 Download as PDF", key="download_plan"):
                                     try:
-                                        # Create PDF content
-                                        from reportlab.lib.pagesizes import letter, A4
+                                        # Create PDF content with markdown parsing
+                                        from reportlab.lib.pagesizes import A4
                                         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
                                         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                                        from reportlab.lib.units import inch
+                                        from reportlab.lib.colors import HexColor
                                         import io
+                                        import re
                                         
                                         # Create PDF in memory
                                         buffer = io.BytesIO()
-                                        doc = SimpleDocTemplate(buffer, pagesize=A4)
+                                        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=50, bottomMargin=50)
                                         styles = getSampleStyleSheet()
                                         
-                                        # Custom styles
+                                        # Custom styles for better formatting
                                         title_style = ParagraphStyle(
                                             'CustomTitle',
                                             parent=styles['Heading1'],
-                                            fontSize=18,
-                                            spaceAfter=20,
-                                            textColor='darkblue'
+                                            fontSize=20,
+                                            spaceAfter=30,
+                                            textColor=HexColor('#2E4A92'),
+                                            alignment=1  # Center alignment
                                         )
                                         
                                         header_style = ParagraphStyle(
                                             'CustomHeader',
                                             parent=styles['Heading2'],
                                             fontSize=14,
-                                            spaceAfter=10,
-                                            textColor='darkgreen'
+                                            spaceAfter=15,
+                                            spaceBefore=20,
+                                            textColor=HexColor('#1E3A8A'),
+                                            leftIndent=0
                                         )
+                                        
+                                        subheader_style = ParagraphStyle(
+                                            'CustomSubHeader',
+                                            parent=styles['Heading3'],
+                                            fontSize=12,
+                                            spaceAfter=10,
+                                            spaceBefore=15,
+                                            textColor=HexColor('#374151'),
+                                            leftIndent=10
+                                        )
+                                        
+                                        bullet_style = ParagraphStyle(
+                                            'BulletStyle',
+                                            parent=styles['Normal'],
+                                            fontSize=10,
+                                            spaceAfter=8,
+                                            leftIndent=20,
+                                            bulletIndent=10
+                                        )
+                                        
+                                        normal_style = ParagraphStyle(
+                                            'CustomNormal',
+                                            parent=styles['Normal'],
+                                            fontSize=10,
+                                            spaceAfter=12,
+                                            leftIndent=10
+                                        )
+                                        
+                                        def parse_markdown_to_paragraphs(text):
+                                            """Convert markdown-like text to reportlab paragraphs with comprehensive formatting"""
+                                            paragraphs = []
+                                            lines = text.split('\n')
+                                            current_section = []
+                                            in_list = False
+                                            
+                                            def format_inline_markdown(text_line):
+                                                """Handle inline markdown formatting like **bold**, *italic*, etc."""
+                                                # Handle **bold** text
+                                                text_line = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text_line)
+                                                
+                                                # Handle *italic* text (but not already processed bold)
+                                                text_line = re.sub(r'(?<!</b>)\*([^*]+?)\*(?!<b>)', r'<i>\1</i>', text_line)
+                                                
+                                                # Handle `code` text
+                                                text_line = re.sub(r'`([^`]+?)`', r'<font name="Courier">\1</font>', text_line)
+                                                
+                                                # Handle [link](url) - just show the text for PDF
+                                                text_line = re.sub(r'\[([^\]]+?)\]\([^)]+?\)', r'\1', text_line)
+                                                
+                                                # Handle emojis and special characters that might cause issues
+                                                emoji_replacements = {
+                                                    '🎯': '• ',
+                                                    '🚀': '• ',
+                                                    '💡': '• ',
+                                                    '✅': '• ',
+                                                    '📈': '• ',
+                                                    '🔧': '• ',
+                                                    '💼': '• ',
+                                                    '🏆': '• ',
+                                                    '📝': '• ',
+                                                    '🤝': '• ',
+                                                    '📊': '• ',
+                                                    '⏳': '• ',
+                                                    '🛠️': '• ',
+                                                    '🌟': '• '
+                                                }
+                                                
+                                                for emoji, replacement in emoji_replacements.items():
+                                                    text_line = text_line.replace(emoji, replacement)
+                                                
+                                                return text_line
+                                            
+                                            def add_current_section():
+                                                """Add current section as a paragraph"""
+                                                if current_section:
+                                                    section_text = ' '.join(current_section)
+                                                    formatted_text = format_inline_markdown(section_text)
+                                                    if formatted_text.strip():
+                                                        paragraphs.append(Paragraph(formatted_text, normal_style))
+                                                    current_section.clear()
+                                            
+                                            for line in lines:
+                                                line = line.strip()
+                                                
+                                                if not line:
+                                                    # Empty line - end current section
+                                                    add_current_section()
+                                                    in_list = False
+                                                    continue
+                                                
+                                                # Handle different header levels
+                                                if line.startswith('####'):
+                                                    add_current_section()
+                                                    header_text = line.replace('####', '').strip()
+                                                    if header_text:
+                                                        formatted_header = format_inline_markdown(header_text)
+                                                        paragraphs.append(Spacer(1, 10))
+                                                        paragraphs.append(Paragraph(formatted_header, subheader_style))
+                                                    in_list = False
+                                                
+                                                elif line.startswith('###'):
+                                                    add_current_section()
+                                                    header_text = line.replace('###', '').strip()
+                                                    if header_text:
+                                                        formatted_header = format_inline_markdown(header_text)
+                                                        paragraphs.append(Spacer(1, 15))
+                                                        paragraphs.append(Paragraph(formatted_header, header_style))
+                                                    in_list = False
+                                                
+                                                elif line.startswith('##'):
+                                                    add_current_section()
+                                                    header_text = line.replace('##', '').strip()
+                                                    if header_text:
+                                                        formatted_header = format_inline_markdown(header_text)
+                                                        paragraphs.append(Spacer(1, 20))
+                                                        paragraphs.append(Paragraph(formatted_header, header_style))
+                                                    in_list = False
+                                                
+                                                elif line.startswith('#'):
+                                                    add_current_section()
+                                                    header_text = line.replace('#', '').strip()
+                                                    if header_text:
+                                                        formatted_header = format_inline_markdown(header_text)
+                                                        paragraphs.append(Spacer(1, 25))
+                                                        paragraphs.append(Paragraph(formatted_header, title_style))
+                                                    in_list = False
+                                                
+                                                # Handle different types of bullet points and numbered lists
+                                                elif (line.startswith('•') or line.startswith('-') or 
+                                                      line.startswith('*') or line.startswith('+') or
+                                                      re.match(r'^\d+\.', line)):
+                                                    
+                                                    add_current_section()
+                                                    
+                                                    # Extract bullet text
+                                                    if re.match(r'^\d+\.', line):
+                                                        # Numbered list
+                                                        bullet_text = re.sub(r'^\d+\.\s*', '', line).strip()
+                                                        bullet_symbol = "1. "
+                                                    else:
+                                                        # Regular bullet
+                                                        bullet_text = re.sub(r'^[•\-\*\+]\s*', '', line).strip()
+                                                        bullet_symbol = "• "
+                                                    
+                                                    if bullet_text:
+                                                        formatted_bullet = format_inline_markdown(bullet_text)
+                                                        paragraphs.append(Paragraph(f"{bullet_symbol}{formatted_bullet}", bullet_style))
+                                                    in_list = True
+                                                
+                                                # Handle bold lines that might be standalone (like **SECTION:**)
+                                                elif re.match(r'^\*\*.*\*\*:?\s*$', line):
+                                                    add_current_section()
+                                                    formatted_line = format_inline_markdown(line)
+                                                    paragraphs.append(Spacer(1, 10))
+                                                    paragraphs.append(Paragraph(formatted_line, subheader_style))
+                                                    in_list = False
+                                                
+                                                # Handle lines that are clearly section headers (ALL CAPS with colons)
+                                                elif re.match(r'^[A-Z\s]+:?\s*$', line) and len(line) < 50:
+                                                    add_current_section()
+                                                    formatted_line = format_inline_markdown(line)
+                                                    paragraphs.append(Spacer(1, 12))
+                                                    paragraphs.append(Paragraph(f"<b>{formatted_line}</b>", subheader_style))
+                                                    in_list = False
+                                                
+                                                # Regular text - add to current section
+                                                else:
+                                                    current_section.append(line)
+                                                    in_list = False
+                                            
+                                            # Add any remaining content
+                                            add_current_section()
+                                            
+                                            return paragraphs
                                         
                                         # Build PDF content
                                         story = []
                                         
-                                        # Title
-                                        story.append(Paragraph("🎯 Personalized Career Improvement Plan", title_style))
-                                        story.append(Spacer(1, 20))
+                                        # Title with better emoji handling
+                                        story.append(Paragraph("Career Improvement Plan", title_style))
+                                        story.append(Spacer(1, 30))
                                         
-                                        # User info
+                                        # User info section
                                         user_field = profile_data.get('overall_field', 'Unknown')
                                         user_exp = profile_data.get('total_experience', 'Unknown')
-                                        story.append(Paragraph(f"<b>Field:</b> {user_field}", styles['Normal']))
-                                        story.append(Paragraph(f"<b>Experience:</b> {user_exp}", styles['Normal']))
-                                        story.append(Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
-                                        story.append(Spacer(1, 20))
+                                        generation_date = datetime.now().strftime('%Y-%m-%d %H:%M')
                                         
-                                        # Add improvement plan content
+                                        story.append(Paragraph("<b>Profile Overview</b>", header_style))
+                                        story.append(Paragraph(f"<b>Field:</b> {user_field}", normal_style))
+                                        story.append(Paragraph(f"<b>Experience Level:</b> {user_exp}", normal_style))
+                                        story.append(Paragraph(f"<b>Generated:</b> {generation_date}", normal_style))
+                                        story.append(Spacer(1, 25))
+                                        
+                                        # Parse and add improvement plan content
                                         plan_text = improvement_plan.get('improvement_plan', 'No plan available')
                                         
-                                        # Parse sections and add to PDF
-                                        sections = plan_text.split('\n\n')
+                                        # Add a section header for the plan
+                                        story.append(Paragraph("<b>Development Plan</b>", header_style))
+                                        story.append(Spacer(1, 15))
                                         
-                                        for section in sections:
-                                            if section.strip():
-                                                # Clean up section text
-                                                clean_section = section.strip()
-                                                
-                                                # Add headers for different sections
-                                                if 'CURRENT STATUS' in clean_section:
-                                                    story.append(Paragraph("📊 Current Status", header_style))
-                                                    content = clean_section.replace('CURRENT STATUS:', '').strip()
-                                                elif 'IMMEDIATE ACTIONS' in clean_section:
-                                                    story.append(Paragraph("🚀 Immediate Actions (0-2 months)", header_style))
-                                                    content = clean_section.replace('IMMEDIATE ACTIONS (0-2 months):', '').strip()
-                                                elif 'MEDIUM TERM' in clean_section:
-                                                    story.append(Paragraph("⏳ Medium Term Goals (2-4 months)", header_style))
-                                                    content = clean_section.replace('MEDIUM TERM (2-4 months):', '').strip()
-                                                elif 'LONG TERM' in clean_section:
-                                                    story.append(Paragraph("🎯 Long Term Strategy (4-6 months)", header_style))
-                                                    content = clean_section.replace('LONG TERM (4-6 months):', '').strip()
-                                                elif 'SKILL DEVELOPMENT' in clean_section:
-                                                    story.append(Paragraph("🛠️ Skill Development Priorities", header_style))
-                                                    content = clean_section.replace('SKILL DEVELOPMENT PRIORITIES:', '').strip()
-                                                elif 'CERTIFICATION' in clean_section:
-                                                    story.append(Paragraph("🏆 Certification Recommendations", header_style))
-                                                    content = clean_section.replace('CERTIFICATION RECOMMENDATIONS:', '').strip()
-                                                elif 'APPLICATION STRATEGY' in clean_section:
-                                                    story.append(Paragraph("📝 Application Strategy", header_style))
-                                                    content = clean_section.replace('APPLICATION STRATEGY:', '').strip()
-                                                elif 'NETWORKING' in clean_section:
-                                                    story.append(Paragraph("🤝 Networking Suggestions", header_style))
-                                                    content = clean_section.replace('NETWORKING SUGGESTIONS:', '').strip()
-                                                else:
-                                                    content = clean_section
-                                                
-                                                # Add content
-                                                if content:
-                                                    # Split by bullet points or line breaks
-                                                    lines = content.split('•')
-                                                    for line in lines:
-                                                        line = line.strip()
-                                                        if line:
-                                                            if line.startswith('•'):
-                                                                story.append(Paragraph(f"• {line[1:].strip()}", styles['Normal']))
-                                                            else:
-                                                                story.append(Paragraph(line, styles['Normal']))
-                                                
-                                                story.append(Spacer(1, 12))
+                                        # Convert markdown to paragraphs
+                                        try:
+                                            parsed_paragraphs = parse_markdown_to_paragraphs(plan_text)
+                                            story.extend(parsed_paragraphs)
+                                        except Exception as parse_error:
+                                            # Fallback if parsing fails
+                                            logging.error(f"Markdown parsing failed: {parse_error}")
+                                            # Just add the raw text with basic formatting
+                                            clean_text = re.sub(r'[#*`]', '', plan_text)
+                                            for paragraph in clean_text.split('\n\n'):
+                                                if paragraph.strip():
+                                                    story.append(Paragraph(paragraph.strip(), normal_style))
+                                                    story.append(Spacer(1, 12))
+                                        
+                                        # Add footer
+                                        story.append(Spacer(1, 30))
+                                        story.append(Paragraph("Generated by SkillScope Career Assistant", 
+                                                             ParagraphStyle('Footer', parent=styles['Normal'],                                                              fontSize=8, textColor=HexColor('#6B7280'), 
+                                                                          alignment=1)))
                                         
                                         # Build PDF
                                         doc.build(story)
                                         buffer.seek(0)
                                         
-                                        # Create download
+                                        # Create download button
                                         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                                        filename = f"career_improvement_plan_{timestamp}.pdf"
+                                        user_field_clean = re.sub(r'[^\w\-_]', '_', user_field)
+                                        filename = f"career_plan_{user_field_clean}_{timestamp}.pdf"
                                         
                                         st.download_button(
-                                            label="📥 Download PDF",
+                                            label="📥 Download Formatted PDF",
                                             data=buffer.getvalue(),
                                             file_name=filename,
                                             mime="application/pdf",
                                             key="pdf_download_btn"
                                         )
                                         
-                                        st.success("✅ PDF ready for download!")
+                                        st.success("✅ PDF generated with proper formatting!")
+                                        st.info("💡 The PDF includes parsed markdown with headers, bullets, and proper styling")
                                         
                                     except ImportError:
                                         st.error("📄 PDF generation requires reportlab. Install with: pip install reportlab")
-                                        st.info("Alternative: Copy the text above and save it manually")
+                                        st.info("💡 Install command: `pip install reportlab`")
+                                        
+                                        # Offer alternative - plain text download
+                                        plan_text = improvement_plan.get('improvement_plan', '')
+                                        if plan_text:
+                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                                            filename = f"career_plan_{timestamp}.txt"
+                                            
+                                            st.download_button(
+                                                label="📄 Download as Text File",
+                                                data=plan_text.encode('utf-8'),
+                                                file_name=filename,
+                                                mime="text/plain",
+                                                key="txt_download_btn"
+                                            )
+                                            
                                     except Exception as e:
                                         st.error(f"❌ Error generating PDF: {str(e)}")
-                                        st.info("💡 Try copying the text above and saving it manually")
-                            
-                            with col2:
-                                # Copy to clipboard functionality
-                                plan_text = improvement_plan.get('improvement_plan', '')
-                                if st.button("📋 Copy to Clipboard", key="copy_plan"):
-                                    # Use streamlit's built-in clipboard functionality
-                                    st.code(plan_text, language=None)
-                                    st.info("📋 Plan content displayed above - use Ctrl+A, Ctrl+C to copy")
-                            
-                            with col3:
-                                if st.button("🔄 Generate New Plan", key="regenerate_plan"):
-                                    del st.session_state.improvement_plan_results
-                                    st.rerun()
-
-# ...existing code...
+                                        
+                                        # Enhanced error handling with fallback
+                                        if "reportlab" in str(e).lower():
+                                            st.info("💡 Try installing reportlab: `pip install reportlab`")
+                                        
+                                        # Offer text file as fallback
+                                        st.info("📄 **Alternative:** Download as text file")
+                                        plan_text = improvement_plan.get('improvement_plan', '')
+                                        if plan_text:
+                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                                            filename = f"career_plan_{timestamp}.txt"
+                                            
+                                            # Clean up markdown for text file
+                                            clean_text = re.sub(r'#{1,4}\s*', '', plan_text)  # Remove headers
+                                            clean_text = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_text)  # Remove bold
+                                            clean_text = re.sub(r'\*(.*?)\*', r'\1', clean_text)  # Remove italics
+                                            
+                                            st.download_button(
+                                                label="📄 Download Clean Text Version",
+                                                data=clean_text.encode('utf-8'),
+                                                file_name=filename,
+                                                mime="text/plain",
+                                                key="txt_fallback_btn"
+                                            )
 
 # make file runable
 if __name__ == "__main__":
