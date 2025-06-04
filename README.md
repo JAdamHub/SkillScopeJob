@@ -41,22 +41,22 @@ SkillScopeJob follows a layered architecture with clean separation of concerns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Presentation Layer                       │
-│        src/skillscope/ui/main_app.py │ admin_app.py        │
+│        src/skillscope/ui/main_app.py │ admin_app.py         │
 ├─────────────────────────────────────────────────────────────┤
 │                     Business Logic                          │
-│   src/skillscope/core/profile_job_matcher.py │             │
+│   src/skillscope/core/profile_job_matcher.py │              │
 │                    cv_job_evaluator.py                      │
 ├─────────────────────────────────────────────────────────────┤
 │                     AI/ML Services                          │
-│   src/skillscope/core/cv_extraction.py │                   │
+│   src/skillscope/core/cv_extraction.py │                    │
 │                    data_enrichment.py                       │
 ├─────────────────────────────────────────────────────────────┤
 │                    Data Access Layer                        │
-│  src/skillscope/models/database_models.py │                │
+│  src/skillscope/models/database_models.py │                 │
 │           scrapers/indeed_scraper.py                        │
 ├─────────────────────────────────────────────────────────────┤
 │                   External Services                         │
-│  Together AI │ Indeed.com │ CrewAI │ JobSpy                │
+│  Together AI │ Indeed.com │ JobSpy                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
