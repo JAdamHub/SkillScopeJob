@@ -61,7 +61,6 @@ except ImportError as e:
 # --- Constants for file names ---
 ROLES_INDUSTRIES_ONTOLOGY_FILE = "roles_industries_ontology.csv"
 SKILL_ONTOLOGY_FILE = "skill_ontology.csv"
-EDUCATION_ONTOLOGY_FILE = "education_ontology.csv"
 USER_PROFILE_LOG_FILE = "advanced_user_profile_log.csv"
 
 # --- Helper functions to load ontologies (with dummy creation) ---

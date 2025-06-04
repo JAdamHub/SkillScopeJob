@@ -21,7 +21,7 @@ try:
     from langchain_together import Together
 except ImportError as e:
     print(f"Required package not installed: {e}")
-    print("Please run: pip install langchain-together")
+    print("Please run: pip install together")
     exit(1)
 
 # Configuration
@@ -55,12 +55,12 @@ try:
         repetition_penalty=1.1
     )
     # Test the LLM connection
-    try:
-        test_response = llm.invoke("What is 2+2? Answer only with the number.")
-        logging.info(f"LLM initialized successfully. Test response: {test_response[:100]}...")
-    except Exception as test_e:
-        logging.error(f"LLM test failed: {test_e}")
-        raise test_e
+#    try:
+#        test_response = llm.invoke("What is 2+2? Answer only with the number.")
+#        logging.info(f"LLM initialized successfully. Test response: {test_response[:100]}...")
+#    except Exception as test_e:
+#        logging.error(f"LLM test failed: {test_e}")
+#        raise test_e
 except Exception as e:
     logging.error(f"Failed to initialize LLM: {e}")
     print(f"LLM initialization failed: {e}")

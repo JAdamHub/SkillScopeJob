@@ -224,7 +224,7 @@ def create_layered_architecture():
         c.node('cv_extraction_service', 'CV Extraction Service (cv_extraction.py)\\n\\n• Orchestrates CV parsing via LLM')
         c.node('job_matching_service', 'Job Matching Service (profile_job_matcher.py)\\n\\n• Orchestrates profile-to-job matching\\n• Handles live scraping & DB fallback logic')
         c.node('cv_evaluation_service', 'CV Evaluation Service (cv_job_evaluator.py)\\n\\n• Orchestrates CV vs. job analysis via LLM')
-        c.node('data_enrichment_service', 'Data Enrichment Service (data_enrichment_crew.py)\\n\\n• Orchestrates job data enrichment via CrewAI')
+        c.node('data_enrichment_service', 'Data Enrichment Service (data_enrichment_crew.py)\\n\\n• Orchestrates job data enrichment via TogetherAI')
 
     # Core Domain / Business Logic Layer (Conceptual - logic is within services for this scale)
     # For a larger system, this might be more distinct.
@@ -250,7 +250,7 @@ def create_layered_architecture():
         c.attr('node', fillcolor=EXTERNAL_INTEGRATION_COLOR)
         c.node('indeed_integration', 'Indeed Integration (indeed_scraper.py via JobSpy)\\n\\n• Interface for scraping Indeed.com')
         c.node('together_ai_integration', 'Together AI LLM Integration\\n\\n(cv_extraction.py, cv_job_evaluator.py, data_enrichment_crew.py)\\n• Interface for Llama 3.x models')
-        c.node('crewai_integration', 'CrewAI Integration (data_enrichment_crew.py)\\n\\n• AI Agent framework for enrichment tasks')
+        c.node('together_integration', 'TogetherAI Integration (data_enrichment_crew.py)\\n\\n• AI Agent framework for enrichment tasks')
 
     # Layer connections (High-level)
     dot.edge('streamlit_ui', 'cv_extraction_service', label='CV data')
@@ -271,8 +271,8 @@ def create_layered_architecture():
 
     dot.edge('data_enrichment_service', 'job_data_handling', label='processes jobs')
     dot.edge('data_enrichment_service', 'orm_models', label='updates DB jobs')
-    dot.edge('data_enrichment_service', 'crewai_integration', label='uses AI agents')
-    dot.edge('crewai_integration', 'together_ai_integration', label='uses LLMs (via CrewAI)', style='dashed')
+    dot.edge('data_enrichment_service', 'together_integration', label='uses AI agents')
+    dot.edge('together_integration', 'together_ai_integration', label='uses LLMs (via TogetherAI)', style='dashed')
 
     dot.edge('profile_management', 'orm_models', label='uses ORM')
     dot.edge('relevance_scoring', 'orm_models', label='uses job data from ORM (conceptually)')
@@ -353,7 +353,6 @@ def create_technology_stack():
         c.attr(label='AI/ML Technologies', style='rounded', color='#9C27B0')
         c.attr('node', fillcolor='#F3E5F5')
         c.node('together_ai', 'Together AI\n\nLLM API\n(Llama 3.3 70B)')
-        c.node('langchain', 'LangChain\n\nLLM Framework\n& Integration')
         c.node('nlp', 'NLP Processing\n\nText Analysis\n& Extraction')
     
     # Data Stack
@@ -374,8 +373,8 @@ def create_technology_stack():
     dot.edge('streamlit', 'python', label='built on')
     dot.edge('python', 'pandas', label='uses')
     dot.edge('python', 'jobspy', label='imports')
-    dot.edge('python', 'langchain', label='integrates')
-    dot.edge('langchain', 'together_ai', label='connects to')
+    dot.edge('python', 'together', label='integrates')
+    dot.edge('together', 'together_ai', label='connects to')
     dot.edge('python', 'sqlite', label='queries')
     dot.edge('jobspy', 'indeed_api', label='scrapes')
     dot.edge('python', 'pdf_lib', label='processes with')
@@ -459,7 +458,7 @@ def create_component_interaction():
     dot.node('job_scraper_module', 'Job Scraper (indeed_scraper.py)\n\n• Scrapes Job Boards (e.g., Indeed via JobSpy)\n• Collects Raw Job Postings\n• Initial Storage/Update to DB (via ORM)', 
              fillcolor='#FFF3E0', color=JOB_SCRAPE_COLOR, penwidth='2')
     
-    dot.node('data_enricher', 'AI Data Enricher (data_enrichment_crew.py)\n\n• Enhances Job Data (Company Info, Industry) via CrewAI & LLMs\n• Updates Job Postings in DB (Enrichment Status, Freshness)', 
+    dot.node('data_enricher', 'AI Data Enricher (data_enrichment_crew.py)\n\n• Enhances Job Data (Company Info, Industry) via TogetherAI & LLMs\n• Updates Job Postings in DB (Enrichment Status, Freshness)', 
              fillcolor='#F3E5F5', color=AI_ENRICH_COLOR, penwidth='2')
     
     dot.node('profile_matcher', 'Profile Job Matcher (profile_job_matcher.py)\n\n• Matches User Profile to Jobs (Live & DB)\n• Calculates Relevance Scores (User Profile Match)\n• Interacts with DB via SQLAlchemy ORM', 
@@ -574,7 +573,7 @@ def create_file_based_architecture():
     # AI Data Enrichment Layer
     with dot.subgraph(name='cluster_enrich') as c:
         c.attr(label='🤖 AI Data Enrichment & Enhancement', style='rounded', color=AI_COLOR, fontcolor=AI_COLOR)
-        c.node('data_enrichment_crew_py', 'data_enrichment_crew.py\n\n• Uses CrewAI Framework for Data Enhancement\n• Enriches Job Data (Company Info, Industry)\n• Updates Job Freshness & Enrichment Status\n• Manages Data Quality & Completeness',
+        c.node('data_enrichment_crew_py', 'data_enrichment_crew.py\n\n• Uses TogetherAI Framework for Data Enhancement\n• Enriches Job Data (Company Info, Industry)\n• Updates Job Freshness & Enrichment Status\n• Manages Data Quality & Completeness',
                fillcolor=AI_COLOR + '30', color=AI_COLOR)
 
     # Data Models & Database Layer
@@ -672,9 +671,9 @@ def create_module_dependency_diagram():
             'description': 'Main Streamlit Application UI\\n\\n• Handles user input (CV, profile)\\n• Triggers processing (CV parsing, job matching, evaluation)\\n• Displays results to the user'
         },
         'cv_extraction.py': {
-            'imports': ['langchain_together', 'PyPDF2', 'docx', 'python-docx', 'logging', 'os', 're', 'database_models.py'], # python-docx might be imported as docx
+            'imports': ['together', 'PyPDF2', 'docx', 'python-docx', 'logging', 'os', 're', 'database_models.py'], # python-docx might be imported as docx
             'color': '#2196F3', # Blue for CV processing
-            'description': 'CV Parsing Engine\\n\\n• Uses LLM (TogetherAI via langchain) to parse CVs\\n• Extracts skills, experience, education, etc.\\n• Populates/suggests profile fields'
+            'description': 'CV Parsing Engine\\n\\n• Uses LLM (TogetherAI) to parse CVs\\n• Extracts skills, experience, education, etc.\\n• Populates/suggests profile fields'
         },
         'profile_job_matcher.py': {
             'imports': ['sqlalchemy', 'database_models.py', 'indeed_scraper.py', 'datetime', 'logging', 'json'],
@@ -687,14 +686,14 @@ def create_module_dependency_diagram():
             'description': 'Job Scraping Engine\\n\\n• Scrapes job data (e.g., from Indeed via jobspy)\\n• Stores/updates job postings in DB (via SQLAlchemy models)\\n• Handles data cleaning and initial storage'
         },
         'cv_job_evaluator.py': {
-            'imports': ['langchain_together', 'database_models.py', 'sqlalchemy', 'logging', 'json', 'datetime', 'os', 're'],
+            'imports': ['together', 'database_models.py', 'sqlalchemy', 'logging', 'json', 'datetime', 'os', 're'],
             'color': '#00ACC1', # Cyan for AI Evaluation
             'description': 'CV vs. Job Evaluation Engine\\n\\n• Uses LLM (TogetherAI) to analyze CV against job descriptions\\n• Provides detailed match feedback (strengths, gaps)\\n• Stores evaluation results (moving to SQLAlchemy)'
         },
-        'data_enrichment_crew.py': {
-            'imports': ['crewai', 'langchain_community', 'database_models.py', 'sqlalchemy', 'logging', 'datetime', 'os', 'json', 'requests'], # Assuming CrewAI uses langchain_community or similar
+        'data_enrichment.py': {
+            'imports': ['together', 'database_models.py', 'sqlalchemy', 'logging', 'datetime', 'os', 'json', 'requests'],
             'color': '#00ACC1', # Cyan for AI Enrichment
-            'description': 'Job Data Enrichment Engine\\n\\n• Uses CrewAI (with LLMs) to enrich job data\\n• Finds company info, industry, logo, etc.\\n• Updates job_postings table (enrichment_status, job_freshness)'
+            'description': 'Job Data Enrichment Engine\\n\\n• Uses TogetherAI to enrich job data\\n• Finds company info, industry, logo, etc.\\n• Updates job_postings table (enrichment_status, job_freshness)'
         },
         'database_models.py': {
             'imports': ['sqlalchemy', 'enum', 'datetime', 'json'],
@@ -729,9 +728,9 @@ def create_module_dependency_diagram():
     external_libs = {
         'streamlit': {'color': '#FF4B4B', 'desc': 'Web Framework'},
         'sqlalchemy': {'color': '#75A5C0', 'desc': 'ORM & SQL Toolkit'},
-        'langchain_together': {'color': '#F06A30', 'desc': 'LLM Integration (TogetherAI)'}, # Specific for TogetherAI
+        'together': {'color': '#F06A30', 'desc': 'LLM Integration (TogetherAI)'}, # Specific for TogetherAI
         'jobspy': {'color': '#D4A017', 'desc': 'Job Scraping Library'},
-        'crewai': {'color': '#4C8BF5', 'desc': 'AI Agent Framework'},
+        'together': {'color': '#4C8BF5', 'desc': 'AI Agent Framework'},
         'PyPDF2': {'color': '#A0522D', 'desc': 'PDF Processing'},
         'python-docx': {'color': '#2A5699', 'desc': 'DOCX Processing'}, # or 'docx'
         'requests': {'color': '#008080', 'desc': 'HTTP Requests'},
@@ -747,11 +746,11 @@ def create_module_dependency_diagram():
     # Connect modules to their key external libraries
     module_to_external_deps = {
         'streamlit_cv_extraction.py': ['streamlit'],
-        'cv_extraction.py': ['langchain_together', 'PyPDF2', 'python-docx', 'dotenv'],
+        'cv_extraction.py': ['together', 'PyPDF2', 'python-docx', 'dotenv'],
         'profile_job_matcher.py': ['sqlalchemy', 'jobspy', 'requests'], # jobspy for indeed_scraper call, requests if direct calls
         'indeed_scraper.py': ['jobspy', 'sqlalchemy', 'requests', 'beautifulsoup4'], # bs4 if jobspy allows passing parsed content or direct use
-        'cv_job_evaluator.py': ['langchain_together', 'sqlalchemy', 'dotenv'],
-        'data_enrichment_crew.py': ['crewai', 'sqlalchemy', 'requests', 'dotenv'], # CrewAI uses langchain typically
+        'cv_job_evaluator.py': ['together', 'sqlalchemy', 'dotenv'],
+        'data_enrichment_crew.py': ['together', 'sqlalchemy', 'requests', 'dotenv'],
         'database_models.py': ['sqlalchemy'],
     }
 
@@ -814,7 +813,7 @@ def create_application_flow_with_files():
             'name': 'ai_enhancement',
             'label': '🤖 AI ENHANCEMENT PHASE',
             'files': [
-                ('ai_process', 'data_enrichment_crew.py\nEnhances job data via CrewAI', '#F3E5F5'),
+                ('ai_process', 'data_enrichment_crew.py\nEnhances job data via TogetherAI', '#F3E5F5'),
                 ('together_ai', 'Together AI LLM\nCompany & industry enrichment', '#E1F5FE'),
                 ('data_update', 'Updates job enrichment status\nin indeed_jobs.db', '#F3E5F5')
             ]
@@ -933,7 +932,7 @@ def create_comprehensive_system_overview():
         c.node('cv_evaluator', 'cv_job_evaluator.py\n\n• AI-powered CV vs job analysis\n• Gap analysis & recommendations\n• Together AI LLM integration', 
                fillcolor='#F3E5F5')
         
-        c.node('data_enricher', 'data_enrichment_crew.py\n\n• CrewAI framework integration\n• Job data enhancement\n• Company info enrichment', 
+        c.node('data_enricher', 'data_enrichment_crew.py\n\n• TogetherAI framework integration\n• Job data enhancement\n• Company info enrichment', 
                fillcolor='#F3E5F5')
     
     # Data layer cluster (actual files)
