@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 import csv
 import json
@@ -9,6 +10,13 @@ import streamlit.components.v1 as components
 import sqlite3
 from datetime import datetime
 from typing import List, Dict
+
+# Add the project root to Python path for proper imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 # Set page config at the top level
 if 'page_config_set' not in st.session_state:
@@ -22,7 +30,7 @@ if 'page_config_set' not in st.session_state:
 
 # Import LLM-based CV extraction functionality
 try:
-    from cv_extraction import LLMCVExtractor
+    from skillscope.core.cv_extraction import LLMCVExtractor
     CV_EXTRACTION_AVAILABLE = True
 except ImportError as e:
     CV_EXTRACTION_AVAILABLE = False
@@ -30,7 +38,7 @@ except ImportError as e:
 
 # Import job matching functionality
 try:
-    from profile_job_matcher import run_profile_job_search, get_user_job_matches
+    from skillscope.core.profile_job_matcher import run_profile_job_search, get_user_job_matches
     JOB_MATCHING_AVAILABLE = True
 except ImportError as e:
     JOB_MATCHING_AVAILABLE = False
@@ -38,7 +46,7 @@ except ImportError as e:
 
 # Import CV-job evaluation functionality
 try:
-    from cv_job_evaluator import CVJobEvaluator
+    from skillscope.core.cv_job_evaluator import CVJobEvaluator
     CV_EVALUATION_AVAILABLE = True
     
     # Create wrapper functions that work with the class
@@ -58,10 +66,18 @@ except ImportError as e:
     CV_EVALUATION_AVAILABLE = False
     CV_EVALUATION_ERROR = str(e)
 
+# Import data enrichment functionality
+try:
+    from skillscope.core.data_enrichment import run_data_enrichment_for_app, get_enrichment_status
+    DATA_ENRICHMENT_AVAILABLE = True
+except ImportError as e:
+    DATA_ENRICHMENT_AVAILABLE = False
+    DATA_ENRICHMENT_ERROR = str(e)
+
 # --- Constants for file names ---
-ROLES_INDUSTRIES_ONTOLOGY_FILE = "roles_industries_ontology.csv"
-SKILL_ONTOLOGY_FILE = "skill_ontology.csv"
-USER_PROFILE_LOG_FILE = "advanced_user_profile_log.csv"
+ROLES_INDUSTRIES_ONTOLOGY_FILE = "data/ontologies/roles_industries_ontology.csv"
+SKILL_ONTOLOGY_FILE = "data/ontologies/skill_ontology.csv"
+USER_PROFILE_LOG_FILE = "data/logs/advanced_user_profile_log.csv"
 
 # --- Helper functions to load ontologies (with dummy creation) ---
 def load_ontology_data(file_path: str, column_name: str, default_items: list, is_education_ontology: bool = False) -> list | dict:
@@ -198,14 +214,8 @@ def run_app():
         
         with st.expander("📄 Upload your CV for intelligent profile completion", expanded=expander_expanded):
             # API Key configuration
-            st.markdown("### 🔑 AI Configuration")
-            api_key = st.text_input(
-                "Together AI API Key", 
-                type="password",
-                value=os.getenv("TOGETHER_API_KEY", ""),
-                help="Enter your Together AI API key or set TOGETHER_API_KEY environment variable"
-            )
-            
+            api_key = os.getenv('TOGETHER_API_KEY')
+
             # Model selection
             model_options = [
                 "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
@@ -841,6 +851,27 @@ def run_app():
                     try:
                         search_results = run_profile_job_search(profile_data)
                         st.session_state.job_search_results = search_results
+                        
+                        # Run data enrichment automatically after successful job search
+                        if DATA_ENRICHMENT_AVAILABLE and search_results.get('source') == 'live_scraping':
+                            with st.spinner("🔍 Enriching job data with company information..."):
+                                try:
+                                    enrichment_result = run_data_enrichment_for_app(
+                                        app_context="auto",
+                                        batch_size=10,
+                                        max_batches=3
+                                    )
+                                    
+                                    if enrichment_result["success"] and enrichment_result.get("stats"):
+                                        improvements = enrichment_result["stats"]["improvements"]
+                                        total_enriched = improvements.get("total", 0)
+                                        if total_enriched > 0:
+                                            st.success(f"✅ Enriched {total_enriched} job records with additional company information!")
+                                    
+                                except Exception as e:
+                                    # Don't fail the whole search if enrichment fails
+                                    st.warning(f"⚠️ Job search successful, but data enrichment encountered an issue: {str(e)}")
+                        
                         st.session_state.job_search_completed = True
                         st.rerun()
                         
@@ -1331,7 +1362,7 @@ Recommendations: {eval.get('recommendations', 'None provided')}
                                 
                                 with action_col2:
                                     # Show improvement plan button
-                                    if st.button("📈 Get Improvement Plan", key="get_improvement_plan"):
+                                    if st.button("📈 Get Improvement Plan", type="primary", key="get_improvement_plan"):
                                         st.session_state.show_improvement_plan = True
 
                         # Handle improvement plan execution

@@ -1,6 +1,7 @@
 import sqlite3
 import logging
 import os
+import requests
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import schedule
@@ -11,6 +12,13 @@ import threading
 try:
     from dotenv import load_dotenv
     load_dotenv()
+    # Also try loading from project root
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
+    env_path = os.path.join(project_root, '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
 except ImportError:
     print("python-dotenv not installed. Installing...")
     os.system("pip install python-dotenv")
@@ -21,74 +29,125 @@ try:
     from langchain_together import Together
 except ImportError as e:
     print(f"Required package not installed: {e}")
-    print("Please run: pip install together")
-    exit(1)
+    print("Please run: pip install langchain-together")
+    Together = None
 
 # Configuration
-DB_NAME = 'indeed_jobs.db'
+DB_NAME = 'data/databases/indeed_jobs.db'
 TABLE_NAME = 'job_postings'
 TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY')
 
+# Don't exit at import time - allow module to be imported for data cleaning functions
 if not TOGETHER_API_KEY:
-    print("Please set TOGETHER_API_KEY in your .env file")
+    print("Warning: TOGETHER_API_KEY not set. LLM functions will not work.")
+    print("Set TOGETHER_API_KEY in your .env file for full functionality.")
     print("Example: TOGETHER_API_KEY=your_api_key_here")
-    exit(1)
+    llm = None
+else:
+    llm = None  # Will be initialized when needed
 
 # Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('data_enrichment.log'),
+        logging.FileHandler('data/logs/data_enrichment.log'),
         logging.StreamHandler()
     ]
 )
 
-# Initialize TogetherAI LLM
-try:
-    llm = Together(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        api_key=TOGETHER_API_KEY,
-        temperature=0.1,
-        max_tokens=1024,
-        top_p=0.9,
-        repetition_penalty=1.1
-    )
-    # Test the LLM connection
-#    try:
-#        test_response = llm.invoke("What is 2+2? Answer only with the number.")
-#        logging.info(f"LLM initialized successfully. Test response: {test_response[:100]}...")
-#    except Exception as test_e:
-#        logging.error(f"LLM test failed: {test_e}")
-#        raise test_e
-except Exception as e:
-    logging.error(f"Failed to initialize LLM: {e}")
-    print(f"LLM initialization failed: {e}")
-    print("Trying to diagnose the issue...")
+# Initialize TogetherAI LLM when needed
+def initialize_llm():
+    """Initialize the LLM only when needed"""
+    global llm
+    if llm is not None:
+        return llm
     
-    # Diagnostic information
-    print(f"API Key present: {bool(TOGETHER_API_KEY)}")
-    if TOGETHER_API_KEY:
-        print(f"API Key starts with: {TOGETHER_API_KEY[:10]}...")
+    if not TOGETHER_API_KEY:
+        logging.error("TOGETHER_API_KEY not set. Cannot initialize LLM.")
+        return None
     
-    # Try a simple test
+    if Together is None:
+        logging.error("langchain_together not available. Cannot initialize LLM.")
+        return None
+    
     try:
-        import requests
-        response = requests.get("https://api.together.xyz/health", timeout=10)
-        print(f"Together API health check: {response.status_code}")
-    except Exception as req_e:
-        print(f"Network/API issue: {req_e}")
-    
-    exit(1)
+        llm = Together(
+            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            api_key=TOGETHER_API_KEY,
+            temperature=0.1,
+            max_tokens=1024,
+            top_p=0.9,
+            repetition_penalty=1.1
+        )
+        logging.info("LLM initialized successfully")
+        return llm
+    except Exception as e:
+        logging.error(f"Failed to initialize LLM: {e}")
+        return None
 
-# Additional configuration for freshness management
+# Additional configuration for job management
 DEFAULT_MAX_JOB_AGE_DAYS = 30
-FRESHNESS_THRESHOLDS = {
-    "fresh": 7,      # Jobs less than 7 days old
-    "recent": 14,    # Jobs less than 14 days old
-    "aging": 21,     # Jobs less than 21 days old
-    "stale": DEFAULT_MAX_JOB_AGE_DAYS  # Jobs older than max_job_age_days are removed
-}
+
+def clean_old_jobs(max_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
+    """
+    Simple data cleaning: Remove jobs older than specified days based on last_seen_timestamp
+    This replaces all complex cleaning strategies with a single, reliable approach.
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        
+        # Count jobs to be removed (based on last_seen_timestamp)  
+        cursor.execute(f"""
+        SELECT COUNT(*) FROM {TABLE_NAME} 
+        WHERE last_seen_timestamp < ? OR last_seen_timestamp IS NULL
+        """, (cutoff_date.isoformat(),))
+        
+        old_count = cursor.fetchone()[0]
+        
+        # Get total count before cleanup
+        cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+        total_before = cursor.fetchone()[0]
+        
+        if old_count > 0:
+            # Remove old jobs
+            cursor.execute(f"""
+            DELETE FROM {TABLE_NAME} 
+            WHERE last_seen_timestamp < ? OR last_seen_timestamp IS NULL
+            """, (cutoff_date.isoformat(),))
+            
+            conn.commit()
+            logging.info(f"🧹 Removed {old_count} jobs not seen in the last {max_age_days} days")
+        
+        # Get remaining job count
+        cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+        total_after = cursor.fetchone()[0]
+        
+        # Record cleanup date
+        cursor.execute("""
+        INSERT OR REPLACE INTO database_metadata (key, value, updated_timestamp)
+        VALUES ('last_cleanup_date', ?, ?)
+        """, (datetime.now().isoformat(), datetime.now().isoformat()))
+        
+        conn.commit()
+        
+        return {
+            "jobs_removed": old_count,
+            "jobs_before": total_before,
+            "jobs_after": total_after,
+            "cutoff_date": cutoff_date.isoformat(),
+            "max_age_days": max_age_days,
+            "cleanup_timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logging.error(f"Error cleaning old jobs: {e}")
+        return {"error": str(e)}
+    finally:
+        conn.close()
 
 def init_database_with_freshness_tracking():
     """
@@ -145,48 +204,26 @@ def init_database_with_freshness_tracking():
 
 def _update_job_freshness_categories(conn: sqlite3.Connection, max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS):
     """
-    Update the job_freshness column for all jobs based on their scraped_timestamp.
+    Update the job_freshness column for all jobs based on their last_seen_timestamp.
+    Simplified to use only active/inactive status.
     """
     cursor = conn.cursor()
     now = datetime.now()
-    
-    # Define freshness categories and their thresholds (days from now)
-    # Order matters: from freshest to stalest
-    categories = [
-        ("fresh", FRESHNESS_THRESHOLDS["fresh"]),
-        ("recent", FRESHNESS_THRESHOLDS["recent"]),
-        ("aging", FRESHNESS_THRESHOLDS["aging"]),
-        ("stale", max_job_age_days) # Anything older than max_job_age_days is stale
-    ]
+    cutoff_date = now - timedelta(days=max_job_age_days)
 
     try:
-        # Fetch all job ids and their scraped_timestamps
-        cursor.execute(f"SELECT id, scraped_timestamp FROM {TABLE_NAME}")
-        jobs_to_update = cursor.fetchall()
+        # Update all jobs as either 'active' (seen recently) or 'inactive' (old)
+        cursor.execute(f"""
+        UPDATE {TABLE_NAME} 
+        SET job_freshness = CASE 
+            WHEN last_seen_timestamp >= ? THEN 'active'
+            ELSE 'inactive'
+        END
+        """, (cutoff_date.isoformat(),))
         
-        updated_count = 0
-        for job_id, scraped_timestamp_str in jobs_to_update:
-            if not scraped_timestamp_str:
-                continue
-            
-            scraped_date = datetime.fromisoformat(scraped_timestamp_str)
-            age_days = (now - scraped_date).days
-            
-            current_freshness = "stale" # Default to stale
-            if age_days < categories[0][1]: # fresh
-                current_freshness = categories[0][0]
-            elif age_days < categories[1][1]: # recent
-                current_freshness = categories[1][0]
-            elif age_days < categories[2][1]: # aging
-                current_freshness = categories[2][0]
-            # else remains stale
-
-            cursor.execute(f"UPDATE {TABLE_NAME} SET job_freshness = ? WHERE id = ?", (current_freshness, job_id))
-            if cursor.rowcount > 0:
-                updated_count += 1
-        
+        updated_count = cursor.rowcount
         conn.commit()
-        logging.info(f"Updated job_freshness for {updated_count} jobs.")
+        logging.info(f"Updated job_freshness for {updated_count} jobs (active/inactive based on {max_job_age_days} day threshold).")
 
     except Exception as e:
         logging.error(f"Error updating job_freshness categories: {e}")
@@ -195,52 +232,7 @@ def _update_job_freshness_categories(conn: sqlite3.Connection, max_job_age_days:
 
 def get_job_age_distribution(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
     """
-    Get distribution of jobs by age categories
-    """
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    try:
-        now = datetime.now()
-        distribution = {}
-        
-        # Use dynamic thresholds based on max_job_age_days
-        thresholds = FRESHNESS_THRESHOLDS.copy()
-        thresholds["stale"] = max_job_age_days
-        
-        for category, days in thresholds.items():
-            cutoff = now - timedelta(days=days)
-            
-            if category == "stale":
-                # Count jobs older than threshold
-                cursor.execute(f"""
-                SELECT COUNT(*) FROM {TABLE_NAME} 
-                WHERE scraped_timestamp < ?
-                """, (cutoff.isoformat(),))
-            else:
-                # Count jobs within threshold
-                cursor.execute(f"""
-                SELECT COUNT(*) FROM {TABLE_NAME} 
-                WHERE scraped_timestamp >= ?
-                """, (cutoff.isoformat(),))
-            
-            distribution[category] = cursor.fetchone()[0]
-        
-        # Total count
-        cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
-        distribution["total"] = cursor.fetchone()[0]
-        
-        return distribution
-        
-    except Exception as e:
-        logging.error(f"Error getting job age distribution: {e}")
-        return {}
-    finally:
-        conn.close()
-
-def clean_stale_jobs(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
-    """
-    Remove jobs that are older than the maximum age threshold
+    Get simplified distribution of jobs by age (active vs old) based on last_seen_timestamp
     """
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -248,38 +240,44 @@ def clean_stale_jobs(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
     try:
         cutoff_date = datetime.now() - timedelta(days=max_job_age_days)
         
-        # Count jobs to be removed
+        # Count active jobs (seen within max_job_age_days)
         cursor.execute(f"""
         SELECT COUNT(*) FROM {TABLE_NAME} 
-        WHERE scraped_timestamp < ?
+        WHERE last_seen_timestamp >= ?
         """, (cutoff_date.isoformat(),))
+        active_count = cursor.fetchone()[0]
         
-        stale_count = cursor.fetchone()[0]
+        # Count old jobs (not seen within max_job_age_days or NULL timestamp)
+        cursor.execute(f"""
+        SELECT COUNT(*) FROM {TABLE_NAME} 
+        WHERE last_seen_timestamp < ? OR last_seen_timestamp IS NULL
+        """, (cutoff_date.isoformat(),))
+        old_count = cursor.fetchone()[0]
         
-        if stale_count > 0:
-            # Remove stale jobs
-            cursor.execute(f"""
-            DELETE FROM {TABLE_NAME} 
-            WHERE scraped_timestamp < ?
-            """, (cutoff_date.isoformat(),))
-            
-            conn.commit()
-            logging.info(f"🧹 Removed {stale_count} stale jobs older than {max_job_age_days} days")
-        
-        # Get remaining job age distribution
-        age_distribution = get_job_age_distribution(max_job_age_days)
+        # Total count
+        cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+        total_count = cursor.fetchone()[0]
         
         return {
-            "stale_jobs_removed": stale_count,
+            "active": active_count,
+            "old": old_count,
+            "total": total_count,
             "cutoff_date": cutoff_date.isoformat(),
-            "remaining_jobs": age_distribution
+            "max_age_days": max_job_age_days
         }
         
     except Exception as e:
-        logging.error(f"Error cleaning stale jobs: {e}")
-        return {"error": str(e)}
+        logging.error(f"Error getting job age distribution: {e}")
+        return {"active": 0, "old": 0, "total": 0, "error": str(e)}
     finally:
         conn.close()
+
+def clean_stale_jobs(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
+    """
+    Remove jobs that are older than the maximum age threshold
+    This is an alias for clean_old_jobs to maintain backward compatibility
+    """
+    return clean_old_jobs(max_job_age_days)
 
 def clear_entire_database():
     """
@@ -343,172 +341,125 @@ def record_cleanup_date():
     finally:
         conn.close()
 
-def smart_database_refresh(cleanup_strategy: str = "smart", max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS, force_full_refresh: bool = False) -> Dict:
+def simple_database_cleanup(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
     """
-    Intelligent database refresh based on job age and cleanup strategy
-    
-    Args:
-        cleanup_strategy: "aggressive" (daily clean), "smart" (selective refresh), or "conservative" (weekly)
-        max_job_age_days: Maximum age for jobs before they're considered stale
-        force_full_refresh: Force complete database refresh regardless of strategy
+    Simplified database cleanup - just remove old jobs and update job freshness
+    This replaces the complex smart_database_refresh function
     """
-    refresh_stats = {
-        "strategy": cleanup_strategy,
+    cleanup_stats = {
         "timestamp": datetime.now().isoformat(),
-        "actions_taken": [],
+        "max_age_days": max_job_age_days,
         "before_stats": get_job_age_distribution(max_job_age_days),
-        "after_stats": {}
+        "actions_taken": []
     }
     
     try:
-        if cleanup_strategy == "aggressive" or force_full_refresh:
-            # Daily complete refresh - nuclear option
-            refresh_stats["actions_taken"].append("full_database_clear")
-            clear_result = clear_entire_database()
-            refresh_stats["clear_result"] = clear_result
-            
-        elif cleanup_strategy == "smart":
-            # Selective refresh based on job age
-            refresh_stats["actions_taken"].append("stale_job_cleanup")
-            cleanup_result = clean_stale_jobs(max_job_age_days)
-            refresh_stats["cleanup_result"] = cleanup_result
-            
-            # Check if we need to refresh specific categories
-            age_dist = get_job_age_distribution(max_job_age_days)
-            
-            if age_dist.get("fresh", 0) < 50 and age_dist.get("total", 0) > 0:
-                # Low fresh jobs - trigger targeted refresh
-                refresh_stats["actions_taken"].append("targeted_fresh_job_scraping_needed")
-                logging.info("⚠️ Low number of fresh jobs - consider running job scraping")
-                
-        elif cleanup_strategy == "conservative":
-            # Weekly cleanup only
-            last_cleanup = get_last_cleanup_date()
-            if not last_cleanup or (datetime.now() - last_cleanup).days >= 7:
-                refresh_stats["actions_taken"].append("weekly_cleanup")
-                cleanup_result = clean_stale_jobs(max_job_age_days)
-                refresh_stats["cleanup_result"] = cleanup_result
-                record_cleanup_date()
-            else:
-                refresh_stats["actions_taken"].append("skipped_cleanup_too_recent")
-                days_since_cleanup = (datetime.now() - last_cleanup).days
-                logging.info(f"⏭️ Skipping cleanup - last cleanup was {days_since_cleanup} days ago")
+        # Clean old jobs
+        cleanup_result = clean_old_jobs(max_job_age_days)
+        cleanup_stats["cleanup_result"] = cleanup_result
+        cleanup_stats["actions_taken"].append("removed_old_jobs")
         
-        # Always update freshness tracking and job_freshness categories
+        # Update job freshness categories
         init_database_with_freshness_tracking()
         conn = sqlite3.connect(DB_NAME)
         try:
             _update_job_freshness_categories(conn, max_job_age_days)
+            cleanup_stats["actions_taken"].append("updated_job_freshness")
         finally:
             conn.close()
 
-        refresh_stats["after_stats"] = get_job_age_distribution(max_job_age_days)
+        cleanup_stats["after_stats"] = get_job_age_distribution(max_job_age_days)
         
-        logging.info(f"🔄 Database refresh completed: {refresh_stats['actions_taken']}")
-        return refresh_stats
+        logging.info(f"🔄 Simple database cleanup completed: {cleanup_stats['actions_taken']}")
+        return cleanup_stats
         
     except Exception as e:
-        logging.error(f"Error in smart database refresh: {e}")
-        refresh_stats["error"] = str(e)
-        return refresh_stats
+        logging.error(f"Error in simple database cleanup: {e}")
+        cleanup_stats["error"] = str(e)
+        return cleanup_stats
+
+def smart_database_refresh(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS, force_full_refresh: bool = False) -> Dict:
+    """
+    Simplified database refresh - now uses simple cleanup approach only
+    """
+    if force_full_refresh:
+        # Full database clear
+        clear_result = clear_entire_database()
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "actions_taken": ["full_database_clear"],
+            "clear_result": clear_result
+        }
+    else:
+        # Use simple cleanup
+        return simple_database_cleanup(max_job_age_days)
 
 def get_database_health_report(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
     """
-    Comprehensive database health and freshness report
+    Simplified database health report based on active vs old jobs
     """
-    report = {
-        "timestamp": datetime.now().isoformat(),
-        "configuration": {
-            "max_job_age_days": max_job_age_days,
-            "freshness_thresholds": FRESHNESS_THRESHOLDS
-        }
+    age_distribution = get_job_age_distribution(max_job_age_days)
+    total_jobs = age_distribution.get("total", 0)
+    active_jobs = age_distribution.get("active", 0)
+    
+    # Calculate freshness ratio (active jobs / total jobs)
+    freshness_ratio = active_jobs / total_jobs if total_jobs > 0 else 0
+    
+    return {
+        "total_jobs": total_jobs,
+        "active_jobs": active_jobs,
+        "old_jobs": age_distribution.get("old", 0),
+        "freshness_ratio": freshness_ratio,
+        "age_distribution": age_distribution,
+        "health_score": freshness_ratio,  # Simplified health score
+        "last_updated": datetime.now().isoformat()
     }
-    
-    # Job age distribution
-    report["age_distribution"] = get_job_age_distribution(max_job_age_days)
-    
-    # Enrichment status
-    report["enrichment_status"] = get_database_stats()
-    
-    # Cleanup history
-    last_cleanup = get_last_cleanup_date()
-    report["last_cleanup"] = last_cleanup.isoformat() if last_cleanup else None
-    
-    # Health recommendations
-    age_dist = report["age_distribution"]
-    recommendations = []
-    
-    if age_dist.get("stale", 0) > 100:
-        recommendations.append("Consider running stale job cleanup")
-    
-    if age_dist.get("fresh", 0) < 20 and age_dist.get("total", 0) > 0:
-        recommendations.append("Database needs fresh job scraping")
-    
-    if age_dist.get("total", 0) == 0:
-        recommendations.append("Database is empty - full scraping needed")
-    
-    freshness_ratio = (age_dist.get("fresh", 0) + age_dist.get("recent", 0)) / max(age_dist.get("total", 1), 1)
-    if freshness_ratio < 0.3:
-        recommendations.append("Low freshness ratio - consider more frequent scraping")
-    
-    report["recommendations"] = recommendations
-    report["freshness_ratio"] = round(freshness_ratio, 2)
-    
-    logging.info(f"📊 Database health report generated - Freshness ratio: {report['freshness_ratio']}")
-    
-    return report
 
-def auto_database_maintenance(cleanup_strategy: str = "smart", max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
+def auto_database_maintenance(max_job_age_days: int = DEFAULT_MAX_JOB_AGE_DAYS) -> Dict:
     """
-    Automated database maintenance that can be run before enrichment
+    Simplified automated database maintenance
     """
-    logging.info(f"🔧 Starting automated database maintenance (strategy: {cleanup_strategy})")
+    logging.info(f"🔧 Starting simplified database maintenance (max age: {max_job_age_days} days)")
     
     # Get health report first
-    health_report = get_database_health_report(max_job_age_days)
+    age_distribution = get_job_age_distribution(max_job_age_days)
     
     # Decide if maintenance is needed
     maintenance_needed = False
     reasons = []
     
-    # Check if we have stale jobs
-    if health_report["age_distribution"].get("stale", 0) > 50:
+    # Check if we have old jobs that need cleaning
+    if age_distribution.get("old", 0) > 0:
         maintenance_needed = True
-        reasons.append(f"Too many stale jobs: {health_report['age_distribution']['stale']}")
+        reasons.append(f"Found {age_distribution['old']} old jobs to clean")
     
-    # Check freshness ratio
-    if health_report["freshness_ratio"] < 0.2:
+    # Check if we haven't cleaned in a while
+    last_cleanup = get_last_cleanup_date()
+    if not last_cleanup or (datetime.now() - last_cleanup).days >= 7:
         maintenance_needed = True
-        reasons.append(f"Low freshness ratio: {health_report['freshness_ratio']}")
-    
-    # Check last cleanup date for conservative strategy
-    if cleanup_strategy == "conservative":
-        last_cleanup = get_last_cleanup_date()
-        if not last_cleanup or (datetime.now() - last_cleanup).days >= 7:
-            maintenance_needed = True
-            reasons.append("Weekly cleanup is due")
+        reasons.append("Weekly cleanup is due")
     
     maintenance_result = {
         "maintenance_needed": maintenance_needed,
         "reasons": reasons,
-        "health_report_before": health_report,
+        "age_distribution_before": age_distribution,
         "actions_performed": []
     }
     
     if maintenance_needed:
         logging.info(f"🚨 Maintenance needed: {', '.join(reasons)}")
         
-        # Perform maintenance
-        refresh_result = smart_database_refresh(cleanup_strategy, max_job_age_days)
-        maintenance_result["refresh_result"] = refresh_result
-        maintenance_result["actions_performed"] = refresh_result.get("actions_taken", [])
+        # Perform simple cleanup
+        cleanup_result = simple_database_cleanup(max_job_age_days)
+        maintenance_result["cleanup_result"] = cleanup_result
+        maintenance_result["actions_performed"] = cleanup_result.get("actions_taken", [])
         
-        # Get updated health report
-        maintenance_result["health_report_after"] = get_database_health_report(max_job_age_days)
+        # Get updated distribution
+        maintenance_result["age_distribution_after"] = get_job_age_distribution(max_job_age_days)
         
         logging.info(f"✅ Maintenance completed: {maintenance_result['actions_performed']}")
     else:
-        logging.info("✨ Database is healthy - no maintenance needed")
+        logging.info("✨ Database is clean - no maintenance needed")
     
     return maintenance_result
 
@@ -680,8 +631,10 @@ def batch_enrichment(batch_size=15):
         prompt = "\n".join(prompt_parts)
         
         try:
+            # Initialize LLM if needed
+            current_llm = initialize_llm()
             logging.info(f"Sending batch of {len(jobs_data)} jobs to LLM...")
-            response = llm.invoke(prompt)
+            response = current_llm.invoke(prompt)
             logging.info(f"LLM batch response received: {len(response)} characters")
             
             # Log first 500 chars of response for debugging
@@ -868,7 +821,13 @@ RULES:
 
 START YOUR RESPONSE NOW:"""
         
-        response = llm.invoke(test_prompt)
+        # Initialize LLM if needed
+        current_llm = initialize_llm()
+        if current_llm is None:
+            logging.error("LLM initialization failed. Cannot test functionality.")
+            return False
+            
+        response = current_llm.invoke(test_prompt)
         logging.info(f"Test response length: {len(response)} characters")
         logging.info(f"Test response preview: {response[:400]}...")
         
@@ -904,24 +863,16 @@ START YOUR RESPONSE NOW:"""
 
 def schedule_maintenance_jobs():
     """
-    Set up scheduled maintenance jobs based on different strategies
+    Set up simplified scheduled maintenance jobs
     """
-    # Daily maintenance at 2 AM (aggressive strategy)
-    schedule.every().day.at("02:00").do(lambda: smart_database_refresh("aggressive"))
-    
-    # Smart maintenance every 12 hours
-    schedule.every(12).hours.do(lambda: auto_database_maintenance("smart"))
-    
-    # Conservative maintenance weekly on Sunday at 3 AM
-    schedule.every().sunday.at("03:00").do(lambda: auto_database_maintenance("conservative"))
+    # Daily maintenance at 2 AM
+    schedule.every().day.at("02:00").do(lambda: auto_database_maintenance())
     
     # Health check every 6 hours
     schedule.every(6).hours.do(log_database_health)
     
-    logging.info("📅 Maintenance jobs scheduled:")
-    logging.info("  - Daily aggressive cleanup at 2:00 AM")
-    logging.info("  - Smart maintenance every 12 hours")
-    logging.info("  - Conservative maintenance weekly on Sunday 3:00 AM")
+    logging.info("📅 Simplified maintenance jobs scheduled:")
+    logging.info("  - Daily maintenance at 2:00 AM")
     logging.info("  - Health checks every 6 hours")
 
 def log_database_health():
@@ -929,14 +880,14 @@ def log_database_health():
     Log database health status for monitoring
     """
     health = get_database_health_report()
-    logging.info(f"🏥 Health Check - Freshness: {health['freshness_ratio']}, Total Jobs: {health['age_distribution']['total']}")
+    logging.info(f"🏥 Health Check - Freshness: {health['freshness_ratio']:.2f}, Total Jobs: {health['total_jobs']}")
     
     # Alert if health is poor
     if health['freshness_ratio'] < 0.2:
-        logging.warning(f"🚨 ALERT: Low freshness ratio {health['freshness_ratio']} - maintenance needed!")
+        logging.warning(f"🚨 ALERT: Low freshness ratio {health['freshness_ratio']:.2f} - maintenance needed!")
     
-    if health['age_distribution']['stale'] > 200:
-        logging.warning(f"🚨 ALERT: {health['age_distribution']['stale']} stale jobs - cleanup recommended!")
+    if health['old_jobs'] > 200:
+        logging.warning(f"🚨 ALERT: {health['old_jobs']} old jobs - cleanup recommended!")
 
 def run_maintenance_scheduler():
     """
@@ -951,49 +902,11 @@ def run_maintenance_scheduler():
     scheduler_thread.start()
     logging.info("🔄 Maintenance scheduler started in background")
 
-def check_maintenance_needed() -> Dict:
-    """
-    Check if maintenance is urgently needed based on current database state
-    """
-    health = get_database_health_report()
-    
-    urgent_maintenance = {
-        "needed": False,
-        "reasons": [],
-        "recommended_action": "none",
-        "health_score": health['freshness_ratio']
-    }
-    
-    # Check for urgent conditions
-    if health['freshness_ratio'] < 0.1:
-        urgent_maintenance["needed"] = True
-        urgent_maintenance["reasons"].append("Critical: Freshness ratio below 10%")
-        urgent_maintenance["recommended_action"] = "immediate_cleanup"
-    
-    if health['age_distribution']['stale'] > 500:
-        urgent_maintenance["needed"] = True
-        urgent_maintenance["reasons"].append(f"Too many stale jobs: {health['age_distribution']['stale']}")
-        urgent_maintenance["recommended_action"] = "aggressive_cleanup"
-    
-    if health['age_distribution']['total'] == 0:
-        urgent_maintenance["needed"] = True
-        urgent_maintenance["reasons"].append("Database is empty")
-        urgent_maintenance["recommended_action"] = "full_scraping_needed"
-    
-    # Check last cleanup date
-    last_cleanup = get_last_cleanup_date()
-    if last_cleanup:
-        days_since_cleanup = (datetime.now() - last_cleanup).days
-        if days_since_cleanup > 14:
-            urgent_maintenance["needed"] = True
-            urgent_maintenance["reasons"].append(f"No cleanup for {days_since_cleanup} days")
-            urgent_maintenance["recommended_action"] = "scheduled_cleanup"
-    
-    return urgent_maintenance
+# Removed complex check_maintenance_needed function - now using simple auto_database_maintenance
 
 def main():
-    """Enhanced main execution function with database maintenance"""
-    logging.info("🚀 Starting data enrichment process with database maintenance")
+    """Simplified main execution function with basic database maintenance"""
+    logging.info("🚀 Starting data enrichment process")
     
     # Check database connection
     if not os.path.exists(DB_NAME):
@@ -1003,24 +916,10 @@ def main():
     # Initialize freshness tracking
     init_database_with_freshness_tracking()
     
-    # Check if urgent maintenance is needed
-    urgent_check = check_maintenance_needed()
-    if urgent_check["needed"]:
-        logging.warning(f"🚨 Urgent maintenance needed: {', '.join(urgent_check['reasons'])}")
-        logging.info(f"📋 Recommended action: {urgent_check['recommended_action']}")
-        
-        # Perform urgent maintenance
-        if urgent_check["recommended_action"] == "immediate_cleanup":
-            smart_database_refresh("aggressive", force_full_refresh=True)
-        elif urgent_check["recommended_action"] == "aggressive_cleanup":
-            smart_database_refresh("aggressive")
-        else:
-            auto_database_maintenance("smart")
-    else:
-        # Run normal maintenance
-        maintenance_result = auto_database_maintenance(cleanup_strategy="smart")
-        if maintenance_result["maintenance_needed"]:
-            logging.info("🔧 Database maintenance was performed before enrichment")
+    # Run simple maintenance
+    maintenance_result = auto_database_maintenance()
+    if maintenance_result["maintenance_needed"]:
+        logging.info("🔧 Database maintenance was performed before enrichment")
     
     # Verify API key is loaded
     logging.info(f"API key loaded: {'Yes' if TOGETHER_API_KEY else 'No'}")
@@ -1144,19 +1043,293 @@ def main():
     
     logging.info("✅ Data enrichment process completed with freshness management")
 
-if __name__ == "__main__":
-    # Optional: Start maintenance scheduler for long-running processes
-    import sys
-    if "--schedule" in sys.argv:
-        schedule_maintenance_jobs()
-        run_maintenance_scheduler()
-        logging.info("🔄 Running with automatic maintenance scheduling")
+# Integration functions for main_app.py and admin_app.py
+
+def run_data_enrichment_for_app(app_context="manual", batch_size=10, max_batches=5):
+    """
+    Run data enrichment optimized for app integration.
+    
+    Args:
+        app_context: "manual" for admin app, "auto" for main app
+        batch_size: Number of records to process in each batch
+        max_batches: Maximum number of batches to run
+    
+    Returns:
+        dict: Results summary with success status and stats
+    """
+    try:
+        logging.info(f"🚀 Starting data enrichment from {app_context} context")
         
-        # Keep the script running for scheduled tasks
-        try:
-            while True:
-                time.sleep(3600)  # Sleep for 1 hour between checks
-        except KeyboardInterrupt:
-            logging.info("🛑 Maintenance scheduler stopped")
-    else:
-        main()
+        # Check database exists
+        if not os.path.exists(DB_NAME):
+            return {
+                "success": False,
+                "error": f"Database {DB_NAME} not found. Run the scraper first.",
+                "stats": None
+            }
+        
+        # Initialize freshness tracking
+        init_database_with_freshness_tracking()
+        
+        # Get initial stats
+        initial_stats = get_database_stats()
+        if not initial_stats:
+            return {
+                "success": False,
+                "error": "Could not get database statistics",
+                "stats": None
+            }
+        
+        # Check if enrichment is needed
+        missing_total = (initial_stats['missing_company'] + 
+                        initial_stats['missing_industry'] + 
+                        initial_stats['missing_description'])
+        
+        if missing_total == 0:
+            logging.info("✅ No missing data found. Nothing to enrich.")
+            return {
+                "success": True,
+                "message": "No enrichment needed - all data is complete",
+                "stats": {
+                    "initial": initial_stats,
+                    "final": initial_stats,
+                    "improvements": {"company": 0, "industry": 0, "description": 0}
+                }
+            }
+        
+        # Test LLM functionality first
+        if not test_llm_functionality():
+            return {
+                "success": False,
+                "error": "LLM test failed. Check API key and connection.",
+                "stats": {"initial": initial_stats}
+            }
+        
+        # Run enrichment batches
+        batch_count = 0
+        wait_time = 2 if app_context == "auto" else 3
+        
+        logging.info(f"🔄 Running enrichment with {batch_size} records per batch, max {max_batches} batches")
+        
+        while batch_count < max_batches:
+            batch_count += 1
+            logging.info(f"📊 Processing batch {batch_count}/{max_batches}")
+            
+            try:
+                result = batch_enrichment(batch_size=batch_size)
+                
+                if not result:
+                    logging.info(f"⚠️ Batch {batch_count} completed with no updates")
+                
+                # Check remaining work
+                current_stats = get_database_stats()
+                if current_stats:
+                    remaining_work = (current_stats['missing_company'] + 
+                                    current_stats['missing_industry'] + 
+                                    current_stats['missing_description'])
+                    
+                    if remaining_work == 0:
+                        logging.info("🎉 All missing data has been enriched!")
+                        break
+                
+            except Exception as e:
+                msg = str(e)
+                if is_rate_limit_error(msg):
+                    if app_context == "auto":
+                        logging.warning(f"⏰ Rate limit hit - stopping for auto context")
+                        break
+                    else:
+                        logging.warning(f"⏰ Rate limit hit. Waiting {wait_time} seconds...")
+                        import time
+                        time.sleep(wait_time)
+                        wait_time = min(wait_time * 2, 30)
+                        batch_count -= 1  # retry this batch
+                        continue
+                else:
+                    logging.error(f"❌ Batch {batch_count} failed: {e}")
+                    if app_context == "auto":
+                        break  # Don't continue on error in auto mode
+            
+            # Brief wait between batches
+            if batch_count < max_batches:
+                import time
+                time.sleep(wait_time)
+        
+        # Get final stats
+        final_stats = get_database_stats()
+        
+        if final_stats:
+            # Calculate improvements
+            company_improved = initial_stats['missing_company'] - final_stats['missing_company']
+            industry_improved = initial_stats['missing_industry'] - final_stats['missing_industry']
+            description_improved = initial_stats['missing_description'] - final_stats['missing_description']
+            
+            total_improved = company_improved + industry_improved + description_improved
+            
+            logging.info(f"✅ Enrichment completed - {total_improved} fields enriched")
+            
+            return {
+                "success": True,
+                "message": f"Enrichment completed successfully - {total_improved} fields enriched",
+                "stats": {
+                    "initial": initial_stats,
+                    "final": final_stats,
+                    "improvements": {
+                        "company": company_improved,
+                        "industry": industry_improved,
+                        "description": description_improved,
+                        "total": total_improved
+                    }
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Could not get final statistics",
+                "stats": {"initial": initial_stats}
+            }
+            
+    except Exception as e:
+        logging.error(f"❌ Data enrichment error: {e}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "error": str(e),
+            "stats": None
+        }
+
+def get_enrichment_status():
+    """
+    Get current enrichment status for UI display.
+    
+    Returns:
+        dict: Current enrichment status and statistics
+    """
+    try:
+        if not os.path.exists(DB_NAME):
+            return {
+                "database_exists": False,
+                "error": "Database not found"
+            }
+        
+        stats = get_database_stats()
+        health = get_database_health_report()
+        
+        if not stats:
+            return {
+                "database_exists": True,
+                "error": "Could not retrieve statistics"
+            }
+        
+        missing_total = (stats['missing_company'] + 
+                        stats['missing_industry'] + 
+                        stats['missing_description'])
+        
+        return {
+            "database_exists": True,
+            "total_records": stats['total_records'],
+            "missing_data": {
+                "company": stats['missing_company'],
+                "industry": stats['missing_industry'],
+                "description": stats['missing_description'],
+                "total": missing_total
+            },
+            "enrichment_percentage": stats['enrichment_percentage'],
+            "freshness_ratio": health['freshness_ratio'],
+            "recent_jobs_7_days": stats['recent_jobs_7_days'],
+            "needs_enrichment": missing_total > 0,
+            "api_key_configured": bool(TOGETHER_API_KEY),
+            "recommendations": health.get('recommendations', [])
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting enrichment status: {e}")
+        return {
+            "database_exists": True,
+            "error": str(e)
+        }
+
+def quick_maintenance_check():
+    """
+    Quick check if database maintenance is needed.
+    
+    Returns:
+        dict: Maintenance status and recommendations
+    """
+    try:
+        if not os.path.exists(DB_NAME):
+            return {"needed": False, "reason": "Database not found"}
+        
+        # Get database stats and health report
+        stats = get_database_stats()
+        if not stats:
+            return {"needed": False, "reason": "Could not get database stats"}
+            
+        health_report = get_database_health_report()
+        freshness_ratio = health_report.get("freshness_ratio", 0.0)
+        
+        # Simple criteria for maintenance need
+        needs_maintenance = (
+            stats["total_records"] == 0 or
+            stats["enrichment_percentage"] < 80.0 or
+            freshness_ratio < 0.8
+        )
+        
+        reasons = []
+        if stats["total_records"] == 0:
+            reasons.append("Database is empty")
+        if stats["enrichment_percentage"] < 80.0:
+            reasons.append(f"Low enrichment: {stats['enrichment_percentage']}%")
+        if freshness_ratio < 0.8:
+            reasons.append(f"Low freshness: {freshness_ratio}")
+        
+        return {
+            "needed": needs_maintenance,
+            "reasons": reasons if needs_maintenance else [],
+            "recommended_action": "run simple_database_cleanup" if needs_maintenance else "none",
+            "health_score": freshness_ratio,
+            "total_records": stats["total_records"],
+            "enrichment_percentage": stats["enrichment_percentage"]
+        }
+        
+    except Exception as e:
+        logging.error(f"Error checking maintenance: {e}")
+        return {"needed": False, "error": str(e)}
+
+def run_quick_maintenance():
+    """
+    Run quick maintenance suitable for app context.
+    
+    Returns:
+        dict: Maintenance results
+    """
+    try:
+        logging.info("🔧 Running quick maintenance...")
+        
+        # Run simple maintenance
+        result = auto_database_maintenance()
+        
+        return {
+            "success": True,
+            "maintenance_performed": result["maintenance_needed"],
+            "records_cleaned": result.get("records_cleaned", 0),
+            "message": "Quick maintenance completed"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error running maintenance: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+# Export key functions for app integration
+__all__ = [
+    'run_data_enrichment_for_app',
+    'get_enrichment_status', 
+    'quick_maintenance_check',
+    'run_quick_maintenance',
+    'get_database_stats',
+    'get_database_health_report'
+]

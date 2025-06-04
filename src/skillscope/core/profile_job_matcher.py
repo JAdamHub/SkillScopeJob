@@ -12,7 +12,7 @@ from sqlalchemy import or_, and_, desc, func as sql_func, cast, String as SQLStr
 from sqlalchemy.orm import Session
 # Assuming JobPosting, UserProfile, etc. are defined in database_models
 # and SessionLocal is your session factory
-from database_models import (
+from skillscope.models.database_models import (
     JobPosting, UserProfile, SessionLocal, Base, engine,
     UserProfileTargetRole, UserProfileKeyword, UserProfileSkill,
     UserProfileLanguage, UserProfileJobType, UserProfileLocation,
@@ -22,7 +22,7 @@ from database_models import (
 # from indeed_scraper import scrape_indeed_jobs_with_profile, init_database, DB_NAME, TABLE_NAME
 # Keep DB_NAME and TABLE_NAME for now if some parts still need direct SQLite access,
 # but aim to phase them out for JobPosting queries.
-from indeed_scraper import scrape_indeed_jobs_with_profile, DB_NAME, TABLE_NAME
+from skillscope.scrapers.indeed_scraper import scrape_indeed_jobs_with_profile, DB_NAME, TABLE_NAME
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -33,16 +33,14 @@ class ProfileJobMatcher:
     Integrates user profile data with job scraping to find relevant positions
     """
     
-    def __init__(self, max_job_age_days: int = 30, cleanup_strategy: str = "smart"):
+    def __init__(self, max_job_age_days: int = 30):
         """
         Initialize matcher with database freshness configuration
         
         Args:
             max_job_age_days: Maximum age for jobs before they're considered stale (default: 30 days)
-            cleanup_strategy: "aggressive" (daily clean), "smart" (selective refresh), or "conservative" (weekly)
         """
         self.max_job_age_days = max_job_age_days
-        self.cleanup_strategy = cleanup_strategy
         
         # Job freshness thresholds
         self.freshness_thresholds = {
@@ -303,7 +301,7 @@ class ProfileJobMatcher:
             logger.info("Starting LIVE job scraping as primary source...")
             
             # Import here to avoid circular imports
-            from indeed_scraper import scrape_indeed_jobs_with_profile
+            from skillscope.scrapers.indeed_scraper import scrape_indeed_jobs_with_profile
             
             # Extract the correct parameters for the scraping function
             search_params = self.extract_search_parameters(profile_data)
