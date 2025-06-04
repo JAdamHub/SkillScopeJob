@@ -174,6 +174,30 @@ def create_enhanced_data_flow():
         dot.edge(source, target, label=label)
     
     return dot
+
+def create_enhanced_data_flow():
+    """Create an enhanced data flow diagram with detailed step descriptions"""
+    
+    dot = Digraph(comment='SkillScopeJob - Enhanced Data Flow')
+    dot.attr(rankdir='LR', size='16,10', dpi='300')
+    dot.attr('node', shape='box', style='rounded,filled', fontsize='12', width='2.5', height='1.5')
+    dot.attr('edge', fontsize='10', penwidth='2')
+    
+    # Enhanced step definitions with detailed descriptions
+    steps = [
+        ('upload', 'Upload CV', '#E3F2FD'),
+        ('extract', 'Extract Data', '#F3E5F5'),
+        ('search', 'Search Jobs', '#E8F5E8'),
+        ('enrich', 'Enrich Data', '#FFF3E0'),
+        ('evaluate', 'Evaluate Match', '#FFEBEE'),
+        ('rank', 'Rank Results', '#F1F8E9'),
+        ('display', 'Display Results', '#E0F2F1')
+    ]
+    
+    # Enhanced labels with more detail
+    enhanced_labels = {
+        'upload': '1. Upload CV\n(PDF/DOCX Input)',
+        'extract': '2. AI Extract\n(Skills & Experience)',
         'search': '3. Search Jobs\n(Scrape & Store)',
         'enrich': '4. AI Enhance\n(Company Info)',
         'evaluate': '5. AI Evaluate\n(Match Analysis)',
@@ -632,9 +656,9 @@ def create_file_based_architecture():
     # Admin Utilities Layer
     with dot.subgraph(name='cluster_admin') as c:
         c.attr(label='🔧 Administrative Utilities', style='rounded', color=ADMIN_COLOR, fontcolor=ADMIN_COLOR)
-        c.node('debug_database_py', 'admin_utils/debug_database.py\n\n• Database Debugging & Inspection Tools\n• Data Verification & Cleanup Utilities',
+        c.node('debug_database_py', 'admin/debug_database.py\n\n• Database Debugging & Inspection Tools\n• Data Verification & Cleanup Utilities',
                fillcolor=ADMIN_COLOR + '30', color=ADMIN_COLOR)
-        c.node('admin_streamlit_app_py', 'admin_utils/streamlit_app.py\n\n• Administrative Web Interface\n• Database Management Tools',
+        c.node('admin_app_py', 'src/skillscope/ui/admin_app.py\n\n• Administrative Web Interface\n• Job Scraping Dashboard\n• Data Enrichment Control\n• Database Management Tools',
                fillcolor=ADMIN_COLOR + '30', color=ADMIN_COLOR)
 
     # Configuration & Data Files
@@ -694,7 +718,9 @@ def create_file_based_architecture():
 
     # Admin Utilities Access
     dot.edge('debug_database_py', 'indeed_jobs_db', label='direct database inspection', style='dashed', color=ADMIN_COLOR)
-    dot.edge('admin_streamlit_app_py', 'database_models_py', label='admin interface to data models', style='dashed', color=ADMIN_COLOR)
+    dot.edge('admin_app_py', 'database_models_py', label='admin interface to data models', style='dashed', color=ADMIN_COLOR)
+    dot.edge('admin_app_py', 'indeed_scraper_py', label='scraping control', style='bold', color=ADMIN_COLOR)
+    dot.edge('admin_app_py', 'data_enrichment_py', label='enrichment monitoring', style='bold', color=ADMIN_COLOR)
     
     return dot
 
@@ -1047,10 +1073,96 @@ def create_comprehensive_system_overview():
     
     return dot
 
-def main():
-    """Generate the two specific architecture diagrams"""
+def create_dual_interface_diagram():
+    """Create a diagram showing main_app.py and admin_app.py interfaces"""
     
-    print("🏗️ Creating Architecture Diagrams...")
+    dot = Digraph(comment='SkillScopeJob - Dual Interface Architecture')
+    dot.attr(rankdir='TB', size='14,10', dpi='200')
+    dot.attr('node', shape='box', style='rounded,filled', fontsize='10')
+    dot.attr('edge', fontsize='9', penwidth='2')
+    
+    # Color scheme
+    USER_APP_COLOR = '#1565C0'      # Blue for main app
+    ADMIN_APP_COLOR = '#C62828'     # Red for admin app  
+    SHARED_COLOR = '#2E7D32'        # Green for shared components
+    DATABASE_COLOR = '#7B1FA2'      # Purple for database
+    EXTERNAL_COLOR = '#F57C00'      # Orange for external services
+    
+    # User Interface Layer
+    with dot.subgraph(name='cluster_interfaces') as c:
+        c.attr(label='User Interfaces', style='rounded', color='#424242')
+        
+        c.node('main_app', 'main_app.py\n\n👥 End User Interface\n• CV Upload & Profile Creation\n• Job Search & Matching\n• Results Display & Insights\n• CV-Job Evaluation', 
+               fillcolor='#E3F2FD', color=USER_APP_COLOR, penwidth='2')
+        
+        c.node('admin_app', 'admin_app.py\n\n⚙️ Administrative Interface\n• Database Management\n• Job Scraping Control\n• Data Enrichment Monitoring\n• System Health & Maintenance', 
+               fillcolor='#FFEBEE', color=ADMIN_APP_COLOR, penwidth='2')
+    
+    # Shared Core Services
+    with dot.subgraph(name='cluster_core') as c:
+        c.attr(label='Shared Core Services', style='rounded', color=SHARED_COLOR)
+        
+        c.node('cv_extraction', 'CV Processing\n(cv_extraction.py)\n\n• PDF/DOCX parsing\n• AI-powered data extraction', 
+               fillcolor='#E8F5E8', color=SHARED_COLOR)
+        
+        c.node('job_scraper', 'Job Scraping\n(indeed_scraper.py)\n\n• Indeed API integration\n• Job data collection', 
+               fillcolor='#E8F5E8', color=SHARED_COLOR)
+        
+        c.node('profile_matcher', 'Profile Matching\n(profile_job_matcher.py)\n\n• User profile management\n• Job-profile matching', 
+               fillcolor='#E8F5E8', color=SHARED_COLOR)
+        
+        c.node('data_enrichment', 'Data Enrichment\n(data_enrichment.py)\n\n• AI-powered enhancement\n• Company information', 
+               fillcolor='#E8F5E8', color=SHARED_COLOR)
+        
+        c.node('cv_evaluator', 'CV Evaluation\n(cv_job_evaluator.py)\n\n• AI-driven analysis\n• Match scoring', 
+               fillcolor='#E8F5E8', color=SHARED_COLOR)
+    
+    # Database Layer
+    dot.node('database', 'SQLite Database\n(indeed_jobs.db)\n\n• Job postings storage\n• User profiles\n• Evaluation results', 
+             fillcolor='#F3E5F5', color=DATABASE_COLOR, penwidth='2')
+    
+    # External Services
+    with dot.subgraph(name='cluster_external') as c:
+        c.attr(label='External Services', style='rounded', color=EXTERNAL_COLOR)
+        
+        c.node('indeed_api', 'Indeed Jobs\n\n• Job listings\n• Company data', 
+               fillcolor='#FFF3E0', color=EXTERNAL_COLOR, shape='ellipse')
+        
+        c.node('together_ai', 'Together AI\n\n• LLM processing\n• Text analysis', 
+               fillcolor='#FFF3E0', color=EXTERNAL_COLOR, shape='ellipse')
+    
+    # Main App connections
+    dot.edge('main_app', 'cv_extraction', label='CV upload', color=USER_APP_COLOR)
+    dot.edge('main_app', 'profile_matcher', label='profile search', color=USER_APP_COLOR)
+    dot.edge('main_app', 'cv_evaluator', label='evaluation request', color=USER_APP_COLOR)
+    
+    # Admin App connections
+    dot.edge('admin_app', 'job_scraper', label='scraping control', color=ADMIN_APP_COLOR, style='bold')
+    dot.edge('admin_app', 'data_enrichment', label='enrichment monitoring', color=ADMIN_APP_COLOR, style='bold')
+    dot.edge('admin_app', 'database', label='direct DB access', color=ADMIN_APP_COLOR, style='bold')
+    
+    # Shared service connections
+    dot.edge('job_scraper', 'indeed_api', label='API calls', color=EXTERNAL_COLOR, style='dashed')
+    dot.edge('cv_extraction', 'together_ai', label='AI processing', color=EXTERNAL_COLOR, style='dashed')
+    dot.edge('data_enrichment', 'together_ai', label='AI enhancement', color=EXTERNAL_COLOR, style='dashed')
+    dot.edge('cv_evaluator', 'together_ai', label='AI evaluation', color=EXTERNAL_COLOR, style='dashed')
+    
+    # Database connections
+    dot.edge('job_scraper', 'database', label='store jobs', color=DATABASE_COLOR)
+    dot.edge('profile_matcher', 'database', label='query/store', color=DATABASE_COLOR)
+    dot.edge('data_enrichment', 'database', label='update data', color=DATABASE_COLOR)
+    dot.edge('cv_evaluator', 'database', label='store results', color=DATABASE_COLOR)
+    
+    # Results flow
+    dot.edge('profile_matcher', 'main_app', label='job matches', color=USER_APP_COLOR)
+    dot.edge('cv_evaluator', 'main_app', label='evaluation results', color=USER_APP_COLOR)
+    
+    return dot
+
+def main():
+    """Generate all architecture diagrams for comprehensive documentation"""
+    
+    print("🏗️ Creating Complete Architecture Documentation...")
     
     # Check Graphviz availability first
     has_graphviz = check_graphviz_installation()
@@ -1060,25 +1172,63 @@ def main():
     # Get assets/images path for reporting
     assets_images = get_assets_images_path()
     
-    # 1. Component Interaction (matches your first attachment)
+    # Core diagrams (already implemented)
+    print("\n1. 📊 Core Architecture Diagrams")
     components = create_component_interaction()
     safe_render(components, 'skillscope_component_interaction', 'png')
     
-    # 2. Layered Architecture (matches your second attachment)
     layered = create_layered_architecture()
     safe_render(layered, 'skillscope_layered_architecture', 'png')
     
-    print("\n📊 Architecture diagrams processed!")
+    # New dual interface diagram
+    print("\n2. 🎛️ Dual Interface Diagram")
+    dual_interface = create_dual_interface_diagram()
+    safe_render(dual_interface, 'skillscope_dual_interface', 'png')
+    
+    # Additional architectural views
+    print("\n3. 📈 Additional Architecture Views")
+    
+    # Data flow diagram
+    data_flow = create_enhanced_data_flow()
+    safe_render(data_flow, 'skillscope_data_flow', 'png')
+    
+    # File-based architecture
+    file_arch = create_file_based_architecture()
+    safe_render(file_arch, 'skillscope_file_architecture', 'png')
+    
+    # Technology stack
+    tech_stack = create_technology_stack()
+    safe_render(tech_stack, 'skillscope_technology_stack', 'png')
+    
+    # Module dependencies
+    dependencies = create_module_dependency_diagram()
+    safe_render(dependencies, 'skillscope_module_dependencies', 'png')
+    
+    # User journey flow
+    user_journey = create_user_journey_flow()
+    safe_render(user_journey, 'skillscope_user_journey', 'png')
+    
+    # Comprehensive system overview
+    system_overview = create_comprehensive_system_overview()
+    safe_render(system_overview, 'skillscope_system_overview', 'png')
+    
+    print("\n📊 Architecture documentation completed!")
     
     if has_graphviz:
-        print(f"\nDiagrams created in {assets_images}:")
+        print(f"\n✅ All diagrams generated in {assets_images}:")
         print("  1. skillscope_component_interaction.png")
         print("  2. skillscope_layered_architecture.png")
+        print("  3. skillscope_dual_interface.png (NEW)")
+        print("  4. skillscope_data_flow.png")
+        print("  5. skillscope_file_architecture.png")
+        print("  6. skillscope_technology_stack.png")
+        print("  7. skillscope_module_dependencies.png")
+        print("  8. skillscope_user_journey.png")
+        print("  9. skillscope_system_overview.png")
     else:
-        print(f"\nDOT files created in {assets_images} (install Graphviz for PNG generation):")
-        print("  1. skillscope_component_interaction.dot")
-        print("  2. skillscope_layered_architecture.dot")
-        print("\n🌐 View these files online at: https://dreampuf.github.io/GraphvizOnline/")
+        print(f"\n💾 All DOT files generated in {assets_images}:")
+        print("     Install Graphviz to generate PNG files automatically")
+        print("\n🌐 View DOT files online at: https://dreampuf.github.io/GraphvizOnline/")
 
 if __name__ == "__main__":
     main()
