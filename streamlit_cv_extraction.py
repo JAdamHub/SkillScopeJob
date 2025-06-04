@@ -313,6 +313,7 @@ def run_app():
                 # Clear all session state
                 st.session_state.education_entries = []
                 st.session_state.experience_entries = []
+                st.session_state.job_title_keywords = []
                 if 'cv_suggestions' in st.session_state:
                     del st.session_state.cv_suggestions
                 st.success("🗑️ All fields have been cleared!")
@@ -958,11 +959,19 @@ def run_app():
                         # Apply sorting (no filtering by relevance score)
                         filtered_matches = matches  # Show all matches, no filtering
                         
-                        # Apply sorting
+                        # Apply sorting with null-safe handling
                         if sort_by == "Date (newest first)":
-                            filtered_matches = sorted(filtered_matches, key=lambda x: x.get('scraped_timestamp', ''), reverse=True)
+                            # Null-safe sorting: put None values at the end, handle empty strings
+                            def safe_date_key(job):
+                                timestamp = job.get('scraped_timestamp') or job.get('date_posted')
+                                if timestamp is None or timestamp == '':
+                                    return '1900-01-01'  # Very old date to put at end when reverse=True
+                                return str(timestamp)
+                            
+                            filtered_matches = sorted(filtered_matches, key=safe_date_key, reverse=True)
                         elif sort_by == "Company name":
-                            filtered_matches = sorted(filtered_matches, key=lambda x: x.get('company', '').lower())
+                            # Null-safe sorting for company names
+                            filtered_matches = sorted(filtered_matches, key=lambda x: (x.get('company') or '').lower())
                         
                         display_count = len(filtered_matches) if show_all else min(15, len(filtered_matches))
                         
