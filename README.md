@@ -60,7 +60,7 @@ SkillScopeJob/
 │       │   ├── cv_extraction.py      # LLM-based CV parsing engine
 │       │   ├── cv_job_evaluator.py   # AI-powered CV evaluation system
 │       │   ├── profile_job_matcher.py # Job matching and search logic
-│       │   └── data_enrichment.py    # Data enrichment services
+│       │   └── data_enrichment.py    # Data enrichment services + cleans jobs that are 30+ days from database
 │       ├── models/                   # Database models and schemas
 │       │   └── database_models.py    # SQLAlchemy ORM models
 │       ├── scrapers/                 # Data collection modules
@@ -184,7 +184,7 @@ Access the admin panel at `http://localhost:8502`
 5. Export results for further analysis
 
 #### 3. CV-Job Evaluation
-1. Select jobs from your matches
+1. Select top 10-jobs from your matches
 2. Run comprehensive AI analysis
 3. Get detailed compatibility scores
 4. Review strengths, gaps, and recommendations
