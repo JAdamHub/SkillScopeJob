@@ -405,9 +405,6 @@ The application uses SQLAlchemy ORM with the following main models:
 
 ### Error Messages
 
-#### `'<' not supported between instances of 'NoneType' and 'NoneType'`
-This sorting error has been fixed in the latest version. Update to the latest code or apply the null-safe sorting patch.
-
 #### `ImportError: No module named 'together'`
 Install the Together AI SDK: `pip install together`
 
