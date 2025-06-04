@@ -398,11 +398,6 @@ The application uses SQLAlchemy ORM with the following main models:
 - Check if SQLite database file is not corrupted
 - Try reinitializing database with `init_database()`
 
-#### Performance Issues
-- Consider using smaller AI models for faster processing
-- Limit job search results to improve response times
-- Close other resource-intensive applications
-
 ### Error Messages
 
 #### `ImportError: No module named 'together'`
