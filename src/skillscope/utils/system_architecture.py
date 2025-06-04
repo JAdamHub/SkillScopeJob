@@ -174,6 +174,31 @@ def create_enhanced_data_flow():
         dot.edge(source, target, label=label)
     
     return dot
+        'search': '3. Search Jobs\n(Scrape & Store)',
+        'enrich': '4. AI Enhance\n(Company Info)',
+        'evaluate': '5. AI Evaluate\n(Match Analysis)',
+        'rank': '6. Intelligent Rank\n(Personalized)',
+        'display': '7. Show Results\n(Insights + Jobs)'
+    }
+    
+    for i, (node_id, _, color) in enumerate(steps):
+        label = enhanced_labels.get(node_id, f"{i+1}. {steps[i][1]}")
+        dot.node(node_id, label, fillcolor=color)
+    
+    # Connect sequentially with descriptive labels
+    connections = [
+        ('upload', 'extract', 'user data'),
+        ('extract', 'search', 'search criteria'),
+        ('search', 'enrich', 'raw jobs'),
+        ('enrich', 'evaluate', 'enriched data'),
+        ('evaluate', 'rank', 'match scores'),
+        ('rank', 'display', 'final results')
+    ]
+    
+    for source, target, label in connections:
+        dot.edge(source, target, label=label)
+    
+    return dot
 
 def create_ai_evaluation_detail():
     """Create detailed view of AI evaluation component"""
@@ -235,7 +260,7 @@ def create_layered_architecture():
     with dot.subgraph(name='cluster_presentation') as c:
         c.attr(label='Presentation Layer', style='rounded', color='#1976D2')
         c.attr('node', fillcolor=PRESENTATION_COLOR)
-        c.node('streamlit_ui', 'Streamlit UI (streamlit_cv_extraction.py)\\n\\n• User Interaction & Input\\n• CV Upload & Profile Forms\\n• Results & Insights Display')
+        c.node('streamlit_ui', 'Streamlit UI (main_app.py)\\n\\n• User Interaction & Input\\n• CV Upload & Profile Forms\\n• Results & Insights Display')
 
     # Application Service Layer
     with dot.subgraph(name='cluster_application_service') as c:
@@ -244,7 +269,7 @@ def create_layered_architecture():
         c.node('cv_extraction_service', 'CV Extraction Service (cv_extraction.py)\\n\\n• Orchestrates CV parsing via LLM')
         c.node('job_matching_service', 'Job Matching Service (profile_job_matcher.py)\\n\\n• Orchestrates profile-to-job matching\\n• Handles live scraping & DB fallback logic')
         c.node('cv_evaluation_service', 'CV Evaluation Service (cv_job_evaluator.py)\\n\\n• Orchestrates CV vs. job analysis via LLM')
-        c.node('data_enrichment_service', 'Data Enrichment Service (data_enrichment_crew.py)\\n\\n• Orchestrates job data enrichment via TogetherAI')
+        c.node('data_enrichment_service', 'Data Enrichment Service (data_enrichment.py)\\n\\n• Orchestrates job data enrichment via TogetherAI')
 
     # Core Domain / Business Logic Layer (Conceptual - logic is within services for this scale)
     # For a larger system, this might be more distinct.
@@ -255,7 +280,7 @@ def create_layered_architecture():
         c.attr('node', fillcolor=CORE_DOMAIN_COLOR)
         c.node('profile_management', 'User Profile Management\\n\\n(Logic in profile_job_matcher.py, database_models.py)\\n• Storing, Retrieving User Profiles')
         c.node('relevance_scoring', 'Relevance Scoring Logic\\n\\n(Logic in profile_job_matcher.py)\\n• Algorithm for job match scores')
-        c.node('job_data_handling', 'Job Data Handling\\n\\n(Logic in indeed_scraper.py, data_enrichment_crew.py)\\n• Cleaning, Normalizing Job Data')
+        c.node('job_data_handling', 'Job Data Handling\\n\\n(Logic in indeed_scraper.py, data_enrichment.py)\\n• Cleaning, Normalizing Job Data')
 
     # Data Access Layer
     with dot.subgraph(name='cluster_data_access') as c:
@@ -269,8 +294,8 @@ def create_layered_architecture():
         c.attr(label='External Integration Layer', style='rounded', color='#7B1FA2')
         c.attr('node', fillcolor=EXTERNAL_INTEGRATION_COLOR)
         c.node('indeed_integration', 'Indeed Integration (indeed_scraper.py via JobSpy)\\n\\n• Interface for scraping Indeed.com')
-        c.node('together_ai_integration', 'Together AI LLM Integration\\n\\n(cv_extraction.py, cv_job_evaluator.py, data_enrichment_crew.py)\\n• Interface for Llama 3.x models')
-        c.node('together_integration', 'TogetherAI Integration (data_enrichment_crew.py)\\n\\n• AI Agent framework for enrichment tasks')
+        c.node('together_ai_integration', 'Together AI LLM Integration\\n\\n(cv_extraction.py, cv_job_evaluator.py, data_enrichment.py)\\n• Interface for Llama 3.x models')
+        c.node('together_integration', 'TogetherAI Integration (data_enrichment.py)\\n\\n• AI Agent framework for enrichment tasks')
 
     # Layer connections (High-level)
     dot.edge('streamlit_ui', 'cv_extraction_service', label='CV data')
@@ -463,13 +488,13 @@ def create_component_interaction():
     JOB_SCRAPE_COLOR = '#F57C00' # Darker Orange - indeed_scraper
     JOB_MATCH_COLOR = '#E65100' # Darker Deep Orange - profile_job_matcher
     AI_EVAL_COLOR = '#C62828' # Darker Red - cv_job_evaluator
-    AI_ENRICH_COLOR = '#7B1FA2' # Darker Purple - data_enrichment_crew
+    AI_ENRICH_COLOR = '#7B1FA2' # Darker Purple - data_enrichment
     DB_MODEL_COLOR = '#00695C' # Darker Teal - database_models
     DB_FILE_COLOR = '#5D4037' # Darker Brown - indeed_jobs.db
     EXTERNAL_COLOR = '#37474F' # Darker Blue Grey - External Services
 
     # Core components with their primary Python file in parentheses - using lighter fill colors for better text readability
-    dot.node('streamlit_ui', 'User Interface (streamlit_cv_extraction.py)\n\n• Handles CV Upload & Profile Input\n• Initiates Searches & Evaluations\n• Displays Results & Insights', 
+    dot.node('streamlit_ui', 'User Interface (main_app.py)\n\n• Handles CV Upload & Profile Input\n• Initiates Searches & Evaluations\n• Displays Results & Insights', 
              fillcolor='#E3F2FD', color=UI_COLOR, penwidth='2')
     
     dot.node('cv_extractor', 'CV Extractor (cv_extraction.py)\n\n• Parses CV (PDF/DOCX)\n• Extracts Skills, Experience, Education via LLM\n• Suggests Profile Data', 
@@ -478,7 +503,7 @@ def create_component_interaction():
     dot.node('job_scraper_module', 'Job Scraper (indeed_scraper.py)\n\n• Scrapes Job Boards (e.g., Indeed via JobSpy)\n• Collects Raw Job Postings\n• Initial Storage/Update to DB (via ORM)', 
              fillcolor='#FFF3E0', color=JOB_SCRAPE_COLOR, penwidth='2')
     
-    dot.node('data_enricher', 'AI Data Enricher (data_enrichment_crew.py)\n\n• Enhances Job Data (Company Info, Industry) via TogetherAI & LLMs\n• Updates Job Postings in DB (Enrichment Status, Freshness)', 
+    dot.node('data_enricher', 'AI Data Enricher (data_enrichment.py)\n\n• Enhances Job Data (Company Info, Industry) via TogetherAI & LLMs\n• Updates Job Postings in DB (Enrichment Status, Freshness)', 
              fillcolor='#F3E5F5', color=AI_ENRICH_COLOR, penwidth='2')
     
     dot.node('profile_matcher', 'Profile Job Matcher (profile_job_matcher.py)\n\n• Matches User Profile to Jobs (Live & DB)\n• Calculates Relevance Scores (User Profile Match)\n• Interacts with DB via SQLAlchemy ORM', 
@@ -571,7 +596,7 @@ def create_file_based_architecture():
     # UI Layer
     with dot.subgraph(name='cluster_ui') as c:
         c.attr(label='🎨 User Interface & Entry Point', style='rounded', color=UI_COLOR, fontcolor=UI_COLOR)
-        c.node('streamlit_cv_extraction_py', 'streamlit_cv_extraction.py\n\n• Main Streamlit Application UI\n• User Profile Input & Management\n• CV Upload & AI-Powered Parsing\n• Job Search Trigger & Results Display\n• CV-Job Evaluation Interface', 
+        c.node('main_app_py', 'main_app.py\n\n• Main Streamlit Application UI\n• User Profile Input & Management\n• CV Upload & AI-Powered Parsing\n• Job Search Trigger & Results Display\n• CV-Job Evaluation Interface', 
                fillcolor=UI_COLOR + '30', color=UI_COLOR)
 
     # CV Processing & Extraction Layer
@@ -593,7 +618,7 @@ def create_file_based_architecture():
     # AI Data Enrichment Layer
     with dot.subgraph(name='cluster_enrich') as c:
         c.attr(label='🤖 AI Data Enrichment & Enhancement', style='rounded', color=AI_COLOR, fontcolor=AI_COLOR)
-        c.node('data_enrichment_crew_py', 'data_enrichment_crew.py\n\n• Uses TogetherAI Framework for Data Enhancement\n• Enriches Job Data (Company Info, Industry)\n• Updates Job Freshness & Enrichment Status\n• Manages Data Quality & Completeness',
+        c.node('data_enrichment_py', 'data_enrichment.py\n\n• Uses TogetherAI Framework for Data Enhancement\n• Enriches Job Data (Company Info, Industry)\n• Updates Job Freshness & Enrichment Status\n• Manages Data Quality & Completeness',
                fillcolor=AI_COLOR + '30', color=AI_COLOR)
 
     # Data Models & Database Layer
@@ -637,9 +662,9 @@ def create_file_based_architecture():
     # --- Core Application Flow Relationships ---
 
     # Main UI to Processing Modules
-    dot.edge('streamlit_cv_extraction_py', 'cv_extraction_py', label='triggers CV parsing', color=CV_PROCESSING_COLOR)
-    dot.edge('streamlit_cv_extraction_py', 'profile_job_matcher_py', label='triggers job search & profile storage', color=JOB_PROCESSING_COLOR)
-    dot.edge('streamlit_cv_extraction_py', 'cv_job_evaluator_py', label='triggers CV evaluation', color=JOB_PROCESSING_COLOR)
+    dot.edge('main_app_py', 'cv_extraction_py', label='triggers CV parsing', color=CV_PROCESSING_COLOR)
+    dot.edge('main_app_py', 'profile_job_matcher_py', label='triggers job search & profile storage', color=JOB_PROCESSING_COLOR)
+    dot.edge('main_app_py', 'cv_job_evaluator_py', label='triggers CV evaluation', color=JOB_PROCESSING_COLOR)
 
     # CV Processing Flows
     dot.edge('cv_extraction_py', 'together_ai_service', label='LLM API calls for CV parsing', style='dashed', color=AI_COLOR)
@@ -656,16 +681,16 @@ def create_file_based_architecture():
     dot.edge('cv_job_evaluator_py', 'together_ai_service', label='LLM API calls for evaluation', style='dashed', color=AI_COLOR)
 
     # Data Enrichment Flows
-    dot.edge('data_enrichment_crew_py', 'database_models_py', label='updates JobPosting enrichment data', color=DATA_MGMT_COLOR)
-    dot.edge('data_enrichment_crew_py', 'together_ai_service', label='LLM API calls for enrichment', style='dashed', color=AI_COLOR)
+    dot.edge('data_enrichment_py', 'database_models_py', label='updates JobPosting enrichment data', color=DATA_MGMT_COLOR)
+    dot.edge('data_enrichment_py', 'together_ai_service', label='LLM API calls for enrichment', style='dashed', color=AI_COLOR)
 
     # Database Core Connection
     dot.edge('database_models_py', 'indeed_jobs_db', label='SQLAlchemy ORM operations', color=DATABASE_FILE_COLOR)
     
     # Configuration & Reference Data Usage
-    dot.edge('streamlit_cv_extraction_py', 'skill_ontology_csv', label='loads skill references', style='dotted', color=CONFIG_COLOR)
-    dot.edge('streamlit_cv_extraction_py', 'roles_industries_ontology_csv', label='loads role references', style='dotted', color=CONFIG_COLOR)
-    dot.edge('streamlit_cv_extraction_py', 'user_profile_log_csv', label='logs user activities', style='dotted', color=CONFIG_COLOR)
+    dot.edge('main_app_py', 'skill_ontology_csv', label='loads skill references', style='dotted', color=CONFIG_COLOR)
+    dot.edge('main_app_py', 'roles_industries_ontology_csv', label='loads role references', style='dotted', color=CONFIG_COLOR)
+    dot.edge('main_app_py', 'user_profile_log_csv', label='logs user activities', style='dotted', color=CONFIG_COLOR)
 
     # Admin Utilities Access
     dot.edge('debug_database_py', 'indeed_jobs_db', label='direct database inspection', style='dashed', color=ADMIN_COLOR)
@@ -685,7 +710,7 @@ def create_module_dependency_diagram():
 
     # Python modules with their dependencies (actual filenames from the project)
     modules = {
-        'streamlit_cv_extraction.py': {
+        'main_app.py': {
             'imports': ['streamlit', 'cv_extraction.py', 'profile_job_matcher.py', 'cv_job_evaluator.py', 'os', 'uuid', 'csv', 'json', 'logging', 'datetime'],
             'color': '#4CAF50', # Green for UI
             'description': 'Main Streamlit Application UI\\n\\n• Handles user input (CV, profile)\\n• Triggers processing (CV parsing, job matching, evaluation)\\n• Displays results to the user'
@@ -721,8 +746,8 @@ def create_module_dependency_diagram():
             'description': 'Database Models & Schema\\n\\n• Defines SQLAlchemy ORM models (JobPosting, UserProfile, etc.)\\n• Manages table schemas, relationships, and DB engine setup (SessionLocal)'
         },
         # Removed config.py as it's not a central explicit module, .env is used for keys
-        # Removed ui_components.py as its logic is mostly within streamlit_cv_extraction.py for this project
-        # Removed main.py as streamlit_cv_extraction.py is the runnable UI
+        # Removed ui_components.py as its logic is mostly within main_app.py for this project
+        # Removed main.py as main_app.py is the runnable UI
     }
     
     # Add module nodes
@@ -765,12 +790,12 @@ def create_module_dependency_diagram():
 
     # Connect modules to their key external libraries
     module_to_external_deps = {
-        'streamlit_cv_extraction.py': ['streamlit'],
+        'main_app.py': ['streamlit'],
         'cv_extraction.py': ['together', 'PyPDF2', 'python-docx', 'dotenv'],
         'profile_job_matcher.py': ['sqlalchemy', 'jobspy', 'requests'], # jobspy for indeed_scraper call, requests if direct calls
         'indeed_scraper.py': ['jobspy', 'sqlalchemy', 'requests', 'beautifulsoup4'], # bs4 if jobspy allows passing parsed content or direct use
         'cv_job_evaluator.py': ['together', 'sqlalchemy', 'dotenv'],
-        'data_enrichment_crew.py': ['together', 'sqlalchemy', 'requests', 'dotenv'],
+        'data_enrichment.py': ['together', 'sqlalchemy', 'requests', 'dotenv'],
         'database_models.py': ['sqlalchemy'],
     }
 
@@ -797,7 +822,7 @@ def create_application_flow_with_files():
             'name': 'initialization',
             'label': '🚀 INITIALIZATION PHASE',
             'files': [
-                ('streamlit_start', 'streamlit_cv_extraction.py\nLaunches Streamlit app', '#E3F2FD'),
+                ('streamlit_start', 'main_app.py\nLaunches Streamlit app', '#E3F2FD'),
                 ('db_init', 'database_models.py\nInitializes SQLAlchemy models', '#F3E5F5'),
                 ('ontology_load', 'Load skill_ontology.csv &\nroles_industries_ontology.csv', '#ECEFF1')
             ]
@@ -833,7 +858,7 @@ def create_application_flow_with_files():
             'name': 'ai_enhancement',
             'label': '🤖 AI ENHANCEMENT PHASE',
             'files': [
-                ('ai_process', 'data_enrichment_crew.py\nEnhances job data via TogetherAI', '#F3E5F5'),
+                ('ai_process', 'data_enrichment.py\nEnhances job data via TogetherAI', '#F3E5F5'),
                 ('together_ai', 'Together AI LLM\nCompany & industry enrichment', '#E1F5FE'),
                 ('data_update', 'Updates job enrichment status\nin indeed_jobs.db', '#F3E5F5')
             ]
@@ -844,7 +869,7 @@ def create_application_flow_with_files():
             'files': [
                 ('job_match', 'profile_job_matcher.py\nMatches profile to jobs', '#E8F5E8'),
                 ('cv_evaluate', 'cv_job_evaluator.py\nEvaluates CV vs jobs via LLM', '#E1F5FE'),
-                ('final_results', 'streamlit_cv_extraction.py\nDisplays ranked results & insights', '#E8F5E8')
+                ('final_results', 'main_app.py\nDisplays ranked results & insights', '#E8F5E8')
             ]
         }
     ]
@@ -883,7 +908,7 @@ def create_repository_structure_view():
     dot.node('root', 'SkillScopeJob/\n📁 Root Directory', fillcolor='#FFF3E0')
     
     # Main application files (actual files from project)
-    dot.node('app_files', '📄 Core Application Files\n\n• streamlit_cv_extraction.py (Main UI)\n• cv_extraction.py (CV Processing)\n• profile_job_matcher.py (Job Matching)\n• cv_job_evaluator.py (AI Evaluation)\n• indeed_scraper.py (Job Scraping)\n• data_enrichment_crew.py (AI Enrichment)', 
+    dot.node('app_files', '📄 Core Application Files\n\n• main_app.py (Main UI)\n• cv_extraction.py (CV Processing)\n• profile_job_matcher.py (Job Matching)\n• cv_job_evaluator.py (AI Evaluation)\n• indeed_scraper.py (Job Scraping)\n• data_enrichment.py (AI Enrichment)', 
              fillcolor='#E3F2FD', shape='box')
     
     # Data and database files (actual files)
@@ -932,7 +957,7 @@ def create_comprehensive_system_overview():
         c.attr(label='🚀 MAIN APPLICATION (Python)', style='rounded', color='#1976D2')
         
         # Main Streamlit UI
-        c.node('streamlit_main', 'streamlit_cv_extraction.py\n\n• Main Streamlit UI & Entry Point\n• User interactions & file uploads\n• Results display & state management', 
+        c.node('streamlit_main', 'main_app.py\n\n• Main Streamlit UI & Entry Point\n• User interactions & file uploads\n• Results display & state management', 
                fillcolor='#E3F2FD')
         
         # CV Processing
@@ -952,7 +977,7 @@ def create_comprehensive_system_overview():
         c.node('cv_evaluator', 'cv_job_evaluator.py\n\n• AI-powered CV vs job analysis\n• Gap analysis & recommendations\n• Together AI LLM integration', 
                fillcolor='#F3E5F5')
         
-        c.node('data_enricher', 'data_enrichment_crew.py\n\n• TogetherAI framework integration\n• Job data enhancement\n• Company info enrichment', 
+        c.node('data_enricher', 'data_enrichment.py\n\n• TogetherAI framework integration\n• Job data enhancement\n• Company info enrichment', 
                fillcolor='#F3E5F5')
     
     # Data layer cluster (actual files)
