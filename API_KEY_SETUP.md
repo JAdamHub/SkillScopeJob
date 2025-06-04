@@ -96,18 +96,6 @@ This script will:
 - 📊 Show available models
 - 🎉 Confirm everything is working
 
-### Manual Testing
-
-You can also test manually with curl:
-
-```bash
-curl -X POST "https://api.together.xyz/v1/models" \
-  -H "Authorization: Bearer $TOGETHER_API_KEY" \
-  -H "Content-Type: application/json"
-```
-
-If successful, you'll see a JSON response with available models.
-
 ## Pricing and Limits
 
 ### Free Tier
