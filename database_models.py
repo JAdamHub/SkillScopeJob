@@ -2,11 +2,11 @@ import enum
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, UniqueConstraint, Index, Enum as SQLAlchemyEnum, or_, and_, desc, func as sql_func
 from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 from sqlalchemy.sql import func
-import json # For at håndtere de felter der evt. forbliver JSON
+import json # For handling fields that might remain JSON
 
 Base = declarative_base()
 
-# Enum for job status - eksempel, kan udvides
+# Enum for job status - example, can be extended
 class JobStatusEnum(enum.Enum):
     active = "active"
     expired = "expired"
@@ -19,12 +19,12 @@ class JobPosting(Base):
     title = Column(Text)
     company = Column(Text)
     company_url = Column(Text)
-    job_url = Column(Text, unique=True) # Job URL bør være unik
+    job_url = Column(Text, unique=True) # Job URL should be unique
     location = Column(Text)
     is_remote = Column(Boolean)
-    job_type = Column(Text) # Overvej Enum her også, hvis typerne er faste
+    job_type = Column(Text) # Consider Enum here too, if types are fixed
     description = Column(Text)
-    date_posted = Column(DateTime) # Brug DateTime for 'DATE' for konsistens
+    date_posted = Column(DateTime) # Use DateTime for 'DATE' for consistency
     company_industry = Column(Text)
     company_description = Column(Text)
     company_logo = Column(Text)
@@ -35,12 +35,12 @@ class JobPosting(Base):
     search_is_remote = Column(Boolean)
     job_status = Column(SQLAlchemyEnum(JobStatusEnum), default=JobStatusEnum.active)
     refresh_count = Column(Integer, default=1)
-    job_freshness = Column(Text) # Kan evt. beregnes eller være et Enum
-    enrichment_status = Column(Text) # Kan evt. være et Enum
+    job_freshness = Column(Text) # Can possibly be calculated or be an Enum
+    enrichment_status = Column(Text) # Can possibly be an Enum
     user_profile_match = Column(Float) # Match score
 
-    # Relationer (hvis relevant for job_postings direkte)
-    # F.eks. hvis en job_evaluation_detail linker direkte hertil
+    # Relations (if relevant for job_postings directly)
+    # E.g. if a job_evaluation_detail links directly here
     evaluation_details = relationship("JobEvaluationDetail", back_populates="job_posting")
 
     __table_args__ = (
@@ -56,16 +56,16 @@ class UserProfile(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_session_id = Column(String, unique=True, index=True, nullable=False)
     
-    # Udpakkede felter fra profile_data
+    # Unpacked fields from profile_data
     submission_timestamp = Column(DateTime)
-    user_id_input = Column(Text) # Hvis det er en separat ID fra session_id
+    user_id_input = Column(Text) # If it's a separate ID from session_id
     overall_field = Column(String)
     personal_description = Column(Text)
-    total_experience = Column(String) # F.eks. "3-5 years"
+    total_experience = Column(String) # E.g. "3-5 years"
     remote_openness = Column(String)
     analysis_preference = Column(String)
     
-    # For felter der var lister/JSON før, men nu er relationer:
+    # For fields that were lists/JSON before, but now are relations:
     target_roles = relationship("UserProfileTargetRole", back_populates="user_profile", cascade="all, delete-orphan")
     keywords = relationship("UserProfileKeyword", back_populates="user_profile", cascade="all, delete-orphan")
     skills = relationship("UserProfileSkill", back_populates="user_profile", cascade="all, delete-orphan")
@@ -78,14 +78,14 @@ class UserProfile(Base):
     
     cv_evaluations = relationship("CVJobEvaluation", back_populates="user_profile")
 
-    # Gamle profile_data - kan beholdes midlertidigt under migrering eller fjernes
+    # Old profile_data - can be kept temporarily during migration or removed
     # profile_data = Column(Text) 
     
     created_timestamp = Column(DateTime, default=func.now())
     last_search_timestamp = Column(DateTime, onupdate=func.now())
 
 
-# Mellemliggende tabeller for UserProfile many-to-many relationer
+# Intermediate tables for UserProfile many-to-many relations
 class UserProfileTargetRole(Base):
     __tablename__ = 'user_profile_target_roles'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -106,7 +106,7 @@ class UserProfileSkill(Base):
     __tablename__ = 'user_profile_skills'
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_profile_id = Column(Integer, ForeignKey('user_profiles.id'), nullable=False)
-    skill_name = Column(String, nullable=False) # Overvej en separat Skill-tabel hvis færdigheder har mere data
+    skill_name = Column(String, nullable=False) # Consider a separate Skill table if skills have more data
     user_profile = relationship("UserProfile", back_populates="skills")
     __table_args__ = (Index('idx_user_profile_skills_profile_id', 'user_profile_id'),)
 
@@ -136,12 +136,12 @@ class UserProfileLocation(Base):
 
 class UserEducation(Base):
     __tablename__ = 'user_education'
-    id = Column(Integer, primary_key=True, autoincrement=True) # Eller brug profile_id + en unik identifikator indenfor profilen
+    id = Column(Integer, primary_key=True, autoincrement=True) # Or use profile_id + a unique identifier within the profile
     user_profile_id = Column(Integer, ForeignKey('user_profiles.id'), nullable=False)
     degree = Column(String)
     field_of_study = Column(String)
     institution = Column(String)
-    graduation_year = Column(String) # Eller Integer, hvis formatet er konsistent
+    graduation_year = Column(String) # Or Integer, if format is consistent
     user_profile = relationship("UserProfile", back_populates="education_entries")
     __table_args__ = (Index('idx_user_education_profile_id', 'user_profile_id'),)
 
@@ -151,22 +151,22 @@ class UserExperience(Base):
     user_profile_id = Column(Integer, ForeignKey('user_profiles.id'), nullable=False)
     job_title = Column(String)
     company = Column(String)
-    years_in_role = Column(Float) # Eller String hvis der er "2.25 years" etc. Float er bedre for beregninger
+    years_in_role = Column(Float) # Or String if there are "2.25 years" etc. Float is better for calculations
     skills_responsibilities = Column(Text)
     user_profile = relationship("UserProfile", back_populates="experience_entries")
     __table_args__ = (Index('idx_user_experience_profile_id', 'user_profile_id'),)
 
 class CVJobEvaluation(Base):
-    __tablename__ = 'cv_job_evaluations' # Bekræft tabelnavn
+    __tablename__ = 'cv_job_evaluations' # Confirm table name
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_session_id = Column(String, ForeignKey('user_profiles.user_session_id'), index=True, nullable=False) # Link til user_profiles
+    user_session_id = Column(String, ForeignKey('user_profiles.user_session_id'), index=True, nullable=False) # Link to user_profiles
     evaluation_timestamp = Column(DateTime, default=func.now())
     jobs_evaluated = Column(Integer)
-    average_match_score = Column(Float) # Samlet gennemsnit
+    average_match_score = Column(Float) # Overall average
 
-    # For at gemme resten af summary-delen af JSON, hvis det er komplekst/variabelt
-    # summary_details_json = Column(Text) # Gemmer f.eks. score_distribution som JSON string
+    # For storing the rest of the summary part of JSON, if it's complex/variable
+    # summary_details_json = Column(Text) # Stores e.g. score_distribution as JSON string
 
     user_profile = relationship("UserProfile", back_populates="cv_evaluations")
     evaluation_details = relationship("JobEvaluationDetail", back_populates="cv_job_evaluation", cascade="all, delete-orphan")
@@ -175,14 +175,14 @@ class JobEvaluationDetail(Base):
     __tablename__ = 'job_evaluation_details'
     id = Column(Integer, primary_key=True, autoincrement=True)
     cv_job_evaluation_id = Column(Integer, ForeignKey('cv_job_evaluations.id'), nullable=False)
-    job_posting_id = Column(Integer, ForeignKey('job_postings.id'), nullable=True) # Kan være null hvis jobbet ikke findes/matches direkte
+    job_posting_id = Column(Integer, ForeignKey('job_postings.id'), nullable=True) # Can be null if job doesn't exist/match directly
 
-    # Felter fra "evaluations" array i JSON
-    job_number = Column(Integer) # Hvis det stadig er relevant
-    job_title_evaluated = Column(Text) # Titlen som den blev evalueret (kan afvige fra job_postings.title)
-    company_evaluated = Column(Text) # Ligeledes for company
+    # Fields from "evaluations" array in JSON
+    job_number = Column(Integer) # If still relevant
+    job_title_evaluated = Column(Text) # Title as it was evaluated (can differ from job_postings.title)
+    company_evaluated = Column(Text) # Likewise for company
 
-    match_score = Column(Float) # Den individuelle match score for dette job
+    match_score = Column(Float) # Individual match score for this job
     overall_fit = Column(String)
     seniority_match = Column(String)
     experience_gap = Column(Text)
@@ -193,7 +193,7 @@ class JobEvaluationDetail(Base):
     recommendations = Column(Text)
     likelihood = Column(String)
     
-    # Rå JSON for denne specifikke job-evaluering, hvis der er yderligere variable felter
+    # Raw JSON for this specific job evaluation, if there are additional variable fields
     # raw_evaluation_item_json = Column(Text)
 
     cv_job_evaluation = relationship("CVJobEvaluation", back_populates="evaluation_details")
@@ -204,10 +204,10 @@ class JobEvaluationDetail(Base):
         Index('idx_job_eval_details_job_id', 'job_posting_id'),
     )
 
-# Eksempel på engine setup (skal være i din database initialiseringsfil)
+# Example engine setup (should be in your database initialization file)
 # DATABASE_URL = "sqlite:///./indeed_jobs.db"
 # engine = create_engine(DATABASE_URL)
-# Base.metadata.create_all(engine) # Til at oprette tabellerne
+# Base.metadata.create_all(engine) # To create the tables
 
 DATABASE_URL = "sqlite:///./indeed_jobs.db"
 

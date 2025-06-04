@@ -122,3 +122,4 @@ yarl==1.20.0
 zstandard==0.23.0
 reportlab==4.4.1
 sqlalchemy==2.0.41
+graphviz==0.20.3
