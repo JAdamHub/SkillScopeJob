@@ -11,19 +11,8 @@ import sys
 import sqlite3
 from pathlib import Path
 
-# Add src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-try:
-    from skillscope.models.database_models import Base, engine, SessionLocal
-    from skillscope.scrapers.indeed_scraper import init_database
-except ImportError as e:
-    print(f"Error importing modules: {e}")
-    print("Make sure you're running this from the project root directory")
-    sys.exit(1)
-
 def ensure_directories():
-    """Ensure all necessary directories exist"""
+    """Ensure all necessary directories exist BEFORE importing modules"""
     directories = [
         'data/databases',
         'data/logs',
@@ -34,6 +23,20 @@ def ensure_directories():
     for directory in directories:
         Path(directory).mkdir(parents=True, exist_ok=True)
         print(f"✅ Directory ensured: {directory}")
+
+# Create directories FIRST, before any imports
+ensure_directories()
+
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+try:
+    from skillscope.models.database_models import Base, engine, SessionLocal
+    from skillscope.scrapers.indeed_scraper import init_database
+except ImportError as e:
+    print(f"Error importing modules: {e}")
+    print("Make sure you're running this from the project root directory")
+    sys.exit(1)
 
 def initialize_database():
     """Initialize the database with all tables"""
@@ -86,9 +89,6 @@ def main():
     """Main initialization function"""
     print("🎯 SkillScopeJob Database Initialization")
     print("=" * 50)
-    
-    # Ensure directories exist
-    ensure_directories()
     
     # Initialize database
     if not initialize_database():

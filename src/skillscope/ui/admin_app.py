@@ -54,7 +54,7 @@ def standardize_timestamps():
         cursor = conn.cursor()
         
         # Check for potential timestamp issues (ISO format with T and microseconds)
-        timestamp_columns = ['scraped_timestamp', 'last_seen_timestamp']
+        timestamp_columns = ['scraped_timestamp']  # Only use columns that actually exist
         
         for column in timestamp_columns:
             # Find records with problematic timestamp format
@@ -211,7 +211,7 @@ with tab1:
                         st.warning("ℹ️ Data enrichment module not available - only timestamp standardization performed")
         
         # Refresh data cache
-        if st.button("🔄 Refresh Data", help="Reload data from database"):
+        if st.button("🔄 Refresh Data", help="Reload data from database", key="refresh_data_actions"):
             st.cache_data.clear()
             st.success("✅ Data cache refreshed!")
             st.rerun()
@@ -314,7 +314,7 @@ with tab1:
         st.info("No job data available. Run the scraper to populate the database.")
         
         # Refresh data cache
-        if st.button("🔄 Refresh Data", help="Reload data from database"):
+        if st.button("🔄 Refresh Data", help="Reload data from database", key="refresh_data_empty"):
             st.cache_data.clear()
             st.success("✅ Data cache refreshed!")
             st.rerun()

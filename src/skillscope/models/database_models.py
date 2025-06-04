@@ -29,6 +29,7 @@ class JobPosting(Base):
     company_description = Column(Text)
     company_logo = Column(Text)
     scraped_timestamp = Column(DateTime, default=func.now())
+    last_seen_timestamp = Column(DateTime, default=func.now())
     search_term = Column(Text)
     search_location = Column(Text)
     search_job_type = Column(Text)
@@ -48,6 +49,7 @@ class JobPosting(Base):
         Index('idx_job_postings_company', 'company'),
         Index('idx_job_postings_location', 'location'),
         Index('idx_job_postings_scraped_timestamp', 'scraped_timestamp'),
+        Index('idx_job_postings_last_seen_timestamp', 'last_seen_timestamp'),
     )
 
 class UserProfile(Base):
