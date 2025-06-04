@@ -66,7 +66,6 @@ SkillScopeJob follows a layered architecture with clean separation of concerns:
 SkillScopeJob/
 ├── README.md                          # Project overview and setup instructions
 ├── requirements.txt                   # Python dependencies  
-├── setup.py                          # Package installation script
 ├── .env.example                       # Environment variables template
 │
 ├── src/                              # Main source code
@@ -99,7 +98,6 @@ SkillScopeJob/
 │   └── images/                      # Architecture diagrams
 │
 ├── scripts/                         # Automation and deployment
-│   ├── startup.sh                   # Application startup script
 │   └── setup_database.py           # Database initialization
 │
 ├── admin/                          # Administrative tools
