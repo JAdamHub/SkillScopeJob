@@ -1,6 +1,6 @@
 # 🎯 SkillScopeJob - AI-Powered Career Intelligence Platform
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.40+-red.svg)](https://streamlit.io)
 [![Together AI](https://img.shields.io/badge/Together%20AI-LLM-green.svg)](https://together.ai)
 [![SQLite](https://img.shields.io/badge/SQLite-Database-lightblue.svg)](https://sqlite.org)
