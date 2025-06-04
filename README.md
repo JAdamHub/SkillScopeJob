@@ -105,18 +105,7 @@ SkillScopeJob/
    cd SkillScopeJob
    ```
 
-2. **Run the automated setup**
-   ```bash
-   ./scripts/startup.sh
-   ```
-   
-   This will:
-   - Create a virtual environment
-   - Install dependencies
-   - Initialize the database
-   - Optionally start the applications
-
-3. **Manual setup (alternative)**
+2. **Setup**
    ```bash
    # Create virtual environment
    python3 -m venv venv
@@ -133,7 +122,7 @@ SkillScopeJob/
    python scripts/setup_database.py
    ```
 
-4. **Set up environment variables**
+3. **Set up environment variables**
    ```bash
    export TOGETHER_API_KEY="your_together_ai_api_key_here"
    ```
