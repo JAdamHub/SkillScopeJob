@@ -205,11 +205,11 @@ class JobEvaluationDetail(Base):
     )
 
 # Example engine setup (should be in your database initialization file)
-# DATABASE_URL = "sqlite:///./indeed_jobs.db"
+# DATABASE_URL = "sqlite:///./data/databases/indeed_jobs.db"
 # engine = create_engine(DATABASE_URL)
 # Base.metadata.create_all(engine) # To create the tables
 
-DATABASE_URL = "sqlite:///./indeed_jobs.db"
+DATABASE_URL = "sqlite:///./data/databases/indeed_jobs.db"
 
 engine = create_engine(
     DATABASE_URL, 

@@ -19,7 +19,7 @@ HOURS_OLD = 168  # 1 week - NOTE: this parameter may not be supported in current
 COUNTRY = "denmark"
 
 # database setup
-DB_NAME = 'indeed_jobs.db'
+DB_NAME = 'data/databases/indeed_jobs.db'
 TABLE_NAME = 'job_postings'
 
 # logging setup
@@ -27,7 +27,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('indeed_scraper.log'),
+        logging.FileHandler('data/logs/indeed_scraper.log'),
         logging.StreamHandler()
     ]
 )
@@ -118,28 +118,46 @@ def insert_job_records(records: List[dict]) -> int:
     cursor = conn.cursor()
     
     inserted_count = 0
+    updated_count = 0
+    current_timestamp = pd.Timestamp.now().isoformat()
     
     for record in records:
         try:
+            # First, try to insert the job record
             cursor.execute(f"""
             INSERT OR IGNORE INTO {TABLE_NAME} (
                 title, company, company_url, job_url, location,
                 is_remote, job_type, description, date_posted, company_industry,
-                company_description, company_logo, search_term, search_location
+                company_description, company_logo, search_term, search_location,
+                scraped_timestamp, last_seen_timestamp
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
             """, (
                 record['title'], record['company'], record['company_url'],
                 record['job_url'], record['location'], record['is_remote'], 
                 record['job_type'], record['description'], record['date_posted'],
                 record['company_industry'], record['company_description'], 
-                record['company_logo'], record['search_term'], record['search_location']
+                record['company_logo'], record['search_term'], record['search_location'],
+                current_timestamp, current_timestamp
             ))
             
             if cursor.rowcount > 0:
                 inserted_count += 1
-                logging.info(f"inserted: {record['title']} at {record['company']}")
+                logging.info(f"✅ inserted new job: {record['title']} at {record['company']}")
+            else:
+                # Job already exists, update last_seen_timestamp
+                cursor.execute(f"""
+                UPDATE {TABLE_NAME} 
+                SET last_seen_timestamp = ?, 
+                    refresh_count = refresh_count + 1,
+                    job_status = 'active'
+                WHERE job_url = ?
+                """, (current_timestamp, record['job_url']))
+                
+                if cursor.rowcount > 0:
+                    updated_count += 1
+                    logging.info(f"🔄 updated existing job: {record['title']} at {record['company']}")
             
         except sqlite3.Error as e:
             logging.error(f"database error inserting record: {e}")
@@ -149,6 +167,7 @@ def insert_job_records(records: List[dict]) -> int:
     conn.commit()
     conn.close()
     
+    logging.info(f"📊 Job insertion summary: {inserted_count} new jobs, {updated_count} existing jobs updated")
     return inserted_count
 
 def scrape_indeed_jobs(search_term: str, location: str) -> int:
@@ -425,14 +444,17 @@ def insert_job_records_enhanced(records: List[dict]) -> int:
     
     for record in records:
         try:
+            # Create a timestamp for both scraped_timestamp and last_seen_timestamp
+            current_timestamp = pd.Timestamp.now().isoformat()
+            
             cursor.execute(f"""
             INSERT OR IGNORE INTO {TABLE_NAME} (
                 title, company, company_url, job_url, location,
                 is_remote, job_type, description, date_posted, company_industry,
                 company_description, company_logo, search_term, search_location,
-                search_job_type, search_is_remote
+                search_job_type, search_is_remote, scraped_timestamp, last_seen_timestamp
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
             """, (
                 record['title'], record['company'], record['company_url'],
@@ -440,7 +462,8 @@ def insert_job_records_enhanced(records: List[dict]) -> int:
                 record['job_type'], record['description'], record['date_posted'],
                 record['company_industry'], record['company_description'], 
                 record['company_logo'], record['search_term'], record['search_location'],
-                record.get('search_job_type'), record.get('search_is_remote')
+                record.get('search_job_type'), record.get('search_is_remote'),
+                current_timestamp, current_timestamp
             ))
             
             if cursor.rowcount > 0:

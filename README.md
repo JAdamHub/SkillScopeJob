@@ -25,7 +25,8 @@
 - **CV-Job Compatibility Analysis**: Deep AI analysis of CV fit against specific job requirements
 - **Match Scoring**: Comprehensive scoring system with strengths, gaps, and recommendations
 - **Career Improvement Plans**: Personalized AI-generated development recommendations
-- **Data Enrichment**: Company and industry information enhancement via CrewAI
+- **Automated Data Enrichment**: Intelligent job enhancement with company insights, skill categorization, and industry analysis
+- **Smart Database Maintenance**: Automatic data freshness tracking and cleanup for optimal performance
 
 ### 🎨 Modern User Experience
 - **Interactive Streamlit Interface**: Beautiful, responsive web application
@@ -40,16 +41,19 @@ SkillScopeJob follows a layered architecture with clean separation of concerns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Presentation Layer                       │
-│  streamlit_cv_extraction.py │ admin_utils/streamlit_app.py  │
+│        src/skillscope/ui/main_app.py │ admin_app.py        │
 ├─────────────────────────────────────────────────────────────┤
 │                     Business Logic                          │
-│  profile_job_matcher.py │ cv_job_evaluator.py             │
+│   src/skillscope/core/profile_job_matcher.py │             │
+│                    cv_job_evaluator.py                      │
 ├─────────────────────────────────────────────────────────────┤
 │                     AI/ML Services                          │
-│  cv_extraction.py │ data_enrichment_crew.py               │
+│   src/skillscope/core/cv_extraction.py │                   │
+│                    data_enrichment.py                       │
 ├─────────────────────────────────────────────────────────────┤
 │                    Data Access Layer                        │
-│  database_models.py │ indeed_scraper.py                   │
+│  src/skillscope/models/database_models.py │                │
+│           scrapers/indeed_scraper.py                        │
 ├─────────────────────────────────────────────────────────────┤
 │                   External Services                         │
 │  Together AI │ Indeed.com │ CrewAI │ JobSpy                │
@@ -60,22 +64,46 @@ SkillScopeJob follows a layered architecture with clean separation of concerns:
 
 ```
 SkillScopeJob/
-├── streamlit_cv_extraction.py      # Main Streamlit application
-├── cv_extraction.py                # LLM-based CV parsing engine
-├── profile_job_matcher.py          # Job matching and search logic
-├── cv_job_evaluator.py             # AI-powered CV evaluation system
-├── indeed_scraper.py               # Job scraping with python-jobspy
-├── data_enrichment_crew.py         # Data enrichment using CrewAI
-├── database_models.py              # SQLAlchemy ORM models
-├── system_architecture.py          # Architecture visualization tools
-├── admin_utils/
-│   └── streamlit_app.py            # Admin dashboard for job management
-├── ontologies/
-│   ├── skill_ontology.csv          # Standardized skills database
-│   └── roles_industries_ontology.csv # Job roles and industries
-├── indeed_jobs.db                  # SQLite database
-├── requirements.txt                # Python dependencies
-└── README.md                       # This file
+├── README.md                          # Project overview and setup instructions
+├── requirements.txt                   # Python dependencies  
+├── setup.py                          # Package installation script
+├── .env.example                       # Environment variables template
+│
+├── src/                              # Main source code
+│   └── skillscope/                   # Main package
+│       ├── core/                     # Core business logic
+│       │   ├── cv_extraction.py      # LLM-based CV parsing engine
+│       │   ├── cv_job_evaluator.py   # AI-powered CV evaluation system
+│       │   ├── profile_job_matcher.py # Job matching and search logic
+│       │   └── data_enrichment.py    # Data enrichment services
+│       ├── models/                   # Database models and schemas
+│       │   └── database_models.py    # SQLAlchemy ORM models
+│       ├── scrapers/                 # Data collection modules
+│       │   └── indeed_scraper.py     # Job scraping with python-jobspy
+│       ├── ui/                       # User interface components
+│       │   ├── main_app.py           # Main Streamlit application
+│       │   └── admin_app.py          # Admin dashboard for job management
+│       └── utils/                    # Utility functions
+│           └── system_architecture.py # Architecture visualization tools
+│
+├── data/                             # Data files and databases
+│   ├── databases/
+│   │   └── indeed_jobs.db           # SQLite database
+│   ├── ontologies/
+│   │   ├── skill_ontology.csv       # Standardized skills database
+│   │   └── roles_industries_ontology.csv # Job roles and industries
+│   ├── logs/                        # Application logs
+│   └── cache/                       # Temporary cache files
+│
+├── assets/                          # Static assets
+│   └── images/                      # Architecture diagrams
+│
+├── scripts/                         # Automation and deployment
+│   ├── startup.sh                   # Application startup script
+│   └── setup_database.py           # Database initialization
+│
+├── admin/                          # Administrative tools
+└── docs/                          # Project documentation
 ```
 
 ## 🚀 Installation
@@ -93,12 +121,35 @@ SkillScopeJob/
    cd SkillScopeJob
    ```
 
-2. **Install dependencies**
+2. **Run the automated setup**
    ```bash
+   ./scripts/startup.sh
+   ```
+   
+   This will:
+   - Create a virtual environment
+   - Install dependencies
+   - Initialize the database
+   - Optionally start the applications
+
+3. **Manual setup (alternative)**
+   ```bash
+   # Create virtual environment
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   
+   # Install dependencies
    pip install -r requirements.txt
+   
+   # Set up environment variables
+   cp .env.example .env
+   # Edit .env with your API keys
+   
+   # Initialize database
+   python scripts/setup_database.py
    ```
 
-3. **Set up environment variables**
+4. **Set up environment variables**
    ```bash
    export TOGETHER_API_KEY="your_together_ai_api_key_here"
    ```
@@ -110,7 +161,7 @@ SkillScopeJob/
 
 4. **Initialize the database**
    ```bash
-   python -c "from database_models import init_database; init_database()"
+   python scripts/setup_database.py
    ```
 
 ### Getting a Together AI API Key
@@ -128,7 +179,7 @@ SkillScopeJob/
 Launch the main career intelligence platform:
 
 ```bash
-streamlit run streamlit_cv_extraction.py
+streamlit run src/skillscope/ui/main_app.py
 ```
 
 Access the application at `http://localhost:8501`
@@ -138,7 +189,7 @@ Access the application at `http://localhost:8501`
 Launch the job scraping and management dashboard:
 
 ```bash
-streamlit run admin_utils/streamlit_app.py
+streamlit run src/skillscope/ui/admin_app.py
 ```
 
 Access the admin panel at `http://localhost:8502`
@@ -172,6 +223,24 @@ Access the admin panel at `http://localhost:8502`
 3. Monitor database statistics
 4. Export job data for analysis
 
+#### 5. Data Enrichment (Automated & Manual)
+1. **Automatic Enrichment**: Job data is automatically enriched after live scraping
+2. **Manual Enrichment**: Use the admin dashboard for on-demand enrichment
+3. **Company Intelligence**: Enhanced job postings with company size, industry, and insights
+4. **Skill Categorization**: Intelligent skill extraction and categorization from job descriptions
+5. **Database Maintenance**: Automatic data freshness tracking and cleanup
+
+### Data Enrichment Features
+
+The integrated data enrichment system provides:
+
+- **🤖 Automatic Processing**: Runs automatically after job scraping in the main application
+- **🎛️ Manual Controls**: Available through the admin dashboard with customizable batch sizes
+- **📊 Real-time Status**: Live monitoring of enrichment progress and database health
+- **🏢 Company Intelligence**: Enhanced job data with company information and industry insights
+- **🔧 Smart Maintenance**: Automatic database cleanup and optimization
+- **📈 Progress Tracking**: Detailed metrics on enrichment completion and data quality
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -197,32 +266,32 @@ The application uses SQLite by default. The database file (`indeed_jobs.db`) is 
 
 ### Core Components
 
-#### CV Extraction (`cv_extraction.py`)
+#### CV Extraction (`src/skillscope/core/cv_extraction.py`)
 ```python
-from cv_extraction import LLMCVExtractor
+from skillscope.core.cv_extraction import LLMCVExtractor
 
 extractor = LLMCVExtractor(api_key="your_key", model="llama-model")
 result = extractor.extract_from_file("path/to/cv.pdf")
 ```
 
-#### Job Matching (`profile_job_matcher.py`)
+#### Job Matching (`src/skillscope/core/profile_job_matcher.py`)
 ```python
-from profile_job_matcher import run_profile_job_search
+from skillscope.core.profile_job_matcher import run_profile_job_search
 
 results = run_profile_job_search(profile_data)
 ```
 
-#### CV Evaluation (`cv_job_evaluator.py`)
+#### CV Evaluation (`src/skillscope/core/cv_job_evaluator.py`)
 ```python
-from cv_job_evaluator import CVJobEvaluator
+from skillscope.core.cv_job_evaluator import CVJobEvaluator
 
 evaluator = CVJobEvaluator()
 evaluation = evaluator.evaluate_cv_against_specific_jobs(user_id, jobs, profile)
 ```
 
-#### Job Scraping (`indeed_scraper.py`)
+#### Job Scraping (`src/skillscope/scrapers/indeed_scraper.py`)
 ```python
-from indeed_scraper import scrape_indeed_jobs
+from skillscope.scrapers.indeed_scraper import scrape_indeed_jobs
 
 job_count = scrape_indeed_jobs("python developer", "copenhagen, denmark")
 ```

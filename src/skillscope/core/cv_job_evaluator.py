@@ -26,15 +26,15 @@ except ImportError as e:
 
 # Import existing modules
 try:
-    from profile_job_matcher import get_user_job_matches, get_database_enrichment_status
-    from indeed_scraper import DB_NAME, TABLE_NAME
+    from skillscope.core.profile_job_matcher import get_user_job_matches, get_database_enrichment_status
+    from skillscope.scrapers.indeed_scraper import DB_NAME, TABLE_NAME
 except ImportError as e:
     print(f"Could not import required modules: {e}")
     exit(1)
 
 # Database and ORM imports
 import sqlite3 # Keep for now if other methods still use it (e.g., storing evaluations)
-from database_models import (
+from skillscope.models.database_models import (
     SessionLocal, UserProfile, 
     UserProfileTargetRole, UserProfileKeyword, UserProfileSkill,
     UserProfileLanguage, UserProfileJobType, UserProfileLocation,
@@ -55,7 +55,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('cv_job_evaluator.log'),
+        logging.FileHandler('data/logs/cv_job_evaluator.log'),
         logging.StreamHandler()
     ]
 )
