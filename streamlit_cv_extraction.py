@@ -809,7 +809,7 @@ def run_app():
             if 'job_search_results' not in st.session_state:
                 st.session_state.job_search_results = None
             
-            col1, col2, col3 = st.columns([2, 1, 1])
+            col1, col2 = st.columns([2, 1])
             
             with col1:
                 # Show job search button
@@ -829,11 +829,6 @@ def run_app():
                         st.session_state.job_search_completed = False
                         st.session_state.job_search_results = None
                         st.rerun()
-            
-            with col3:
-                if st.session_state.get('job_search_results'):
-                    if st.button("📊 View All Jobs", key="view_dashboard"):
-                        st.info("💡 Run the streamlit_app.py dashboard to view all scraped jobs")
 
             # Handle job search execution
             if start_search:
