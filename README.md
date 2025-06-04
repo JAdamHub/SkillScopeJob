@@ -409,20 +409,3 @@ Set your Together AI API key in environment variables or directly in the applica
 ## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## 🤝 Support
-
-### Community
-- **GitHub Issues**: For bug reports and feature requests
-- **Documentation**: Comprehensive inline documentation and comments
-- **Examples**: Working examples in the codebase
-
-### Professional Support
-For enterprise support, custom integrations, or professional services, please contact the development team.
-
-## 🙏 Acknowledgments
-
-- **Together AI** for providing powerful LLM services
-- **Streamlit** for the excellent web application framework
-- **python-jobspy** for reliable job scraping capabilities
-- The open-source community for various supporting libraries
