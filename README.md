@@ -414,22 +414,6 @@ Install the Together AI SDK: `pip install together`
 #### `API key not found`
 Set your Together AI API key in environment variables or directly in the application.
 
-## 🎯 Roadmap
-
-### Version 2.0 (Planned)
-- [ ] Multi-language support beyond English/Danish
-- [ ] Integration with additional job boards (LinkedIn, Glassdoor)
-- [ ] Advanced analytics dashboard with career trends
-- [ ] Mobile-responsive design improvements
-- [ ] Real-time collaboration features
-
-### Version 1.5 (In Progress)
-- [x] Enhanced AI models integration
-- [x] Improved job matching algorithms
-- [x] Better error handling and user feedback
-- [ ] Advanced export capabilities
-- [ ] Performance optimizations
-
 ## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
