@@ -93,11 +93,43 @@ SkillScopeJob/
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.10 or higher
-- pip package manager
+- Python 3.10 or higher (for local installation)
+- Docker and Docker Compose (for Docker installation)
 - Together AI API key (for AI features)
 
-### Quick Setup
+### 🐳 Docker Installation (Recommended)
+
+The easiest way to run SkillScopeJob is using Docker:
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/JAdamHub/SkillScopeJob.git
+   cd SkillScopeJob
+   ```
+
+2. **Quick Docker Setup**
+   ```bash
+   # Run the automated setup script
+   ./docker-setup.sh
+   ```
+   
+   Or manually:
+   ```bash
+   # Copy environment template
+   cp .env.docker .env
+   
+   # Edit .env with your Together AI API key
+   # TOGETHER_API_KEY=your_together_ai_api_key_here
+   
+   # Build and start services
+   docker-compose up -d
+   ```
+
+3. **Access the applications**
+   - Main Application: http://localhost:8501
+   - Admin Dashboard: http://localhost:8502
+
+### 🐍 Local Python Installation
 
 1. **Clone the repository**
    ```bash

@@ -1,0 +1,41 @@
+# Docker Compose for SkillScopeJob Development
+version: '3.8'
+
+services:
+  skillscopejob-main-dev:
+    build: .
+    container_name: skillscopejob-main-dev
+    ports:
+      - "8501:8501"
+    environment:
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=poll
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+    volumes:
+      - ./data/databases:/app/data/databases
+      - ./data/logs:/app/data/logs
+      - ./data/cache:/app/data/cache
+      - ./src:/app/src  # Mount source code for live editing
+    command: main
+    restart: unless-stopped
+
+  skillscopejob-admin-dev:
+    build: .
+    container_name: skillscopejob-admin-dev
+    ports:
+      - "8502:8502"
+    environment:
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=poll
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+    volumes:
+      - ./data/databases:/app/data/databases
+      - ./data/logs:/app/data/logs
+      - ./data/cache:/app/data/cache
+      - ./src:/app/src  # Mount source code for live editing
+    command: admin
+    restart: unless-stopped
+
+volumes:
+  skillscope_dev_data:
+    driver: local
