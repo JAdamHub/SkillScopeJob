@@ -190,7 +190,7 @@ def create_layered_architecture():
         c.attr(label='Data Layer', style='rounded', color='#F57C00')
         c.attr('node', fillcolor=DATA_COLOR)
         c.node('job_collector', 'Job Collection\nService\n\n• Web Scraping\n• Data Cleaning')
-        c.node('database', 'Database\n(SQLite)\n\n• Job Storage\n• Profile Storage')
+        c.node('database', 'Database\n(SQLite)\n\n• Job storage\n• Profile storage')
     
     # External Layer
     with dot.subgraph(name='cluster_external') as c:
@@ -427,104 +427,114 @@ def create_file_based_architecture():
     """Create architecture diagram showing actual files and their relationships"""
     
     dot = Digraph(comment='SkillScopeJob - File-Based Architecture')
-    dot.attr(rankdir='TB', size='16,12', dpi='200')
+    dot.attr(rankdir='TB', size='18,14', dpi='200')
     dot.attr('graph', fontname='Arial', fontsize='12', overlap='false', splines='ortho')
     dot.attr('node', shape='box', style='rounded,filled', fontname='Arial', fontsize='10')
     dot.attr('edge', fontname='Arial', fontsize='9')
     
-    # Color scheme for different file types
-    MAIN_COLOR = '#1976D2'        # Blue for main files
+    # Color scheme
     UI_COLOR = '#4CAF50'          # Green for UI files
-    CORE_COLOR = '#FF9800'        # Orange for core logic
-    DATA_COLOR = '#9C27B0'        # Purple for data files
-    CONFIG_COLOR = '#607D8B'      # Gray for config
-    DATABASE_COLOR = '#795548'    # Brown for database
+    CV_PROCESSING_COLOR = '#2196F3' # Blue for CV processing
+    JOB_PROCESSING_COLOR = '#FF9800' # Orange for Job processing/matching
+    DATA_MGMT_COLOR = '#9C27B0'    # Purple for Data models/DB access
+    DATABASE_FILE_COLOR = '#795548'# Brown for DB file
+    AI_COLOR = '#00ACC1'          # Cyan for AI/LLM related
+    CONFIG_COLOR = '#607D8B'      # Gray for config/ontology
     
-    # Main Application Files
-    with dot.subgraph(name='cluster_main') as c:
-        c.attr(label='🚀 Main Application Files', style='rounded', color=MAIN_COLOR, fontcolor=MAIN_COLOR)
-        c.node('main_py', 'main.py\n\n• Entry point\n• Streamlit app runner\n• Route handling', 
-               fillcolor='#E3F2FD', color=MAIN_COLOR)
-        c.node('app_py', 'app.py\n\n• Streamlit interface\n• UI components\n• User interactions', 
-               fillcolor='#E3F2FD', color=MAIN_COLOR)
-    
-    # UI & Interface Files
+    # UI Layer
     with dot.subgraph(name='cluster_ui') as c:
-        c.attr(label='🎨 User Interface Files', style='rounded', color=UI_COLOR, fontcolor=UI_COLOR)
-        c.node('ui_components', 'ui_components.py\n\n• Custom widgets\n• Form handlers\n• Display functions', 
-               fillcolor='#E8F5E8', color=UI_COLOR)
-        c.node('styles_css', 'styles.css\n\n• Custom styling\n• Theme definitions\n• Responsive design', 
-               fillcolor='#E8F5E8', color=UI_COLOR)
-    
-    # Core Logic Files
-    with dot.subgraph(name='cluster_core') as c:
-        c.attr(label='⚙️ Core Processing Files', style='rounded', color=CORE_COLOR, fontcolor=CORE_COLOR)
-        c.node('cv_processor_py', 'cv_processor.py\n\n• PDF parsing\n• Text extraction\n• Skill detection', 
-               fillcolor='#FFF3E0', color=CORE_COLOR)
-        c.node('job_scraper_py', 'job_scraper.py\n\n• Indeed scraping\n• Data collection\n• Job parsing', 
-               fillcolor='#FFF3E0', color=CORE_COLOR)
-        c.node('job_matcher_py', 'job_matcher.py\n\n• Profile matching\n• Relevance scoring\n• Result ranking', 
-               fillcolor='#FFF3E0', color=CORE_COLOR)
-        c.node('ai_enrichment_py', 'ai_enrichment.py\n\n• LLM integration\n• Data enhancement\n• Smart analysis', 
-               fillcolor='#FFF3E0', color=CORE_COLOR)
-    
-    # Data & Database Files
-    with dot.subgraph(name='cluster_data') as c:
-        c.attr(label='💾 Data Management Files', style='rounded', color=DATA_COLOR, fontcolor=DATA_COLOR)
-        c.node('database_py', 'database.py\n\n• SQLite operations\n• CRUD functions\n• Schema management', 
-               fillcolor='#F3E5F5', color=DATA_COLOR)
-        c.node('data_models_py', 'data_models.py\n\n• Data structures\n• Model definitions\n• Validation', 
-               fillcolor='#F3E5F5', color=DATA_COLOR)
-        c.node('jobs_db', 'jobs.db\n\n• SQLite database\n• Job storage\n• User profiles', 
-               fillcolor='#EFEBE9', color=DATABASE_COLOR, shape='cylinder')
-    
-    # Configuration Files
-    with dot.subgraph(name='cluster_config') as c:
-        c.attr(label='⚙️ Configuration Files', style='rounded', color=CONFIG_COLOR, fontcolor=CONFIG_COLOR)
-        c.node('config_py', 'config.py\n\n• Settings\n• API keys\n• Constants', 
-               fillcolor='#ECEFF1', color=CONFIG_COLOR)
-        c.node('requirements_txt', 'requirements.txt\n\n• Dependencies\n• Package versions\n• Installation', 
-               fillcolor='#ECEFF1', color=CONFIG_COLOR)
-        c.node('env_file', '.env\n\n• Environment variables\n• Secret keys\n• Local settings', 
-               fillcolor='#ECEFF1', color=CONFIG_COLOR)
-    
-    # External Services (not files but important to show)
-    with dot.subgraph(name='cluster_external') as c:
-        c.attr(label='🌐 External Services', style='rounded', color='#D32F2F', fontcolor='#D32F2F')
-        c.node('indeed_api', 'Indeed API\n\n• Job listings\n• Company data\n• Search results', 
+        c.attr(label='🎨 User Interface & Entry', style='rounded', color=UI_COLOR, fontcolor=UI_COLOR)
+        c.node('streamlit_cv_extraction_py', 'streamlit_cv_extraction.py\n\n• Main Streamlit App UI\n• User Profile Input\n• CV Upload & Basic Parsing Trigger\n• Job Search Trigger\n• Results Display\n• CV Evaluation Trigger', 
+               fillcolor=UI_COLOR + '30', color=UI_COLOR)
+
+    # CV Processing & Extraction Layer
+    with dot.subgraph(name='cluster_cv_proc') as c:
+        c.attr(label='📄 CV Processing & Extraction', style='rounded', color=CV_PROCESSING_COLOR, fontcolor=CV_PROCESSING_COLOR)
+        c.node('cv_extraction_py', 'cv_extraction.py\n\n• LLM-based CV Parsing\n• Extracts (Skills, Experience, Edu)\n• Suggests Profile Fields',
+               fillcolor=CV_PROCESSING_COLOR + '30', color=CV_PROCESSING_COLOR)
+
+    # Core Job Matching, Scraping & Evaluation Layer
+    with dot.subgraph(name='cluster_job_core') as c:
+        c.attr(label='⚙️ Job Scraping, Matching & Evaluation', style='rounded', color=JOB_PROCESSING_COLOR, fontcolor=JOB_PROCESSING_COLOR)
+        c.node('indeed_scraper_py', 'indeed_scraper.py\n\n• Scrapes Indeed.com\n• Stores raw job postings (initially SQLite, now ORM)\n• Handles job URL uniqueness', 
+               fillcolor=JOB_PROCESSING_COLOR + '30', color=JOB_PROCESSING_COLOR)
+        c.node('profile_job_matcher_py', 'profile_job_matcher.py\n\n• Matches User Profile to Jobs (DB & Live)\n• Uses SQLAlchemy for DB interaction\n• Calculates Relevance Scores\n• Updates user_profile_match in DB',
+               fillcolor=JOB_PROCESSING_COLOR + '30', color=JOB_PROCESSING_COLOR)
+        c.node('cv_job_evaluator_py', 'cv_job_evaluator.py\n\n• LLM-based CV vs. Job Description Analysis\n• Detailed Match Feedback (Strengths, Gaps)\n• Stores evaluation results (partially SQLAlchemy now)',
+               fillcolor=JOB_PROCESSING_COLOR + '30', color=JOB_PROCESSING_COLOR)
+
+    # Data Enrichment (CrewAI) Layer
+    with dot.subgraph(name='cluster_enrich') as c:
+        c.attr(label='🤖 AI Data Enrichment', style='rounded', color=AI_COLOR, fontcolor=AI_COLOR)
+        c.node('data_enrichment_crew_py', 'data_enrichment_crew.py\n\n• Uses CrewAI for Job Data Enrichment\n• Company Info, Industry, Logo, etc.\n• Updates job_postings table (enrichment_status, job_freshness)',
+               fillcolor=AI_COLOR + '30', color=AI_COLOR)
+
+    # Data Models & Database Layer
+    with dot.subgraph(name='cluster_data_models_db') as c:
+        c.attr(label='💾 Data Models & Database', style='rounded', color=DATA_MGMT_COLOR, fontcolor=DATA_MGMT_COLOR)
+        c.node('database_models_py', 'database_models.py\n\n• SQLAlchemy ORM Models (JobPosting, UserProfile, etc.)\n• Table Schemas & Relationships\n• Database Engine & SessionLocal Setup',
+               fillcolor=DATA_MGMT_COLOR + '30', color=DATA_MGMT_COLOR)
+        c.node('indeed_jobs_db', 'indeed_jobs.db\n\n• SQLite Database File\n• Stores all application data', 
+               fillcolor=DATABASE_FILE_COLOR + '30', color=DATABASE_FILE_COLOR, shape='cylinder')
+
+    # Configuration & Ontology Files
+    with dot.subgraph(name='cluster_config_ontology') as c:
+        c.attr(label='⚙️ Configuration & Ontologies', style='rounded', color=CONFIG_COLOR, fontcolor=CONFIG_COLOR)
+        c.node('requirements_txt', 'requirements.txt\n\n• Python Dependencies', 
+               fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
+        c.node('env_file', '.env (example)\n\n• API Keys (TogetherAI)\n• Environment Variables',
+                fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
+        c.node('skill_ontology_csv', 'skill_ontology.csv\n\n• Predefined Skills List',
+                fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
+        c.node('roles_industries_ontology_csv', 'roles_industries_ontology.csv\n\n• Predefined Roles/Industries',
+                fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
+
+    # External Services (Conceptual)
+    with dot.subgraph(name='cluster_external_conceptual') as c:
+        c.attr(label='🌐 External Services (Conceptual)', style='rounded', color='#D32F2F', fontcolor='#D32F2F')
+        c.node('indeed_service', 'Indeed.com\n\n• Source for Job Listings', 
                fillcolor='#FFEBEE', color='#D32F2F', shape='ellipse')
-        c.node('together_ai_api', 'Together AI API\n\n• Llama 3.3 70B\n• Text processing\n• Analysis', 
+        c.node('together_ai_service', 'Together AI API\n\n• LLM for CV Parsing & Evaluation', 
                fillcolor='#FFEBEE', color='#D32F2F', shape='ellipse')
+
+    # --- Relationships ---
+
+    # UI to Processing
+    dot.edge('streamlit_cv_extraction_py', 'cv_extraction_py', label='triggers CV parsing', color=CV_PROCESSING_COLOR)
+    dot.edge('streamlit_cv_extraction_py', 'profile_job_matcher_py', label='triggers job search / profile storage', color=JOB_PROCESSING_COLOR)
+    dot.edge('streamlit_cv_extraction_py', 'cv_job_evaluator_py', label='triggers CV evaluation', color=JOB_PROCESSING_COLOR)
+
+    # CV Processing to Models & AI
+    dot.edge('cv_extraction_py', 'together_ai_service', label='uses LLM for CV', style='dashed', color=AI_COLOR)
+    dot.edge('cv_extraction_py', 'database_models_py', label='informs profile structure (conceptually)', style='dotted', color=DATA_MGMT_COLOR) # CV suggestions map to UserProfile
+
+    # Job Core to Data & External
+    dot.edge('indeed_scraper_py', 'indeed_service', label='scrapes from', style='dashed', color=JOB_PROCESSING_COLOR)
+    dot.edge('indeed_scraper_py', 'database_models_py', label='uses JobPosting model', color=DATA_MGMT_COLOR)
     
-    # File relationships and data flow
-    # Main flow
-    dot.edge('main_py', 'app_py', label='imports & runs', color=MAIN_COLOR, style='bold')
-    dot.edge('app_py', 'ui_components', label='uses UI', color=UI_COLOR)
-    dot.edge('app_py', 'cv_processor_py', label='processes CV', color=CORE_COLOR)
-    dot.edge('cv_processor_py', 'job_scraper_py', label='triggers search', color=CORE_COLOR)
-    dot.edge('job_scraper_py', 'ai_enrichment_py', label='raw job data', color=CORE_COLOR)
-    dot.edge('ai_enrichment_py', 'job_matcher_py', label='enriched data', color=CORE_COLOR)
-    dot.edge('job_matcher_py', 'app_py', label='ranked results', color=MAIN_COLOR)
+    dot.edge('profile_job_matcher_py', 'database_models_py', label='uses UserProfile, JobPosting models', color=DATA_MGMT_COLOR)
+    dot.edge('profile_job_matcher_py', 'indeed_scraper_py', label='can trigger live scraping', color=JOB_PROCESSING_COLOR) # For live results
+
+    dot.edge('cv_job_evaluator_py', 'database_models_py', label='uses UserProfile, CVJobEvaluation models', color=DATA_MGMT_COLOR)
+    dot.edge('cv_job_evaluator_py', 'together_ai_service', label='uses LLM for evaluation', style='dashed', color=AI_COLOR)
+
+    # Data Enrichment to Data & External
+    dot.edge('data_enrichment_crew_py', 'database_models_py', label='updates JobPosting model', color=DATA_MGMT_COLOR)
+    # data_enrichment_crew_py also uses LLMs, potentially via TogetherAI or other services for company info.
+    dot.edge('data_enrichment_crew_py', 'together_ai_service', label='uses LLM for enrichment (conceptual)', style='dashed', color=AI_COLOR)
+
+
+    # Database Interactions (explicitly via database_models.py)
+    dot.edge('database_models_py', 'indeed_jobs_db', label='defines & connects to', color=DATABASE_FILE_COLOR)
     
-    # Database interactions
-    dot.edge('job_scraper_py', 'database_py', label='stores jobs', color=DATA_COLOR)
-    dot.edge('database_py', 'jobs_db', label='SQL operations', color=DATABASE_COLOR)
-    dot.edge('job_matcher_py', 'database_py', label='queries data', color=DATA_COLOR)
-    dot.edge('ai_enrichment_py', 'database_py', label='updates records', color=DATA_COLOR)
-    
-    # Configuration usage
-    dot.edge('config_py', 'job_scraper_py', label='settings', color=CONFIG_COLOR, style='dashed')
-    dot.edge('config_py', 'ai_enrichment_py', label='API keys', color=CONFIG_COLOR, style='dashed')
-    dot.edge('env_file', 'config_py', label='env vars', color=CONFIG_COLOR, style='dashed')
-    
-    # External API calls
-    dot.edge('job_scraper_py', 'indeed_api', label='scrapes', color='#D32F2F', style='dashed')
-    dot.edge('ai_enrichment_py', 'together_ai_api', label='API calls', color='#D32F2F', style='dashed')
-    
-    # Data models usage
-    dot.edge('data_models_py', 'cv_processor_py', label='models', color=DATA_COLOR, style='dotted')
-    dot.edge('data_models_py', 'job_scraper_py', label='models', color=DATA_COLOR, style='dotted')
-    dot.edge('data_models_py', 'database_py', label='schema', color=DATA_COLOR, style='dotted')
+    # UI reads ontologies
+    dot.edge('streamlit_cv_extraction_py', 'skill_ontology_csv', label='reads skills', style='dotted', color=CONFIG_COLOR)
+    dot.edge('streamlit_cv_extraction_py', 'roles_industries_ontology_csv', label='reads roles', style='dotted', color=CONFIG_COLOR)
+
+    # Config usage
+    dot.edge('env_file', 'cv_extraction_py', label='API Key', style='dashed', color=CONFIG_COLOR)
+    dot.edge('env_file', 'cv_job_evaluator_py', label='API Key', style='dashed', color=CONFIG_COLOR)
+    dot.edge('env_file', 'data_enrichment_crew_py', label='API Key (conceptual)', style='dashed', color=CONFIG_COLOR)
     
     return dot
 
