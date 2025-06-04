@@ -1,6 +1,21 @@
 from graphviz import Digraph
 import os
 import shutil
+from pathlib import Path
+
+def get_assets_images_path():
+    """Get the path to the assets/images directory relative to project root"""
+    # Get the current file's directory
+    current_file = Path(__file__)
+    # Navigate to project root (src/skillscope/utils -> project root)
+    project_root = current_file.parent.parent.parent.parent
+    # Path to assets/images
+    assets_images = project_root / "assets" / "images"
+    
+    # Create directory if it doesn't exist
+    assets_images.mkdir(parents=True, exist_ok=True)
+    
+    return assets_images
 
 def check_graphviz_installation():
     """Check if Graphviz is installed and provide installation instructions"""
@@ -16,18 +31,23 @@ def check_graphviz_installation():
     return True
 
 def safe_render(dot_graph, filename, format='png'):
-    """Safely render diagram with fallback options"""
+    """Safely render diagram with fallback options - saves to assets/images directory"""
+    # Get the target directory
+    assets_images = get_assets_images_path()
+    full_path = assets_images / filename
+    
     try:
         if check_graphviz_installation():
-            dot_graph.render(filename, format=format, cleanup=True)
-            print(f"✅ Generated: {filename}.{format}")
+            # Render to the assets/images directory
+            dot_graph.render(str(full_path), format=format, cleanup=True)
+            print(f"✅ Generated: {full_path}.{format}")
             return True
     except Exception as e:
         print(f"❌ Rendering failed: {e}")
     
     # Fallback: save DOT source file
     try:
-        dot_filename = f"{filename}.dot"
+        dot_filename = f"{full_path}.dot"
         with open(dot_filename, 'w') as f:
             f.write(dot_graph.source)
         print(f"💾 Saved DOT source: {dot_filename}")
@@ -1012,6 +1032,9 @@ def main():
     if not has_graphviz:
         print("\n📝 Continuing with DOT file generation...")
     
+    # Get assets/images path for reporting
+    assets_images = get_assets_images_path()
+    
     # 1. Component Interaction (matches your first attachment)
     components = create_component_interaction()
     safe_render(components, 'skillscope_component_interaction', 'png')
@@ -1023,11 +1046,11 @@ def main():
     print("\n📊 Architecture diagrams processed!")
     
     if has_graphviz:
-        print("\nDiagrams created:")
+        print(f"\nDiagrams created in {assets_images}:")
         print("  1. skillscope_component_interaction.png")
         print("  2. skillscope_layered_architecture.png")
     else:
-        print("\nDOT files created (install Graphviz for PNG generation):")
+        print(f"\nDOT files created in {assets_images} (install Graphviz for PNG generation):")
         print("  1. skillscope_component_interaction.dot")
         print("  2. skillscope_layered_architecture.dot")
         print("\n🌐 View these files online at: https://dreampuf.github.io/GraphvizOnline/")

@@ -38,27 +38,13 @@
 
 SkillScopeJob follows a layered architecture with clean separation of concerns:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Presentation Layer                       │
-│        src/skillscope/ui/main_app.py │ admin_app.py         │
-├─────────────────────────────────────────────────────────────┤
-│                     Business Logic                          │
-│   src/skillscope/core/profile_job_matcher.py │              │
-│                    cv_job_evaluator.py                      │
-├─────────────────────────────────────────────────────────────┤
-│                     AI/ML Services                          │
-│   src/skillscope/core/cv_extraction.py │                    │
-│                    data_enrichment.py                       │
-├─────────────────────────────────────────────────────────────┤
-│                    Data Access Layer                        │
-│  src/skillscope/models/database_models.py │                 │
-│           scrapers/indeed_scraper.py                        │
-├─────────────────────────────────────────────────────────────┤
-│                   External Services                         │
-│  Together AI │ Indeed.com │ JobSpy                          │
-└─────────────────────────────────────────────────────────────┘
-```
+### Layered Architecture Overview
+![Layered Architecture](assets/images/skillscope_layered_architecture.png)
+
+### Component Interaction Diagram
+![Component Interaction](assets/images/skillscope_component_interaction.png)
+
+*Architecture diagrams are automatically generated using the `src/skillscope/utils/system_architecture.py` script*
 
 ### 📁 Project Structure
 
@@ -239,6 +225,47 @@ The integrated data enrichment system provides:
 - **🔧 Smart Maintenance**: Automatic database cleanup and optimization
 - **📈 Progress Tracking**: Detailed metrics on enrichment completion and data quality
 
+## 📊 Architecture Diagrams
+
+The project includes automatically generated architecture diagrams that provide visual representations of the system structure and component interactions.
+
+### Generating Architecture Diagrams
+
+To regenerate the latest architecture diagrams:
+
+```bash
+# Navigate to project root
+cd /path/to/SkillScopeJob
+
+# Run the architecture generator
+python src/skillscope/utils/system_architecture.py
+```
+
+This will create/update the following diagrams in `assets/images/`:
+- `skillscope_layered_architecture.png` - Shows the layered architecture with all components
+- `skillscope_component_interaction.png` - Illustrates how components interact with each other
+
+### Requirements for Diagram Generation
+
+- **Graphviz**: Required for PNG generation
+  ```bash
+  # macOS
+  brew install graphviz
+  
+  # Ubuntu/Debian
+  sudo apt-get install graphviz
+  
+  # Windows
+  # Download from https://graphviz.org/download/
+  ```
+
+- **Python Dependencies**: Already included in `requirements.txt`
+  - `graphviz` (Python package)
+
+### Viewing Diagrams Online
+
+If Graphviz is not installed, the script will generate `.dot` files that can be viewed online at [GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/).
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -346,7 +373,7 @@ The application uses SQLAlchemy ORM with the following main models:
 - **Frontend**: Streamlit with custom components
 - **Backend**: Python with asyncio support
 - **Database**: SQLite with SQLAlchemy ORM
-- **AI/ML**: Together AI LLMs, CrewAI for data enrichment
+- **AI/ML**: Together AI LLMs + for data enrichment
 
 ### Major Dependencies
 - **streamlit**: Web application framework
@@ -354,14 +381,12 @@ The application uses SQLAlchemy ORM with the following main models:
 - **python-jobspy**: Job scraping from Indeed
 - **sqlalchemy**: Database ORM
 - **langchain**: LLM application framework
-- **crewai**: Multi-agent AI systems
 - **plotly**: Interactive visualizations
 - **pandas**: Data manipulation and analysis
 
 ### External Services
 - **Together AI**: Large Language Model services
 - **Indeed.com**: Job posting data source
-- **CrewAI**: Multi-agent data enrichment
 
 ## 🚨 Troubleshooting
 
@@ -435,11 +460,4 @@ For enterprise support, custom integrations, or professional services, please co
 - **Together AI** for providing powerful LLM services
 - **Streamlit** for the excellent web application framework
 - **python-jobspy** for reliable job scraping capabilities
-- **CrewAI** for multi-agent AI system capabilities
 - The open-source community for various supporting libraries
-
----
-
-**SkillScopeJob** - Empowering career decisions with AI intelligence. 🚀
-
-*Built with ❤️ using Python, Streamlit, and cutting-edge AI technologies.*
