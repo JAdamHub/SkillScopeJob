@@ -7,6 +7,15 @@
 
 **SkillScopeJob** is an advanced AI-powered career intelligence platform that combines CV analysis, job market intelligence, and personalized career recommendations to help professionals make data-driven career decisions.
 
+---
+**🐳 Docker Deployment Available!**
+
+For easy deployment, a `docker_image` branch is available with pre-configured Docker setups. This allows you to run both the main application and the admin dashboard in isolated containers.
+
+➡️ **[View Docker Deployment Guide on the `docker_image` branch](https://github.com/JAdamHub/SkillScopeJob/blob/docker_image/README.md)**
+
+---
+
 ## 🌟 Features
 
 ### 🤖 AI-Powered CV Analysis
