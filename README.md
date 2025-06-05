@@ -97,8 +97,16 @@ SkillScopeJob/
 │   └── setup_database.py           # Database initialization
 │
 ├── admin/                          # Administrative tools
+├── tests/                          # Test files and examples
+│   ├── 1-CV-Example-JONATHAN-WILLIAMS-ELEANOR-VANCE.pdf # Sample CV for testing
+│   ├── 2-CV-Example-Sofie-Jensen(Danish).pdf            # Danish CV example
+│   ├── 3-CV-Example-Emily-Rodriguez.docx                # DOCX format CV
+│   ├── 4-CV-Example-Lena-Greenwood.pdf                  # Additional PDF CV
+│   └── 5-CV-Example-Emma-Thompson.pdf                   # Another PDF CV sample
 └── docs/                          # Project documentation
 ```
+
+> 📁 **Test CV Examples**: The `tests/` directory contains 5 sample CV files in various formats (PDF, DOCX) that you can use to test the CV analysis and extraction features of the application.
 
 ## 🚀 Installation
 

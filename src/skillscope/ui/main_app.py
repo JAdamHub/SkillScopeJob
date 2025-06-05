@@ -340,7 +340,33 @@ def run_app():
     # --- Load ontologies ---
     default_roles = ["Software Engineer", "Data Scientist", "Project Manager", "UX Designer"]
     default_skills = ["Python", "Java", "SQL", "Data Analysis", "Machine Learning"]
-    default_overall_fields = ["Data Science & AI", "Software Development", "Project Management", "UX/UI Design", "Marketing & Sales", "Finance & Economics", "Engineering", "Healthcare", "International Business"]
+    default_overall_fields = [
+        "Data Science & AI", 
+        "Software Development", 
+        "Project Management", 
+        "Finance & Economics",
+        "Interactive Design & UX", 
+        "Marketing & Sales",  
+        "Engineering & Manufacturing", 
+        "Healthcare & Medicine", 
+        "International Business", 
+        "Education & Training",
+        "Legal & Compliance",
+        "Human Resources & Talent",
+        "Operations & Supply Chain",
+        "Consulting & Strategy",
+        "Media & Communications",
+        "Creative & Design",
+        "Research & Development",
+        "Public Sector & Government",
+        "Non-Profit & Social Impact",
+        "Real Estate & Construction",
+        "Retail & E-commerce",
+        "Transportation & Logistics",
+        "Energy & Sustainability",
+        "Hospitality & Tourism",
+        "Agriculture & Food"
+    ]
     
     roles_options = load_ontology_data(ROLES_INDUSTRIES_ONTOLOGY_FILE, "name", default_roles)
     skills_options = load_ontology_data(SKILL_ONTOLOGY_FILE, "canonical_skill", default_skills)
