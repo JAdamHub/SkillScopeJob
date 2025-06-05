@@ -653,7 +653,7 @@ def run_app():
 
         st.header("8. 🌍 Location & Analysis Preferences")
         location_options_dk = [
-            "Danmark", "Hovedstaden", "Midtjylland", "Nordjylland",
+            "Hovedstaden", "Midtjylland", "Nordjylland",
             "Sjælland", "Syddanmark",
             
             "Aabenraa kommune", "Aalborg kommune", "Aarhus kommune", "Albertslund kommune", "Allerød kommune",

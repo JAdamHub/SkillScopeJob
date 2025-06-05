@@ -108,6 +108,29 @@ SkillScopeJob/
 
 > 📁 **Test CV Examples**: The `tests/` directory contains 5 sample CV files in various formats (PDF, DOCX) that you can use to test the CV analysis and extraction features of the application.
 
+## 🗄️ Database Structure
+
+SkillScopeJob uses a SQLite database with a normalized relational schema for optimal performance and data integrity.
+
+### Core Tables
+
+#### 🏢 JobPosting
+Stores scraped job data with company details, location, job descriptions, and match scores. Includes performance indexes on title, company, location, and timestamps.
+
+#### 👤 UserProfile & Relations
+- **UserProfile**: Session-based user identification with career preferences
+- **Profile Relations**: Normalized tables for skills, target roles, keywords, languages, job types, and locations
+- **Background**: Separate tables for education and work experience
+
+#### 📊 Evaluation Tables
+- **CVJobEvaluation**: Main evaluation results with aggregate metrics
+- **JobEvaluationDetail**: Detailed job-by-job analysis including match scores, strengths, gaps, and recommendations
+
+### Database Features
+- **Performance**: Strategic indexing and relationship management
+- **Integrity**: Foreign key constraints and unique constraints
+- **Scalability**: Normalized schema with automated maintenance
+
 ## 🚀 Installation
 
 ### Prerequisites
