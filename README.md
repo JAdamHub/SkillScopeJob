@@ -172,7 +172,7 @@ Access the admin panel at `http://localhost:8502` (or the port specified in `lau
 
 #### 1. CV Analysis & Profile Creation
 1. Upload your CV (PDF, DOCX, or TXT)
-2. Configure AI model and API key
+2. Configure AI model
 3. Let AI auto-extract and populate your profile
 4. Review and customize the extracted information
 5. Save your professional profile
@@ -180,25 +180,25 @@ Access the admin panel at `http://localhost:8502` (or the port specified in `lau
 #### 2. Job Search & Matching
 1. Define job search keywords and preferences
 2. Set location and remote work preferences
-3. Run intelligent job search with live scraping
+3. Run intelligent job search with live scraping + database fallback if scraping fails
 4. Review AI-scored job matches with relevance ratings
 5. Export results for further analysis
 
 #### 3. CV-Job Evaluation
-1. Select top 10-jobs from your matches
+1. Selects top 10-jobs from your matches
 2. Run comprehensive AI analysis
 3. Get detailed compatibility scores
 4. Review strengths, gaps, and recommendations
-5. Generate personalized improvement plans
+5. Generate personalized improvement plan 
 
-#### 4. Data Management (Admin)
-1. Configure job search parameters
+#### 4. Data Management (Admin) - admin_app.py
+1. Configure job search parameters for database saving
 2. Run batch job scraping operations
-3. Monitor database statistics
+3. Monitor database statistics + maintaince scripts for cleaning up jobs older than 30 days.
 4. Export job data for analysis
 
 #### 5. Data Enrichment (Automated & Manual)
-1. **Automatic Enrichment**: Job data is automatically enriched after live scraping
+1. **Automatic Enrichment**: Job data is automatically enriched using LLM after live scraping
 2. **Manual Enrichment**: Use the admin dashboard for on-demand enrichment
 3. **Company Intelligence**: Enhanced job postings with company size, industry, and insights
 4. **Skill Categorization**: Intelligent skill extraction and categorization from job descriptions
@@ -210,58 +210,8 @@ The integrated data enrichment system provides:
 
 - **🤖 Automatic Processing**: Runs automatically after job scraping in the main application
 - **🎛️ Manual Controls**: Available through the admin dashboard with customizable batch sizes
-- **📊 Real-time Status**: Live monitoring of enrichment progress and database health
+- **📊 Real-time Status**: Live monitoring of enrichment progress, enrichment completion and database health
 - **🏢 Company Intelligence**: Enhanced job data with company information and industry insights
-- **🔧 Smart Maintenance**: Automatic database cleanup and optimization
-- **📈 Progress Tracking**: Detailed metrics on enrichment completion and data quality
-
-## 📊 Architecture Diagrams
-
-The project includes automatically generated architecture diagrams that provide visual representations of the system structure and component interactions.
-
-### Generating Architecture Diagrams
-
-To regenerate the latest architecture diagrams:
-
-```bash
-# Navigate to project root
-cd /path/to/SkillScopeJob
-
-# Run the architecture generator
-python src/skillscope/utils/system_architecture.py
-```
-
-This will create/update the following diagrams in `assets/images/`:
-- `skillscope_layered_architecture.png` - Shows the layered architecture with all components
-- `skillscope_component_interaction.png` - Illustrates how components interact with each other
-- `skillscope_dual_interface.png` - Shows the main user and admin interfaces and their interactions
-- `skillscope_data_flow.png` - Visualizes the enhanced data flow through the system
-- `skillscope_file_architecture.png` - Provides a detailed file-based architecture view
-- `skillscope_technology_stack.png` - Outlines the key technologies used
-- `skillscope_module_dependencies.png` - Shows module import relationships
-- `skillscope_user_journey.png` - Illustrates the user's journey through the application
-- `skillscope_system_overview.png` - A comprehensive overview of all system parts
-
-### Requirements for Diagram Generation
-
-- **Graphviz**: Required for PNG generation
-  ```bash
-  # macOS
-  brew install graphviz
-  
-  # Ubuntu/Debian
-  sudo apt-get install graphviz
-  
-  # Windows
-  # Download from https://graphviz.org/download/
-  ```
-
-- **Python Dependencies**: Already included in `requirements.txt`
-  - `graphviz` (Python package)
-
-### Viewing Diagrams Online
-
-If Graphviz is not installed, the script will generate `.dot` files that can be viewed online at [GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/).
 
 ## 🔧 Configuration
 
@@ -385,6 +335,49 @@ The application uses SQLAlchemy ORM with the following main models:
 - **Together AI**: Large Language Model services
 - **Indeed.com**: Job posting data source
 
+## 📊 Architecture Diagrams
+
+The project includes automatically generated architecture diagrams that provide visual representations of the system structure and component interactions.
+
+### Generating Architecture Diagrams
+
+To regenerate the latest architecture diagrams:
+
+```bash
+# Navigate to project root
+cd SkillScopeJob
+
+# Run the architecture generator
+python src/skillscope/utils/system_architecture.py
+```
+
+This will create/update the following diagrams in `assets/images/`:
+- `skillscope_layered_architecture.png`   - Shows the layered architecture with all components
+- `skillscope_component_interaction.png`  - Illustrates how components interact with each other
+- `skillscope_dual_interface.png`         - Shows the main user and admin interfaces and their interactions
+- `skillscope_data_flow.png`              - Visualizes the enhanced data flow through the system
+- `skillscope_file_architecture.png`      - Provides a detailed file-based architecture view
+- `skillscope_technology_stack.png`       - Outlines the key technologies used
+- `skillscope_module_dependencies.png`    - Shows module import relationships
+- `skillscope_user_journey.png`           - Illustrates the user's journey through the application
+- `skillscope_system_overview.png`        - A comprehensive overview of all system parts
+
+### Requirements for Diagram Generation (using system_architecture.py)
+
+- **Graphviz**: Required for PNG generation
+  ```bash
+  # macOS
+  brew install graphviz
+  
+  # Ubuntu/Debian
+  sudo apt-get install graphviz
+  
+  # Windows
+  # Download from https://graphviz.org/download/
+  ```
+
+- **Python Dependencies**: Already included in `requirements.txt`
+
 ## 🚨 Troubleshooting
 
 ### Common Issues
@@ -392,7 +385,7 @@ The application uses SQLAlchemy ORM with the following main models:
 #### CV Upload Fails
 - Verify Together AI API key is set correctly
 - Check file format (PDF, DOCX, TXT supported)
-- Ensure file is not corrupted or password-protected
+- Ensure file is not corrupted or password-protected + has text
 - Try a different AI model if extraction fails
 
 #### Job Search Returns No Results
@@ -404,12 +397,12 @@ The application uses SQLAlchemy ORM with the following main models:
 #### Database Errors
 - Ensure write permissions in project directory
 - Check if SQLite database file is not corrupted
-- Try reinitializing database with `init_database()`
+- Remember to run scripts/setup_database.py from project root before
 
 ### Error Messages
 
 #### `ImportError: No module named 'together'`
-Install the Together AI SDK: `pip install together`
+Install the Together AI package: `pip install together`
 
 #### `API key not found`
 Set your Together AI API key in environment variables or directly in the application.
