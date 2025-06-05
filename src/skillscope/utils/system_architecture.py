@@ -394,8 +394,7 @@ def create_technology_stack():
     dot.edge('streamlit', 'python', label='built on')
     dot.edge('python', 'pandas', label='uses')
     dot.edge('python', 'jobspy', label='imports')
-    dot.edge('python', 'together', label='integrates')
-    dot.edge('together', 'together_ai', label='connects to')
+    dot.edge('python', 'together_ai', label='integrates')
     dot.edge('python', 'sqlite', label='queries')
     dot.edge('jobspy', 'indeed_api', label='scrapes')
     dot.edge('python', 'pdf_lib', label='processes with')
@@ -587,7 +586,7 @@ def create_file_based_architecture():
         c.attr(label='⚙️ Job Processing, Matching & Evaluation', style='rounded', color=JOB_PROCESSING_COLOR, fontcolor=JOB_PROCESSING_COLOR)
         c.node('indeed_scraper_py', 'indeed_scraper.py\n\n• Scrapes Job Data from Indeed.com (JobSpy)\n• Stores Job Postings via SQLAlchemy ORM\n• Handles URL Uniqueness & Data Cleaning\n• Auto-cleanup of Stale Jobs', 
                fillcolor=JOB_PROCESSING_COLOR + '30', color=JOB_PROCESSING_COLOR)
-        c.node('profile_job_matcher_py', 'profile_job_matcher.py\n\n• Matches User Profiles to Jobs (DB + Live)\n• Uses SQLAlchemy ORM for All DB Operations\n• Calculates Relevance Scores & Rankings\n• Manages User Profile CRUD Operations',
+        c.node('profile_job_matcher_py', 'profile_job_matcher.py\n\n• Matches User Profiles to Jobs (DB + Live)\n• Uses SQLAlchemy for ORM-based database interactions\n• Calculates Relevance Scores & Rankings\n• Manages User Profile CRUD Operations',
                fillcolor=JOB_PROCESSING_COLOR + '30', color=JOB_PROCESSING_COLOR)
         c.node('cv_job_evaluator_py', 'cv_job_evaluator.py\n\n• AI-Powered CV vs Job Analysis (Together AI)\n• Detailed Match Feedback & Gap Analysis\n• Stores Evaluation Results via SQLAlchemy\n• Generates Improvement Recommendations',
                fillcolor=JOB_PROCESSING_COLOR + '30', color=JOB_PROCESSING_COLOR)
@@ -762,9 +761,8 @@ def create_module_dependency_diagram():
     external_libs = {
         'streamlit': {'color': '#FF4B4B', 'desc': 'Web Framework'},
         'sqlalchemy': {'color': '#75A5C0', 'desc': 'ORM & SQL Toolkit'},
-        'together': {'color': '#F06A30', 'desc': 'LLM Integration (TogetherAI)'}, # Specific for TogetherAI
+        'together': {'color': '#F06A30', 'desc': 'LLM Integration & AI Agent Framework (TogetherAI)'}, # Combined TogetherAI services
         'jobspy': {'color': '#D4A017', 'desc': 'Job Scraping Library'},
-        'together': {'color': '#4C8BF5', 'desc': 'AI Agent Framework'},
         'PyPDF2': {'color': '#A0522D', 'desc': 'PDF Processing'},
         'python-docx': {'color': '#2A5699', 'desc': 'DOCX Processing'}, # or 'docx'
         'requests': {'color': '#008080', 'desc': 'HTTP Requests'},
@@ -960,33 +958,33 @@ def create_comprehensive_system_overview():
                fillcolor='#FFEBEE') # Lidt anden farve for admin UI
         
         # CV Processing (stadig en del af applikationslogikken)
-        c.node('cv_extraction', 'cv_extraction.py\n\n• CV parsing via Together AI LLM\n• Skills & experience extraction\n• Profile data structuring', 
+        c.node('cv_extraction', 'CV Extraction (cv_extraction.py)\n\n• CV parsing via Together AI LLM\n• Skills & experience extraction\n• Profile data structuring', 
                fillcolor='#E8F5E8')
     
     # Processing engines cluster (actual files)
     with dot.subgraph(name='cluster_processing') as c:
         c.attr(label='⚙️ CORE PROCESSING ENGINES', style='rounded', color='#FF9800')
         
-        c.node('indeed_scraper', 'indeed_scraper.py\n\n• Job scraping via JobSpy library\n• Indeed.com data collection\n• Job data cleaning & storage', 
+        c.node('indeed_scraper', 'Job Scraping (indeed_scraper.py)\n\n• Indeed API integration\n• Job data collection', 
                fillcolor='#FFF3E0')
         
-        c.node('job_matcher', 'profile_job_matcher.py\n\n• Profile-to-job matching logic\n• Relevance scoring algorithms\n• SQLAlchemy ORM operations', 
+        c.node('job_matcher', 'Profile Job Matching (profile_job_matcher.py)\n\n• Profile-to-job matching logic\n• Relevance scoring algorithms\n• SQLAlchemy ORM operations', 
                fillcolor='#FFF3E0')
         
-        c.node('cv_evaluator', 'cv_job_evaluator.py\n\n• AI-powered CV vs job analysis\n• Gap analysis & recommendations\n• Together AI LLM integration', 
+        c.node('cv_evaluator', 'CV-Job Evaluation (cv_job_evaluator.py)\n\n• AI-powered CV vs job analysis\n• Gap analysis & recommendations\n• Together AI LLM integration', 
                fillcolor='#F3E5F5')
         
-        c.node('data_enricher', 'data_enrichment.py\n\n• TogetherAI framework integration\n• Job data enhancement\n• Company info enrichment', 
+        c.node('data_enricher', 'AI Data Enrichment (data_enrichment.py)\n\n• TogetherAI framework integration\n• Job data enhancement\n• Company info enrichment', 
                fillcolor='#F3E5F5')
     
     # Data layer cluster (actual files)
     with dot.subgraph(name='cluster_data') as c:
         c.attr(label='💾 DATA LAYER', style='rounded', color='#7B1FA2')
         
-        c.node('database_models', 'database_models.py\n\n• SQLAlchemy ORM definitions\n• JobPosting, UserProfile models\n• Database engine & session management', 
+        c.node('database_models', 'Data Models (database_models.py)\n\n• SQLAlchemy ORM definitions\n• JobPosting, UserProfile models\n• Database engine & session management', 
                fillcolor='#F3E5F5')
         
-        c.node('sqlite_db', 'indeed_jobs.db\n\n📊 SQLite Database\n• Job postings storage\n• User profiles & evaluations\n• Application data persistence', 
+        c.node('sqlite_db', 'SQLite Database (indeed_jobs.db)\n\n📊 Job postings, user profiles & evaluations\n• Application data persistence', 
                fillcolor='#EFEBE9', shape='cylinder')
         
         c.node('ontology_files', 'Ontology & Reference Files\n\n• skill_ontology.csv\n• roles_industries_ontology.csv\n• advanced_user_profile_log.csv', 
@@ -1069,6 +1067,7 @@ def create_dual_interface_diagram():
     USER_APP_COLOR = '#1565C0'      # Blue for main app
     ADMIN_APP_COLOR = '#C62828'     # Red for admin app  
     SHARED_COLOR = '#2E7D32'        # Green for shared components
+    USER_MODULES_COLOR = '#0277BD'  # Another blue for user-focused modules
     DATABASE_COLOR = '#7B1FA2'      # Purple for database
     EXTERNAL_COLOR = '#F57C00'      # Orange for external services
     
@@ -1082,23 +1081,27 @@ def create_dual_interface_diagram():
         c.node('admin_app', 'admin_app.py\n\n⚙️ Administrative Interface\n• Database Management\n• Job Scraping Control\n• Data Enrichment Monitoring\n• System Health & Maintenance', 
                fillcolor='#FFEBEE', color=ADMIN_APP_COLOR, penwidth='2')
     
-    # Shared Core Services
+    # User-Specific Services (non-shared services)
+    with dot.subgraph(name='cluster_user_services') as c:
+        c.attr(label='User-Specific Services', style='rounded', color=USER_MODULES_COLOR)
+        
+        c.node('cv_extraction', 'CV Extraction\n(cv_extraction.py)\n\n• PDF/DOCX parsing\n• AI-powered data extraction', 
+               fillcolor='#E3F2FD', color=USER_MODULES_COLOR)
+        
+        c.node('profile_matcher', 'Profile Matching\n(profile_job_matcher.py)\n\n• User profile management\n• Job-profile matching', 
+               fillcolor='#E3F2FD', color=USER_MODULES_COLOR)
+        
+        c.node('cv_evaluator', 'CV Evaluation\n(cv_job_evaluator.py)\n\n• AI-driven analysis\n• Match scoring', 
+               fillcolor='#E3F2FD', color=USER_MODULES_COLOR)
+    
+    # Shared Core Services - now only includes Job Scraping and Data Enrichment
     with dot.subgraph(name='cluster_core') as c:
         c.attr(label='Shared Core Services', style='rounded', color=SHARED_COLOR)
-        
-        c.node('cv_extraction', 'CV Processing\n(cv_extraction.py)\n\n• PDF/DOCX parsing\n• AI-powered data extraction', 
-               fillcolor='#E8F5E8', color=SHARED_COLOR)
         
         c.node('job_scraper', 'Job Scraping\n(indeed_scraper.py)\n\n• Indeed API integration\n• Job data collection', 
                fillcolor='#E8F5E8', color=SHARED_COLOR)
         
-        c.node('profile_matcher', 'Profile Matching\n(profile_job_matcher.py)\n\n• User profile management\n• Job-profile matching', 
-               fillcolor='#E8F5E8', color=SHARED_COLOR)
-        
         c.node('data_enrichment', 'Data Enrichment\n(data_enrichment.py)\n\n• AI-powered enhancement\n• Company information', 
-               fillcolor='#E8F5E8', color=SHARED_COLOR)
-        
-        c.node('cv_evaluator', 'CV Evaluation\n(cv_job_evaluator.py)\n\n• AI-driven analysis\n• Match scoring', 
                fillcolor='#E8F5E8', color=SHARED_COLOR)
     
     # Database Layer
@@ -1119,11 +1122,17 @@ def create_dual_interface_diagram():
     dot.edge('main_app', 'cv_extraction', label='CV upload', color=USER_APP_COLOR)
     dot.edge('main_app', 'profile_matcher', label='profile search', color=USER_APP_COLOR)
     dot.edge('main_app', 'cv_evaluator', label='evaluation request', color=USER_APP_COLOR)
-    
-    # Admin App connections
+    # Add result arrow from CV Extraction back to main_app
+    dot.edge('cv_extraction', 'main_app', label='parsed data', color=USER_APP_COLOR)
+
+    # Admin App connections - increased privileges for shared core services
     dot.edge('admin_app', 'job_scraper', label='scraping control', color=ADMIN_APP_COLOR, style='bold')
     dot.edge('admin_app', 'data_enrichment', label='enrichment monitoring', color=ADMIN_APP_COLOR, style='bold')
     dot.edge('admin_app', 'database', label='direct DB access', color=ADMIN_APP_COLOR, style='bold')
+    
+    # Profile matcher connections to shared services (now more explicitly shown)
+    dot.edge('profile_matcher', 'job_scraper', label='triggers scraping', color=USER_MODULES_COLOR)
+    dot.edge('profile_matcher', 'data_enrichment', label='uses enriched data', color=USER_MODULES_COLOR)
     
     # Shared service connections
     dot.edge('job_scraper', 'indeed_api', label='API calls', color=EXTERNAL_COLOR, style='dashed')
