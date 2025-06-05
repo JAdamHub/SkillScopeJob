@@ -15,7 +15,7 @@ SkillScopeJob consists of two interfaces:
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone --branch docker_image https://github.com/JAdamHub/SkillScopeJob.git
 cd SkillScopeJob
 
 # Set your API key (NEVER store in version control)
@@ -165,22 +165,6 @@ docker run -d \
   -e TOGETHER_API_KEY="your_api_key_here" \
   -v "$(pwd)/data:/app/data" \
   ghcr.io/jadamhub/skillscopejob:latest
-```
-
-### Publishing Your Own Images to GHCR
-
-If you've made modifications and want to publish to your own GHCR repository:
-
-```bash
-# Build and tag with your GitHub username
-docker build -t skillscopejob .
-docker tag skillscopejob ghcr.io/YOUR_GITHUB_USERNAME/skillscopejob:latest
-
-# Login to GHCR with a Personal Access Token with 'write:packages' permission
-echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
-
-# Push to your GHCR repository
-docker push ghcr.io/YOUR_GITHUB_USERNAME/skillscopejob:latest
 ```
 
 ## 🧪 Testing Docker Setup Locally
