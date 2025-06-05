@@ -1,160 +1,190 @@
-# Dockerizing SkillScopeJob
+# 🐳 SkillScopeJob Docker Deployment Guide
 
-This guide provides instructions on how to build and run the SkillScopeJob application using Docker.
+This guide provides instructions for deploying SkillScopeJob using Docker, with a focus on security and ease of use.
 
-## Prerequisites
+## 📋 Overview
 
-- **Docker**: Ensure Docker Desktop or Docker Engine is installed and running on your system. You can download it from [docker.com](https://www.docker.com/products/docker-desktop/).
-- **Together AI API Key**: You MUST have a valid Together AI API key. Get one from [together.ai](https://together.ai)
+SkillScopeJob consists of two interfaces:
 
-## Building the Docker Image
+- **Main Application (Port 8501)**: User interface for CV analysis and job matching
+- **Admin Dashboard (Port 8502)**: Administrative interface for system management
 
-1.  **Navigate to the project root directory** (where the `Dockerfile` is located).
-2.  **Build the image** using the following command. Replace `skillscopejob` with your preferred image name and tag:
+## 🚀 Quick Start
 
-    ```bash
-    docker build -t skillscopejob .
-    ```
+### Option 1: Using Docker Compose (Recommended)
 
-    This command will:
-    - Use the `Dockerfile` in the current directory.
-    - Tag the image as `skillscopejob:latest`.
+```bash
+# Clone the repository
+git clone <repository-url>
+cd SkillScopeJob
 
-## Running the Container
+# Set your API key (NEVER store in version control)
+echo "TOGETHER_API_KEY=your_api_key_here" > .env
 
-### Environment Variables
+# Start both interfaces
+docker-compose up -d
 
--   `TOGETHER_API_KEY`: This is a **required** environment variable. You must provide your Together AI API key for the application's AI features to work.
+# Access applications:
+# Main: http://localhost:8501
+# Admin: http://localhost:8502
+```
 
-### Data Persistence (SQLite Database)
+### Option 2: Using GitHub Container Registry
 
-The application uses an SQLite database located at `/app/data/databases/indeed_jobs.db` within the container. To persist this data across container restarts, you should mount a local directory to this path.
+```bash
+# Pull the latest image
+docker pull ghcr.io/jadamhub/skillscopejob:latest
 
-**Example**: If you want to store the database in `./my_skillscope_data/databases` on your host machine:
+# Create data directories
+mkdir -p data/databases data/logs data/cache
 
--   Create the host directory: `mkdir -p ./my_skillscope_data/databases`
--   When running the container, use the volume mount: `-v "$(pwd)/my_skillscope_data/databases:/app/data/databases"`
+# Run main application
+docker run -d \
+  --name skillscopejob-main \
+  -p 8501:8501 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  ghcr.io/jadamhub/skillscopejob:latest
 
-### Running the Main Application
+# Run admin dashboard
+docker run -d \
+  --name skillscopejob-admin \
+  -p 8502:8502 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  ghcr.io/jadamhub/skillscopejob:latest admin
+```
 
-To run the main SkillScopeJob application (default):
+## 🔒 Secure API Key Management
+
+### Best Practices
+
+The application requires a Together.ai API key to function. For security:
+
+- **NEVER** store API keys in the Docker image or version control
+- **ALWAYS** pass the API key at runtime via environment variables
+- Use `.env` files (for docker-compose) or direct environment variables (for docker run)
+
+### Method 1: Using .env File (for docker-compose)
+
+```bash
+# Create .env file (NEVER commit this to version control)
+echo "TOGETHER_API_KEY=your_api_key_here" > .env
+
+# Start with docker-compose
+docker-compose up -d
+```
+
+### Method 2: Direct Environment Variable (for docker run)
 
 ```bash
 docker run -d \
+  --name skillscopejob-main \
   -p 8501:8501 \
-  -e TOGETHER_API_KEY="YOUR_TOGETHER_AI_API_KEY" \
-  -v "$(pwd)/my_skillscope_data/databases:/app/data/databases" \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
   skillscopejob
 ```
 
-Or explicitly:
+### Method 3: Using Docker Secrets (Production)
+
+For production environments, consider using Docker secrets:
 
 ```bash
-docker run -d \
-  -p 8501:8501 \
-  -e TOGETHER_API_KEY="YOUR_TOGETHER_AI_API_KEY" \
-  -v "$(pwd)/my_skillscope_data/databases:/app/data/databases" \
-  skillscopejob main
+# Create a secret
+echo "your_api_key" | docker secret create together_api_key -
+
+# Use the secret in a Docker Swarm service
+docker service create \
+  --name skillscopejob \
+  --secret together_api_key \
+  --publish 8501:8501 \
+  ghcr.io/jadamhub/skillscopejob:latest
 ```
 
--   `-d`: Runs the container in detached mode (in the background).
--   `-p 8501:8501`: Maps port 8501 on your host to port 8501 in the container.
--   `-e TOGETHER_API_KEY="YOUR_TOGETHER_AI_API_KEY"`: Sets the required API key. **Replace `"YOUR_TOGETHER_AI_API_KEY"` with your actual key.**
--   `-v "$(pwd)/my_skillscope_data/databases:/app/data/databases"`: Mounts the local directory for database persistence. Adjust `$(pwd)/my_skillscope_data/databases` to your desired host path.
--   `skillscopejob`: The name of the image you built.
--   `main` (optional): Specifies to run the main application (this is the default if omitted).
+## 📊 Development Environment
 
-**Accessing the Main Application**: Open your web browser and go to `http://localhost:8501`.
-
-### Running the Admin Dashboard
-
-To run the admin dashboard application:
+For development with live code reloading:
 
 ```bash
-docker run -d \
-  -p 8502:8502 \
-  -e TOGETHER_API_KEY="YOUR_TOGETHER_AI_API_KEY" \
-  -v "$(pwd)/my_skillscope_data/databases:/app/data/databases" \
-  skillscopejob admin
+# Start the development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# This mounts the src directory for live code editing
 ```
 
--   `-p 8502:8502`: Maps port 8502 on your host to port 8502 in the container for the admin app.
--   `admin`: This argument to the `docker run` command tells the entrypoint script to start the admin application.
+## 🔄 GitHub Container Registry Integration
 
-**Accessing the Admin Dashboard**: Open your web browser and go to `http://localhost:8502`.
+SkillScopeJob images are automatically published to GitHub Container Registry.
 
-### Stopping the Container
+### Pulling from GHCR
 
-1.  Find the container ID: `docker ps`
-2.  Stop the container: `docker stop <container_id>`
+```bash
+# Pull the latest image
+docker pull ghcr.io/jadamhub/skillscopejob:latest
 
-## Data Persistence Reminder
+# Or pull a specific version
+docker pull ghcr.io/jadamhub/skillscopejob:v1.0.0
+```
 
-It is **crucial** to use the volume mount (`-v`) option as shown in the examples if you want your SQLite database (job data, user profiles, etc.) to persist when the container is stopped or removed. Otherwise, all data will be lost.
+### Manual Publishing to GHCR
 
-## GitHub Container Registry (GHCR) Integration (Optional)
+```bash
+# Build and tag
+docker build -t skillscopejob .
+docker tag skillscopejob ghcr.io/jadamhub/skillscopejob:latest
 
-You can publish your Docker image to GHCR to share it or use it in CI/CD pipelines.
+# Login to GHCR
+echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
 
-### Prerequisites for GHCR
+# Push
+docker push ghcr.io/jadamhub/skillscopejob:latest
+```
 
--   A GitHub account.
--   A Personal Access Token (PAT) with `write:packages` and `read:packages` scopes. You can create one in your GitHub Developer settings.
+## 🛠️ Common Commands
 
-### Steps to Push to GHCR
+```bash
+# View logs
+docker logs skillscopejob-main
+docker logs skillscopejob-admin
 
-1.  **Tag the image for GHCR**:
-    Replace `YOUR_GITHUB_USERNAME` with your actual GitHub username and `skillscopejob` if you used a different local image name.
+# Stop containers
+docker-compose down
 
-    ```bash
-    docker tag skillscopejob ghcr.io/JAdamHub/skillscopejob:latest
-    ```
-    You can also use specific version tags, e.g., `ghcr.io/JAdamHub/skillscopejob:1.0.0`.
+# Restart services
+docker-compose restart
 
-2.  **Log in to GHCR**:
-    Use your GitHub username and the Personal Access Token (PAT) you created.
+# Check container status
+docker ps -a | grep skillscopejob
+```
 
-    ```bash
-    docker login ghcr.io -u JAdamHub -p YOUR_PAT
-    ```
+## 🆘 Troubleshooting
 
-3.  **Push the image to GHCR**:
+### API Key Issues
 
-    ```bash
-    docker push ghcr.io/JAdamHub/skillscopejob:latest
-    ```
-    If you used a version tag, push that tag as well.
+If containers fail to start, check your API key:
 
-### Pulling and Running from GHCR
+```bash
+# Test your API key
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     https://api.together.xyz/v1/models
+```
 
-Once pushed, others (or your deployment systems) can pull and run the image:
+### Container Health Checks
 
-1.  **Pull the image from GHCR** (public images don't require login for pulling):
+```bash
+# Check container health
+docker inspect --format "{{.State.Health.Status}}" skillscopejob-main
+docker inspect --format "{{.State.Health.Status}}" skillscopejob-admin
+```
 
-    ```bash
-    docker pull ghcr.io/JAdamHub/skillscopejob:latest
-    ```
-    If the package is private, the user will need to `docker login ghcr.io` first.
+### Data Persistence
 
-2.  **Run the image from GHCR**:
-    The `docker run` commands are the same as above, just replace the image name with the GHCR path:
+All data is stored in the mounted `./data` directory:
 
-    **Main App Example:**
-    ```bash
-    docker run -d \
-      -p 8501:8501 \
-      -e TOGETHER_API_KEY="YOUR_TOGETHER_AI_API_KEY" \
-      -v "$(pwd)/my_skillscope_data/databases:/app/data/databases" \
-      ghcr.io/JAdamHub/skillscopejob:latest main
-    ```
-
-    **Admin App Example:**
-    ```bash
-    docker run -d \
-      -p 8502:8502 \
-      -e TOGETHER_API_KEY="YOUR_TOGETHER_AI_API_KEY" \
-      -v "$(pwd)/my_skillscope_data/databases:/app/data/databases" \
-      ghcr.io/JAdamHub/skillscopejob:latest admin
-    ```
-
-Remember to replace `YOUR_GITHUB_USERNAME` and provide the necessary environment variables and volume mounts. 
+```
+data/
+├── databases/   # SQLite database files
+├── logs/        # Application logs
+└── cache/       # Temporary cache files
+```

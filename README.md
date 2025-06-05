@@ -4,6 +4,7 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.40+-red.svg)](https://streamlit.io)
 [![Together AI](https://img.shields.io/badge/Together%20AI-LLM-green.svg)](https://together.ai)
 [![SQLite](https://img.shields.io/badge/SQLite-Database-lightblue.svg)](https://sqlite.org)
+[![Docker](https://img.shields.io/badge/Docker-Deployment-blue.svg)](docker_readme.md)
 
 **SkillScopeJob** is an advanced AI-powered career intelligence platform that combines CV analysis, job market intelligence, and personalized career recommendations to help professionals make data-driven career decisions.
 
@@ -99,7 +100,9 @@ SkillScopeJob/
 
 ### 🐳 Docker Installation (Recommended)
 
-The easiest way to run SkillScopeJob is using Docker:
+For detailed Docker deployment instructions, see our [Docker Deployment Guide](docker_readme.md).
+
+Quick start:
 
 1. **Clone the repository**
    ```bash
@@ -107,25 +110,17 @@ The easiest way to run SkillScopeJob is using Docker:
    cd SkillScopeJob
    ```
 
-2. **Quick Docker Setup**
+2. **Create .env file with your API key**
    ```bash
-   # Run the automated setup script
-   ./docker-setup.sh
+   echo "TOGETHER_API_KEY=your_api_key_here" > .env
    ```
-   
-   Or manually:
+
+3. **Deploy with Docker Compose**
    ```bash
-   # Copy environment template
-   cp .env.docker .env
-   
-   # Edit .env with your Together AI API key
-   # TOGETHER_API_KEY=your_together_ai_api_key_here
-   
-   # Build and start services
    docker-compose up -d
    ```
 
-3. **Access the applications**
+4. **Access the applications**
    - Main Application: http://localhost:8501
    - Admin Dashboard: http://localhost:8502
 
