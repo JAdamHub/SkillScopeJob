@@ -128,54 +128,6 @@ def create_simplified_architecture():
     return dot
 
 def create_enhanced_data_flow():
-    """Create enhanced data flow showing AI evaluation step"""
-    
-    dot = Digraph(comment='SkillScopeJob - Enhanced Data Flow')
-    dot.attr(rankdir='LR', size='16,6')
-    dot.attr('node', shape='ellipse', style='filled', fontsize='10')
-    
-    # Sequential flow with AI evaluation
-    steps = [
-        ('upload', 'CV Upload', '#E3F2FD'),
-        ('extract', 'Extract Skills', '#E8F5E8'),
-        ('search', 'Search Jobs', '#FFF3E0'),
-        ('enrich', 'AI Enhance', '#F3E5F5'),
-        ('evaluate', 'AI Evaluate', '#FFE0B2'),  # NEW step
-        ('rank', 'Intelligent Rank', '#FFE0B2'),  # Enhanced step
-        ('display', 'Show Results', '#E3F2FD')
-    ]
-    
-    # Add nodes with enhanced descriptions
-    enhanced_labels = {
-        'upload': '1. CV Upload\n(PDF/DOC)',
-        'extract': '2. Extract Skills\n(Parse & Structure)',
-        'search': '3. Search Jobs\n(Scrape & Store)',
-        'enrich': '4. AI Enhance\n(Company Info)',
-        'evaluate': '5. AI Evaluate\n(Match Analysis)',
-        'rank': '6. Intelligent Rank\n(Personalized)',
-        'display': '7. Show Results\n(Insights + Jobs)'
-    }
-    
-    for i, (node_id, _, color) in enumerate(steps):
-        label = enhanced_labels.get(node_id, f"{i+1}. {steps[i][1]}")
-        dot.node(node_id, label, fillcolor=color)
-    
-    # Connect sequentially with descriptive labels
-    connections = [
-        ('upload', 'extract', 'user data'),
-        ('extract', 'search', 'search criteria'),
-        ('search', 'enrich', 'raw jobs'),
-        ('enrich', 'evaluate', 'enriched data'),
-        ('evaluate', 'rank', 'match scores'),
-        ('rank', 'display', 'final results')
-    ]
-    
-    for source, target, label in connections:
-        dot.edge(source, target, label=label)
-    
-    return dot
-
-def create_enhanced_data_flow():
     """Create an enhanced data flow diagram with detailed step descriptions"""
     
     dot = Digraph(comment='SkillScopeJob - Enhanced Data Flow')
@@ -616,10 +568,11 @@ def create_file_based_architecture():
     AI_COLOR = '#00ACC1'          # Cyan for AI/LLM related
     CONFIG_COLOR = '#607D8B'      # Gray for config/ontology
     ADMIN_COLOR = '#E91E63'       # Pink for admin utilities
+    LAUNCHER_COLOR = '#CFD8DC'    # Blue Grey for launchers
     
     # UI Layer
     with dot.subgraph(name='cluster_ui') as c:
-        c.attr(label='🎨 User Interface & Entry Point', style='rounded', color=UI_COLOR, fontcolor=UI_COLOR)
+        c.attr(label='🎨 User Interface & Entry Point (src/skillscope/ui/)', style='rounded', color=UI_COLOR, fontcolor=UI_COLOR)
         c.node('main_app_py', 'main_app.py\n\n• Main Streamlit Application UI\n• User Profile Input & Management\n• CV Upload & AI-Powered Parsing\n• Job Search Trigger & Results Display\n• CV-Job Evaluation Interface', 
                fillcolor=UI_COLOR + '30', color=UI_COLOR)
 
@@ -659,7 +612,13 @@ def create_file_based_architecture():
         c.node('debug_database_py', 'admin/debug_database.py\n\n• Database Debugging & Inspection Tools\n• Data Verification & Cleanup Utilities',
                fillcolor=ADMIN_COLOR + '30', color=ADMIN_COLOR)
         c.node('admin_app_py', 'src/skillscope/ui/admin_app.py\n\n• Administrative Web Interface\n• Job Scraping Dashboard\n• Data Enrichment Control\n• Database Management Tools',
-               fillcolor=ADMIN_COLOR + '30', color=ADMIN_COLOR)
+               fillcolor=ADMIN_COLOR + '30', color=ADMIN_COLOR) # Note: admin_app_py is in src but often managed by admin conceptually
+
+    # Launcher Scripts (Root Level)
+    dot.node('launch_main_app_py', 'launch_main_app.py\n\n(./launch_main_app.py)\n• Starts Main UI', 
+             fillcolor=LAUNCHER_COLOR + '30', color=LAUNCHER_COLOR, shape='cds') # Using 'cds' shape for launcher script
+    dot.node('launch_admin_app_py', 'launch_admin_app.py\n\n(./launch_admin_app.py)\n• Starts Admin UI', 
+             fillcolor=LAUNCHER_COLOR + '30', color=LAUNCHER_COLOR, shape='cds') # Using 'cds' shape for launcher script
 
     # Configuration & Data Files
     with dot.subgraph(name='cluster_config_data') as c:
@@ -668,11 +627,11 @@ def create_file_based_architecture():
                fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
         c.node('readme_md', 'README.md\n\n• Project Documentation\n• Setup & Usage Instructions',
                 fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
-        c.node('skill_ontology_csv', 'skill_ontology.csv\n\n• Predefined Skills Database\n• Skill Categories & Classifications',
+        c.node('skill_ontology_csv', 'skill_ontology.csv\n\n(data/ontologies/)\n• Predefined Skills Database\n• Skill Categories & Classifications',
                 fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
-        c.node('roles_industries_ontology_csv', 'roles_industries_ontology.csv\n\n• Job Roles & Industries Reference\n• Career Path Classifications',
+        c.node('roles_industries_ontology_csv', 'roles_industries_ontology.csv\n\n(data/ontologies/)\n• Job Roles & Industries Reference\n• Career Path Classifications',
                 fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
-        c.node('user_profile_log_csv', 'advanced_user_profile_log.csv\n\n• User Profile Activity Logs\n• Search History & Analytics',
+        c.node('user_profile_log_csv', 'advanced_user_profile_log.csv\n\n(data/logs/)\n• User Profile Activity Logs\n• Search History & Analytics',
                 fillcolor=CONFIG_COLOR + '30', color=CONFIG_COLOR)
 
     # External Services
@@ -684,6 +643,10 @@ def create_file_based_architecture():
                fillcolor='#FFEBEE', color='#D32F2F', shape='ellipse')
 
     # --- Core Application Flow Relationships ---
+
+    # Launcher to UI connections
+    dot.edge('launch_main_app_py', 'main_app_py', label='launches', style='bold', color=UI_COLOR)
+    dot.edge('launch_admin_app_py', 'admin_app_py', label='launches', style='bold', color=ADMIN_COLOR)
 
     # Main UI to Processing Modules
     dot.edge('main_app_py', 'cv_extraction_py', label='triggers CV parsing', color=CV_PROCESSING_COLOR)
@@ -714,7 +677,7 @@ def create_file_based_architecture():
     # Configuration & Reference Data Usage
     dot.edge('main_app_py', 'skill_ontology_csv', label='loads skill references', style='dotted', color=CONFIG_COLOR)
     dot.edge('main_app_py', 'roles_industries_ontology_csv', label='loads role references', style='dotted', color=CONFIG_COLOR)
-    dot.edge('main_app_py', 'user_profile_log_csv', label='logs user activities', style='dotted', color=CONFIG_COLOR)
+    dot.edge('main_app_py', 'user_profile_log_csv', label='logs user activities to data/logs/', style='dotted', color=CONFIG_COLOR)
 
     # Admin Utilities Access
     dot.edge('debug_database_py', 'indeed_jobs_db', label='direct database inspection', style='dashed', color=ADMIN_COLOR)
@@ -934,7 +897,7 @@ def create_repository_structure_view():
     dot.node('root', 'SkillScopeJob/\n📁 Root Directory', fillcolor='#FFF3E0')
     
     # Main application files (actual files from project)
-    dot.node('app_files', '📄 Core Application Files\n\n• main_app.py (Main UI)\n• cv_extraction.py (CV Processing)\n• profile_job_matcher.py (Job Matching)\n• cv_job_evaluator.py (AI Evaluation)\n• indeed_scraper.py (Job Scraping)\n• data_enrichment.py (AI Enrichment)', 
+    dot.node('app_files', '📄 Core Application & UI Files (src/skillscope/)\n\n• ui/main_app.py (Main UI)\n• ui/admin_app.py (Admin UI)\n• core/cv_extraction.py (CV Processing)\n• core/profile_job_matcher.py (Job Matching)\n• core/cv_job_evaluator.py (AI Evaluation)\n• core/indeed_scraper.py (Job Scraping)\n• core/data_enrichment.py (AI Enrichment)', 
              fillcolor='#E3F2FD', shape='box')
     
     # Data and database files (actual files)
@@ -946,15 +909,19 @@ def create_repository_structure_view():
              fillcolor='#ECEFF1', shape='box')
     
     # Admin utilities (actual directory)
-    dot.node('admin_files', '🔧 Admin Utilities\n\n• admin_utils/debug_database.py\n• admin_utils/streamlit_app.py', 
+    dot.node('admin_files', '🔧 Admin Utilities (admin/)\n\n• debug_database.py', 
              fillcolor='#FFEBEE', shape='box')
     
+    # Launcher scripts in root
+    dot.node('launcher_scripts', '🚀 Launcher Scripts (./)\n\n• launch_main_app.py\n• launch_admin_app.py', 
+             fillcolor='#E0F7FA', shape='box') # Light cyan color
+
     # Runtime and cache files (actual directories)
     dot.node('runtime_files', '📝 Runtime & Cache Files\n\n• __pycache__/ (Python Cache)\n• cache/ (Application Cache)\n• *.log (Log Files)\n• *.png (Generated Diagrams)', 
              fillcolor='#F5F5F5', shape='box')
     
     # Connect to root
-    for node in ['app_files', 'data_files', 'config_files', 'admin_files', 'runtime_files']:
+    for node in ['app_files', 'data_files', 'config_files', 'admin_files', 'launcher_scripts', 'runtime_files']:
         dot.edge('root', node)
     
     # Show relationships between file groups
@@ -971,22 +938,28 @@ def create_comprehensive_system_overview():
     dot = Digraph(comment='SkillScopeJob - Comprehensive System Overview')
     dot.attr(rankdir='TB', size='20,14', dpi='200')
     dot.attr('node', shape='box', style='rounded,filled', fontsize='9')
+    LAUNCHER_COLOR = '#CFD8DC' # Matcher farven fra file_based_architecture
     
     # User and environment
     dot.node('user', '👤 USER\n\n• Uploads CV\n• Sets preferences\n• Views results', 
              fillcolor='#E1F5FE', shape='ellipse')
-    dot.node('browser', '🌐 Web Browser\n\nStreamlit Interface\nRunning on localhost:8501', 
+    dot.node('browser', '🌐 Web Browser\n\nStreamlit Interface\nRunning on localhost:8501 / 8502', 
              fillcolor='#E8F5E8')
     
+    # Launcher Scripts (Root Level)
+    dot.node('launch_main', 'launch_main_app.py', fillcolor=LAUNCHER_COLOR+'30', color=LAUNCHER_COLOR, shape='cds')
+    dot.node('launch_admin', 'launch_admin_app.py', fillcolor=LAUNCHER_COLOR+'30', color=LAUNCHER_COLOR, shape='cds')
+
     # Main application cluster (actual files)
     with dot.subgraph(name='cluster_main_app') as c:
-        c.attr(label='🚀 MAIN APPLICATION (Python)', style='rounded', color='#1976D2')
+        c.attr(label='🚀 MAIN & ADMIN APPLICATIONS (Python - src/skillscope/ui/)', style='rounded', color='#1976D2')
         
-        # Main Streamlit UI
-        c.node('streamlit_main', 'main_app.py\n\n• Main Streamlit UI & Entry Point\n• User interactions & file uploads\n• Results display & state management', 
+        c.node('streamlit_main', 'main_app.py\n\n• Main User Streamlit UI\n• User interactions & file uploads\n• Results display & state management', 
                fillcolor='#E3F2FD')
+        c.node('streamlit_admin', 'admin_app.py\n\n• Admin Streamlit UI\n• DB Management, Scraping Control\n• Data Enrichment Monitoring', 
+               fillcolor='#FFEBEE') # Lidt anden farve for admin UI
         
-        # CV Processing
+        # CV Processing (stadig en del af applikationslogikken)
         c.node('cv_extraction', 'cv_extraction.py\n\n• CV parsing via Together AI LLM\n• Skills & experience extraction\n• Profile data structuring', 
                fillcolor='#E8F5E8')
     
@@ -1026,7 +999,7 @@ def create_comprehensive_system_overview():
         c.node('requirements', 'requirements.txt\n\n• Python dependencies\n• Package versions\n• Environment setup', 
                fillcolor='#ECEFF1')
         
-        c.node('admin_utils', 'admin_utils/\n\n• debug_database.py\n• streamlit_app.py\n• Database management tools', 
+        c.node('admin_utils', 'Admin Utilities (admin/)\n\n• debug_database.py\n• Database management tools', 
                fillcolor='#ECEFF1')
         
         c.node('docs', 'Documentation\n\n• README.md\n• system_architecture.py\n• Project documentation', 
@@ -1044,9 +1017,20 @@ def create_comprehensive_system_overview():
     
     # Main user flow
     dot.edge('user', 'browser', label='interacts', color='#1976D2', style='bold')
-    dot.edge('browser', 'streamlit_main', label='HTTP requests', color='#1976D2', style='bold')
+    # Launchers to Apps
+    dot.edge('launch_main', 'streamlit_main', label='starts', color='#1976D2', style='bold')
+    dot.edge('launch_admin', 'streamlit_admin', label='starts', color='#C62828', style='bold') # Rødlig farve for admin start
+    # Browser to Apps (generisk, da browseren tilgår den startede app)
+    dot.edge('browser', 'streamlit_main', label='accesses main UI', color='#1976D2', style='dotted')
+    dot.edge('browser', 'streamlit_admin', label='accesses admin UI', color='#C62828', style='dotted')
+    
     dot.edge('streamlit_main', 'cv_extraction', label='CV file', color='#4CAF50', style='bold')
     
+    # Admin App specific interactions (eksempel - admin app kalder typisk core moduler)
+    dot.edge('streamlit_admin', 'indeed_scraper', label='control scraping', color='#FF9800', style='dashed')
+    dot.edge('streamlit_admin', 'data_enricher', label='monitor enrichment', color='#7B1FA2', style='dashed')
+    dot.edge('streamlit_admin', 'database_models', label='DB operations', color='#7B1FA2', style='dashed')
+
     # Processing flow
     dot.edge('cv_extraction', 'together_ai', label='LLM parsing', color='#D32F2F', style='dashed')
     dot.edge('streamlit_main', 'job_matcher', label='search request', color='#FF9800', style='bold')
@@ -1065,7 +1049,7 @@ def create_comprehensive_system_overview():
     
     # Configuration usage
     dot.edge('streamlit_main', 'ontology_files', label='load references', color='#607D8B', style='dotted')
-    dot.edge('admin_utils', 'sqlite_db', label='manage DB', color='#607D8B', style='dashed')
+    dot.edge('admin_utils', 'sqlite_db', label='manage DB (via debug_database.py)', color='#607D8B', style='dashed')
     
     # Results flow
     dot.edge('job_matcher', 'streamlit_main', label='ranked jobs', color='#4CAF50', style='bold')

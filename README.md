@@ -87,6 +87,7 @@ SkillScopeJob/
 │   │   ├── skill_ontology.csv       # Standardized skills database
 │   │   └── roles_industries_ontology.csv # Job roles and industries
 │   ├── logs/                        # Application logs
+│   │   └── advanced_user_profile_log.csv # User profile activity logs
 │   └── cache/                       # Temporary cache files
 │
 ├── assets/                          # Static assets
@@ -130,6 +131,11 @@ SkillScopeJob/
 
    # Initialize database
    python scripts/setup_database.py
+
+   # Note on dynamic files:
+   # Directories like data/databases/, data/logs/, data/cache/ and files 
+   # such as indeed_jobs.db and advanced_user_profile_log.csv 
+   # are created dynamically by the application or setup scripts if they do not exist.
    ```
 
 ### Getting a Together AI API Key ($1.00 USD for free at sign-up)
@@ -142,25 +148,25 @@ SkillScopeJob/
 
 ## 📖 Usage
 
-### Main Application
+### 🛍️ Main Application
 
-Launch the main career intelligence platform from project root folder:
-
-```bash
-streamlit run src/skillscope/ui/main_app.py
-```
-
-Access the application at `http://localhost:8501`
-
-### Admin Dashboard
-
-Launch the job scraping and management dashboard:
+Launch the main career intelligence platform from the project root folder:
 
 ```bash
-streamlit run src/skillscope/ui/admin_app.py
+python launch_main_app.py
 ```
 
-Access the admin panel at `http://localhost:8502`
+Access the application at `http://localhost:8501` (or the port specified in `launch_main_app.py` if different)
+
+### 🧑🏽‍✈️ Admin Dashboard
+
+Launch the job scraping and management dashboard from the project root folder:
+
+```bash
+python launch_admin_app.py
+```
+
+Access the admin panel at `http://localhost:8502` (or the port specified in `launch_admin_app.py` if different)
 
 ### Core Workflows
 
@@ -228,6 +234,13 @@ python src/skillscope/utils/system_architecture.py
 This will create/update the following diagrams in `assets/images/`:
 - `skillscope_layered_architecture.png` - Shows the layered architecture with all components
 - `skillscope_component_interaction.png` - Illustrates how components interact with each other
+- `skillscope_dual_interface.png` - Shows the main user and admin interfaces and their interactions
+- `skillscope_data_flow.png` - Visualizes the enhanced data flow through the system
+- `skillscope_file_architecture.png` - Provides a detailed file-based architecture view
+- `skillscope_technology_stack.png` - Outlines the key technologies used
+- `skillscope_module_dependencies.png` - Shows module import relationships
+- `skillscope_user_journey.png` - Illustrates the user's journey through the application
+- `skillscope_system_overview.png` - A comprehensive overview of all system parts
 
 ### Requirements for Diagram Generation
 
