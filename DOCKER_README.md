@@ -1,13 +1,7 @@
 # 🐳 SkillScopeJob Docker Deployment Guide
-
 This guide provides instructions for deploying SkillScopeJob using Docker, with a focus on security and ease of use.
 
-## 🔍 Branch Information
-
-This repository has two main branches:
-
-- **main**: The primary branch with all features and standard installation options
-- **docker_image**: Specialized branch focused on Docker deployment (you are currently viewing this branch)
+## 🔍 Information
 
 SkillScopeJob consists of two interfaces:
 - **Main Application (Port 8501)**: User interface for CV analysis and job matching
