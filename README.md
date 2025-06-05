@@ -1,438 +1,254 @@
-# 🎯 SkillScopeJob - AI-Powered Career Intelligence Platform
+# 🐳 SkillScopeJob Docker Deployment Guide
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.40+-red.svg)](https://streamlit.io)
-[![Together AI](https://img.shields.io/badge/Together%20AI-LLM-green.svg)](https://together.ai)
-[![SQLite](https://img.shields.io/badge/SQLite-Database-lightblue.svg)](https://sqlite.org)
-[![Docker](https://img.shields.io/badge/Docker-Deployment-blue.svg)](docker_readme.md)
+This guide provides instructions for deploying SkillScopeJob using Docker, with a focus on security and ease of use.
 
-**SkillScopeJob** is an advanced AI-powered career intelligence platform that combines CV analysis, job market intelligence, and personalized career recommendations to help professionals make data-driven career decisions.
+## 📋 Overview
 
-## 🌟 Features
+SkillScopeJob consists of two interfaces:
 
-### 🤖 AI-Powered CV Analysis
-- **Intelligent CV Parsing**: Extract skills, experience, and qualifications from PDF, DOCX, and TXT files
-- **Auto-Fill Profile Forms**: Automatically populate user profiles from CV data
-- **Multi-Model Support**: Choose from various LLM models (Llama 3.2, Llama 3.1, Mixtral)
-- **Contact Information Extraction**: Parse names, emails, phone numbers, and LinkedIn profiles
+- **Main Application (Port 8501)**: User interface for CV analysis and job matching
+- **Admin Dashboard (Port 8502)**: Administrative interface for system management
 
-### 🔍 Real-Time Job Market Intelligence
-- **Live Job Scraping**: Real-time job data from Indeed using python-jobspy
-- **Intelligent Job Matching**: AI-powered relevance scoring and job-profile matching
-- **Multi-Source Search**: Live scraping with database fallback for reliability
-- **Location-Aware Search**: Support for all Danish municipalities and remote work preferences
+## 🚀 Quick Start
 
-### 📊 Advanced Analytics & Evaluation
-- **CV-Job Compatibility Analysis**: Deep AI analysis of CV fit against specific job requirements
-- **Match Scoring**: Comprehensive scoring system with strengths, gaps, and recommendations
-- **Career Improvement Plans**: Personalized AI-generated development recommendations
-- **Automated Data Enrichment**: Intelligent job enhancement with company insights, skill categorization, and industry analysis
-- **Smart Database Maintenance**: Automatic data freshness tracking and cleanup for optimal performance
-
-### 🎨 Modern User Experience
-- **Interactive Streamlit Interface**: Beautiful, responsive web application
-- **Real-Time Progress Tracking**: Live updates during job searches and analysis
-- **Export Capabilities**: Download results in multiple formats (Markdown, Text, CSV)
-- **Admin Dashboard**: Comprehensive job scraping and database management tools
-
-## 🏗️ Architecture
-
-SkillScopeJob follows a layered architecture with clean separation of concerns:
-
-### Layered Architecture Overview
-![Layered Architecture](assets/images/skillscope_layered_architecture.png)
-
-### Component Interaction Diagram
-![Component Interaction](assets/images/skillscope_component_interaction.png)
-
-*Architecture diagrams are automatically generated using the `src/skillscope/utils/system_architecture.py` script*
-
-### 📁 Project Structure
-
-```
-SkillScopeJob/
-├── README.md                          # Project overview and setup instructions
-├── requirements.txt                   # Python dependencies  
-├── .env.example                       # Environment variables template
-│
-├── src/                              # Main source code
-│   └── skillscope/                   # Main package
-│       ├── core/                     # Core business logic
-│       │   ├── cv_extraction.py      # LLM-based CV parsing engine
-│       │   ├── cv_job_evaluator.py   # AI-powered CV evaluation system
-│       │   ├── profile_job_matcher.py # Job matching and search logic
-│       │   └── data_enrichment.py    # Data enrichment services + cleans jobs that are 30+ days from database
-│       ├── models/                   # Database models and schemas
-│       │   └── database_models.py    # SQLAlchemy ORM models
-│       ├── scrapers/                 # Data collection modules
-│       │   └── indeed_scraper.py     # Job scraping with python-jobspy
-│       ├── ui/                       # User interface components
-│       │   ├── main_app.py           # Main Streamlit application
-│       │   └── admin_app.py          # Admin dashboard for job management
-│       └── utils/                    # Utility functions
-│           └── system_architecture.py # Architecture visualization tools
-│
-├── data/                             # Data files and databases
-│   ├── databases/
-│   │   └── indeed_jobs.db           # SQLite database
-│   ├── ontologies/
-│   │   ├── skill_ontology.csv       # Standardized skills database
-│   │   └── roles_industries_ontology.csv # Job roles and industries
-│   ├── logs/                        # Application logs
-│   └── cache/                       # Temporary cache files
-│
-├── assets/                          # Static assets
-│   └── images/                      # Architecture diagrams
-│
-├── scripts/                         # Automation and deployment
-│   └── setup_database.py           # Database initialization
-│
-├── admin/                          # Administrative tools
-└── docs/                          # Project documentation
-```
-
-## 🚀 Installation
-
-### Prerequisites
-- Python 3.10 or higher (for local installation)
-- Docker and Docker Compose (for Docker installation)
-- Together AI API key (for AI features)
-
-### 🐳 Docker Installation (Recommended)
-
-For detailed Docker deployment instructions, see our [Docker Deployment Guide](docker_readme.md).
-
-Quick start:
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/JAdamHub/SkillScopeJob.git
-   cd SkillScopeJob
-   ```
-
-2. **Create .env file with your API key**
-   ```bash
-   echo "TOGETHER_API_KEY=your_api_key_here" > .env
-   ```
-
-3. **Deploy with Docker Compose**
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Access the applications**
-   - Main Application: http://localhost:8501
-   - Admin Dashboard: http://localhost:8502
-
-### 🐍 Local Python Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/JAdamHub/SkillScopeJob.git
-   cd SkillScopeJob
-   ```
-
-2. **Setup**
-   ```bash
-   # Create virtual environment
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   
-   # Set up environment variables
-   cp .env.example .env
-   # Edit .env with your API keys
-   
-   # Initialize database
-   python scripts/setup_database.py
-   ```
-
-3. **Set up environment variables**
-   ```bash
-   export TOGETHER_API_KEY="your_together_ai_api_key_here"
-   ```
-   
-   Or create a `.env` file:
-   ```
-   TOGETHER_API_KEY=your_together_ai_api_key_here
-   ```
-
-4. **Initialize the database**
-   ```bash
-   python scripts/setup_database.py
-   ```
-
-### Getting a Together AI API Key
-
-1. Visit [together.ai](https://together.ai)
-2. Sign up for an account
-3. Navigate to the API section
-4. Generate a new API key
-5. Copy and use in your environment configuration
-
-## 📖 Usage
-
-### Main Application
-
-Launch the main career intelligence platform:
+### Option 1: Using Docker Compose (Recommended)
 
 ```bash
-streamlit run src/skillscope/ui/main_app.py
+# Clone the repository
+git clone <repository-url>
+cd SkillScopeJob
+
+# Set your API key (NEVER store in version control)
+echo "TOGETHER_API_KEY=your_api_key_here" > .env
+
+# Start both interfaces
+docker-compose up -d
+
+# Access applications:
+# Main: http://localhost:8501
+# Admin: http://localhost:8502
 ```
 
-Access the application at `http://localhost:8501`
-
-### Admin Dashboard
-
-Launch the job scraping and management dashboard:
+### Option 2: Using GitHub Container Registry
 
 ```bash
-streamlit run src/skillscope/ui/admin_app.py
+# Pull the latest image
+docker pull ghcr.io/jadamhub/skillscopejob:latest
+
+# Create data directories
+mkdir -p data/databases data/logs data/cache
+
+# Run main application
+docker run -d \
+  --name skillscopejob-main \
+  -p 8501:8501 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  ghcr.io/jadamhub/skillscopejob:latest
+
+# Run admin dashboard
+docker run -d \
+  --name skillscopejob-admin \
+  -p 8502:8502 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  ghcr.io/jadamhub/skillscopejob:latest admin
 ```
 
-Access the admin panel at `http://localhost:8502`
+## 🏗️ Building Docker Image Locally
 
-### Core Workflows
-
-#### 1. CV Analysis & Profile Creation
-1. Upload your CV (PDF, DOCX, or TXT)
-2. Configure AI model and API key
-3. Let AI auto-extract and populate your profile
-4. Review and customize the extracted information
-5. Save your professional profile
-
-#### 2. Job Search & Matching
-1. Define job search keywords and preferences
-2. Set location and remote work preferences
-3. Run intelligent job search with live scraping
-4. Review AI-scored job matches with relevance ratings
-5. Export results for further analysis
-
-#### 3. CV-Job Evaluation
-1. Select top 10-jobs from your matches
-2. Run comprehensive AI analysis
-3. Get detailed compatibility scores
-4. Review strengths, gaps, and recommendations
-5. Generate personalized improvement plans
-
-#### 4. Data Management (Admin)
-1. Configure job search parameters
-2. Run batch job scraping operations
-3. Monitor database statistics
-4. Export job data for analysis
-
-#### 5. Data Enrichment (Automated & Manual)
-1. **Automatic Enrichment**: Job data is automatically enriched after live scraping
-2. **Manual Enrichment**: Use the admin dashboard for on-demand enrichment
-3. **Company Intelligence**: Enhanced job postings with company size, industry, and insights
-4. **Skill Categorization**: Intelligent skill extraction and categorization from job descriptions
-5. **Database Maintenance**: Automatic data freshness tracking and cleanup
-
-### Data Enrichment Features
-
-The integrated data enrichment system provides:
-
-- **🤖 Automatic Processing**: Runs automatically after job scraping in the main application
-- **🎛️ Manual Controls**: Available through the admin dashboard with customizable batch sizes
-- **📊 Real-time Status**: Live monitoring of enrichment progress and database health
-- **🏢 Company Intelligence**: Enhanced job data with company information and industry insights
-- **🔧 Smart Maintenance**: Automatic database cleanup and optimization
-- **📈 Progress Tracking**: Detailed metrics on enrichment completion and data quality
-
-## 📊 Architecture Diagrams
-
-The project includes automatically generated architecture diagrams that provide visual representations of the system structure and component interactions.
-
-### Generating Architecture Diagrams
-
-To regenerate the latest architecture diagrams:
+If you want to build the Docker image locally instead of using the pre-built image from GHCR:
 
 ```bash
-# Navigate to project root
-cd /path/to/SkillScopeJob
+# Clone the repository
+git clone <repository-url>
+cd SkillScopeJob
 
-# Run the architecture generator
-python src/skillscope/utils/system_architecture.py
+# Build the image
+docker build -t skillscopejob .
+
+# Verify the image was created
+docker images | grep skillscopejob
+
+# Run the main application with your locally built image
+docker run -d \
+  --name skillscopejob-main \
+  -p 8501:8501 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  skillscopejob
+
+# Run the admin dashboard with your locally built image
+docker run -d \
+  --name skillscopejob-admin \
+  -p 8502:8502 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  skillscopejob admin
 ```
 
-This will create/update the following diagrams in `assets/images/`:
-- `skillscope_layered_architecture.png` - Shows the layered architecture with all components
-- `skillscope_component_interaction.png` - Illustrates how components interact with each other
+## 🔒 Secure API Key Management
 
-### Requirements for Diagram Generation
+### Best Practices
 
-- **Graphviz**: Required for PNG generation
-  ```bash
-  # macOS
-  brew install graphviz
-  
-  # Ubuntu/Debian
-  sudo apt-get install graphviz
-  
-  # Windows
-  # Download from https://graphviz.org/download/
-  ```
+The application requires a Together.ai API key to function. For security:
 
-- **Python Dependencies**: Already included in `requirements.txt`
-  - `graphviz` (Python package)
+- **NEVER** store API keys in the Docker image or version control
+- **ALWAYS** pass the API key at runtime via environment variables
+- Use `.env` files (for docker-compose) or direct environment variables (for docker run)
 
-### Viewing Diagrams Online
+### Method 1: Using .env File (for docker-compose)
 
-If Graphviz is not installed, the script will generate `.dot` files that can be viewed online at [GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/).
+```bash
+# Create .env file (NEVER commit this to version control)
+echo "TOGETHER_API_KEY=your_api_key_here" > .env
 
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `TOGETHER_API_KEY` | Together AI API key for LLM services | Yes |
-
-### Model Configuration
-
-The application supports multiple AI models:
-
-- **meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo** (Recommended)
-- **meta-llama/Llama-3.1-70B-Instruct-Turbo**
-- **meta-llama/Llama-3.1-8B-Instruct-Turbo**
-- **mistralai/Mixtral-8x7B-Instruct-v0.1**
-
-### Database Configuration
-
-The application uses SQLite by default. The database file (`indeed_jobs.db`) is created automatically in the project root.
-
-## 🔌 API Reference
-
-### Core Components
-
-#### CV Extraction (`src/skillscope/core/cv_extraction.py`)
-```python
-from skillscope.core.cv_extraction import LLMCVExtractor
-
-extractor = LLMCVExtractor(api_key="your_key", model="llama-model")
-result = extractor.extract_from_file("path/to/cv.pdf")
+# Start with docker-compose
+docker-compose up -d
 ```
 
-#### Job Matching (`src/skillscope/core/profile_job_matcher.py`)
-```python
-from skillscope.core.profile_job_matcher import run_profile_job_search
+### Method 2: Direct Environment Variable (for docker run)
 
-results = run_profile_job_search(profile_data)
+```bash
+docker run -d \
+  --name skillscopejob-main \
+  -p 8501:8501 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  skillscopejob
 ```
 
-#### CV Evaluation (`src/skillscope/core/cv_job_evaluator.py`)
-```python
-from skillscope.core.cv_job_evaluator import CVJobEvaluator
+### Method 3: Using Docker Secrets (Production)
 
-evaluator = CVJobEvaluator()
-evaluation = evaluator.evaluate_cv_against_specific_jobs(user_id, jobs, profile)
+For production environments, consider using Docker secrets:
+
+```bash
+# Create a secret
+echo "your_api_key" | docker secret create together_api_key -
+
+# Use the secret in a Docker Swarm service
+docker service create \
+  --name skillscopejob \
+  --secret together_api_key \
+  --publish 8501:8501 \
+  ghcr.io/jadamhub/skillscopejob:latest
 ```
 
-#### Job Scraping (`src/skillscope/scrapers/indeed_scraper.py`)
-```python
-from skillscope.scrapers.indeed_scraper import scrape_indeed_jobs
+## 📊 Development Environment
 
-job_count = scrape_indeed_jobs("python developer", "copenhagen, denmark")
+For development with live code reloading:
+
+```bash
+# Start the development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# This mounts the src directory for live code editing
 ```
 
-### Database Models
+## 🔄 GitHub Container Registry Integration
 
-The application uses SQLAlchemy ORM with the following main models:
+SkillScopeJob images are automatically published to GitHub Container Registry via GitHub Actions whenever code is pushed to the main branch.
 
-- **UserProfile**: User career profiles and preferences
-- **JobPosting**: Scraped job postings from Indeed
-- **UserJobMatch**: Job-profile matching results
-- **CVJobEvaluation**: CV evaluation results
+### Using Pre-built Images from GHCR
 
-## 🛠️ Development
+```bash
+# Pull the latest image
+docker pull ghcr.io/jadamhub/skillscopejob:latest
 
-### Setting Up Development Environment
+# Or pull a specific version
+docker pull ghcr.io/jadamhub/skillscopejob:v1.0.0
 
-1. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+# Run main application using GHCR image
+docker run -d \
+  --name skillscopejob-main \
+  -p 8501:8501 \
+  -e TOGETHER_API_KEY="your_api_key_here" \
+  -v "$(pwd)/data:/app/data" \
+  ghcr.io/jadamhub/skillscopejob:latest
+```
 
-2. **Install development dependencies**
-   ```bash
-   pip install -r requirements.txt
-   pip install pytest black flake8  # Additional dev tools
-   ```
+### Publishing Your Own Images to GHCR
 
-3. **Run tests**
-   ```bash
-   python -m pytest tests/  # If test directory exists
-   ```
+If you've made modifications and want to publish to your own GHCR repository:
 
-### Code Structure Guidelines
+```bash
+# Build and tag with your GitHub username
+docker build -t skillscopejob .
+docker tag skillscopejob ghcr.io/YOUR_GITHUB_USERNAME/skillscopejob:latest
 
-- **Presentation Layer**: Streamlit applications for user interfaces
-- **Business Logic**: Core career intelligence and matching algorithms  
-- **AI Services**: LLM integration and intelligent analysis
-- **Data Layer**: Database models and data access patterns
-- **External APIs**: Integration with job boards and AI services
+# Login to GHCR with a Personal Access Token with 'write:packages' permission
+echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
 
-### Contributing
+# Push to your GHCR repository
+docker push ghcr.io/YOUR_GITHUB_USERNAME/skillscopejob:latest
+```
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## 🧪 Testing Docker Setup Locally
 
-## 📊 Key Technologies
+To verify your Docker setup is working correctly:
 
-### Core Stack
-- **Frontend**: Streamlit with custom components
-- **Backend**: Python with asyncio support
-- **Database**: SQLite with SQLAlchemy ORM
-- **AI/ML**: Together AI LLMs + for data enrichment
+```bash
+# Check if containers are running
+docker ps | grep skillscopejob
 
-### Major Dependencies
-- **streamlit**: Web application framework
-- **together**: Together AI SDK for LLM integration
-- **python-jobspy**: Job scraping from Indeed
-- **sqlalchemy**: Database ORM
-- **langchain**: LLM application framework
-- **plotly**: Interactive visualizations
-- **pandas**: Data manipulation and analysis
+# Test main application endpoint
+curl http://localhost:8501/_stcore/health
 
-### External Services
-- **Together AI**: Large Language Model services
-- **Indeed.com**: Job posting data source
+# Test admin dashboard endpoint
+curl http://localhost:8502/_stcore/health
 
-## 🚨 Troubleshooting
+# View logs for debugging
+docker logs skillscopejob-main
+docker logs skillscopejob-admin
+```
 
-### Common Issues
+## 🛠️ Common Commands
 
-#### CV Upload Fails
-- Verify Together AI API key is set correctly
-- Check file format (PDF, DOCX, TXT supported)
-- Ensure file is not corrupted or password-protected
-- Try a different AI model if extraction fails
+```bash
+# View logs
+docker logs skillscopejob-main
+docker logs skillscopejob-admin
 
-#### Job Search Returns No Results
-- Check internet connectivity
-- Verify job search keywords are not too specific
-- Try broader location criteria
-- Check if Indeed is accessible from your region
+# Stop containers
+docker-compose down
 
-#### Database Errors
-- Ensure write permissions in project directory
-- Check if SQLite database file is not corrupted
-- Try reinitializing database with `init_database()`
+# Restart services
+docker-compose restart
 
-### Error Messages
+# Check container status
+docker ps -a | grep skillscopejob
 
-#### `ImportError: No module named 'together'`
-Install the Together AI SDK: `pip install together`
+# Remove containers
+docker rm -f skillscopejob-main skillscopejob-admin
+```
 
-#### `API key not found`
-Set your Together AI API key in environment variables or directly in the application.
+## 🆘 Troubleshooting
 
-## 📄 License
+### API Key Issues
 
-This project is licensed under the MIT License.
+If containers fail to start, check your API key:
+
+```bash
+# Test your API key
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     https://api.together.xyz/v1/models
+```
+
+### Container Health Checks
+
+```bash
+# Check container health
+docker inspect --format "{{.State.Health.Status}}" skillscopejob-main
+docker inspect --format "{{.State.Health.Status}}" skillscopejob-admin
+```
+
+### Data Persistence
+
+All data is stored in the mounted `./data` directory:
+
+```
+data/
+├── databases/   # SQLite database files
+├── logs/        # Application logs
+└── cache/       # Temporary cache files
+```
