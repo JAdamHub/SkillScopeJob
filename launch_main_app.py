@@ -7,6 +7,21 @@ This script properly sets up the Python path and launches the main Streamlit app
 import sys
 import os
 import subprocess
+from pathlib import Path
+
+def ensure_directories():
+    """Ensure all necessary directories exist BEFORE importing modules"""
+    directories = [
+        'data/databases',
+        'data/logs',
+        'data/cache',
+        'data/ontologies'
+    ]
+    
+    for directory in directories:
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        print(f"✅ Directory ensured: {directory}")
+ensure_directories()
 
 def main():
     # Get the directory where this script is located (project root)

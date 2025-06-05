@@ -45,7 +45,6 @@ output/
 cache/
 
 # Database & data files
-*.db
 temp_cv*.pdf
 temp_cv*.txt
 temp_cv*.docx

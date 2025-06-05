@@ -7,6 +7,20 @@ This script properly sets up the Python path and launches the admin Streamlit ap
 import sys
 import os
 import subprocess
+from pathlib import Path
+
+def ensure_directories():
+    """Ensure all necessary directories exist BEFORE importing modules"""
+    directories = [
+        'data/databases',
+        'data/logs',
+        'data/cache',
+        'data/ontologies'
+    ]
+    
+    for directory in directories:
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        print(f"✅ Directory ensured: {directory}")
 
 def main():
     # Get the directory where this script is located (project root)
@@ -23,6 +37,7 @@ def main():
     
     # Path to the admin app
     admin_app_path = os.path.join(script_dir, 'src', 'skillscope', 'ui', 'admin_app.py')
+
     
     print("🔧 Starting SkillScopeJob Admin Dashboard...")
     print(f"📁 Project root: {script_dir}")

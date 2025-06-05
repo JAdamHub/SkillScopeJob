@@ -129,7 +129,7 @@ SkillScopeJob/
    # Edit .env with your Together API key
       TOGETHER_API_KEY=your_together_ai_api_key_here
 
-   # Initialize database
+   # Initialize database (IMPORTANT!)
    python scripts/setup_database.py
 
    # Note on dynamic files:
