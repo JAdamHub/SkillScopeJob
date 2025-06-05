@@ -212,34 +212,3 @@ docker ps -a | grep skillscopejob
 # Remove containers
 docker rm -f skillscopejob-main skillscopejob-admin
 ```
-
-## 🆘 Troubleshooting
-
-### API Key Issues
-
-If containers fail to start, check your API key:
-
-```bash
-# Test your API key
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-     https://api.together.xyz/v1/models
-```
-
-### Container Health Checks
-
-```bash
-# Check container health
-docker inspect --format "{{.State.Health.Status}}" skillscopejob-main
-docker inspect --format "{{.State.Health.Status}}" skillscopejob-admin
-```
-
-### Data Persistence
-
-All data is stored in the mounted `./data` directory:
-
-```
-data/
-├── databases/   # SQLite database files
-├── logs/        # Application logs
-└── cache/       # Temporary cache files
-```
