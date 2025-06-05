@@ -2,10 +2,14 @@
 
 This guide provides instructions for deploying SkillScopeJob using Docker, with a focus on security and ease of use.
 
-## 📋 Overview
+## 🔍 Branch Information
+
+This repository has two main branches:
+
+- **main**: The primary branch with all features and standard installation options
+- **docker_image**: Specialized branch focused on Docker deployment (you are currently viewing this branch)
 
 SkillScopeJob consists of two interfaces:
-
 - **Main Application (Port 8501)**: User interface for CV analysis and job matching
 - **Admin Dashboard (Port 8502)**: Administrative interface for system management
 
@@ -60,8 +64,8 @@ docker run -d \
 If you want to build the Docker image locally instead of using the pre-built image from GHCR:
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# Clone the repository (docker_image branch recommended for Docker deployment)
+git clone --branch docker_image https://github.com/JAdamHub/SkillScopeJob.git
 cd SkillScopeJob
 
 # Build the image
@@ -147,24 +151,27 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## 🔄 GitHub Container Registry Integration
 
-SkillScopeJob images are automatically published to GitHub Container Registry via GitHub Actions whenever code is pushed to the main branch.
+SkillScopeJob images are automatically published to GitHub Container Registry via GitHub Actions whenever code is pushed to the main or docker_image branches.
 
 ### Using Pre-built Images from GHCR
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/jadamhub/skillscopejob:latest
+# Pull the latest image from docker_image branch (recommended for Docker deployment)
+docker pull ghcr.io/jadamhub/skillscopejob:docker_image
+
+# Pull the latest image from main branch
+docker pull ghcr.io/jadamhub/skillscopejob:main
 
 # Or pull a specific version
 docker pull ghcr.io/jadamhub/skillscopejob:v1.0.0
 
-# Run main application using GHCR image
+# Run main application using GHCR image from docker_image branch
 docker run -d \
   --name skillscopejob-main \
   -p 8501:8501 \
   -e TOGETHER_API_KEY="your_api_key_here" \
   -v "$(pwd)/data:/app/data" \
-  ghcr.io/jadamhub/skillscopejob:latest
+  ghcr.io/jadamhub/skillscopejob:docker_image
 ```
 
 ## 🧪 Testing Docker Setup Locally
