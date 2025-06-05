@@ -125,40 +125,26 @@ SkillScopeJob/
    
    # Set up environment variables
    cp .env.example .env
-   # Edit .env with your API keys
-   
+   # Edit .env with your Together API key
+      TOGETHER_API_KEY=your_together_ai_api_key_here
+
    # Initialize database
    python scripts/setup_database.py
    ```
 
-3. **Set up environment variables**
-   ```bash
-   export TOGETHER_API_KEY="your_together_ai_api_key_here"
-   ```
-   
-   Or create a `.env` file:
-   ```
-   TOGETHER_API_KEY=your_together_ai_api_key_here
-   ```
-
-4. **Initialize the database**
-   ```bash
-   python scripts/setup_database.py
-   ```
-
-### Getting a Together AI API Key
+### Getting a Together AI API Key ($1.00 USD for free at sign-up)
 
 1. Visit [together.ai](https://together.ai)
 2. Sign up for an account
 3. Navigate to the API section
 4. Generate a new API key
-5. Copy and use in your environment configuration
+5. Copy and place in .env file under: TOGETHER_API_KEY=your_together_ai_api_key_here
 
 ## 📖 Usage
 
 ### Main Application
 
-Launch the main career intelligence platform:
+Launch the main career intelligence platform from project root folder:
 
 ```bash
 streamlit run src/skillscope/ui/main_app.py
