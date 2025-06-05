@@ -10,9 +10,9 @@
 ---
 **🐳 Docker Deployment Available!**
 
-For easy deployment, a `docker_image` branch is available with pre-configured Docker setups. This allows you to run both the main application and the admin dashboard in isolated containers.
+For easy deployment, SkillScopeJob is available with pre-configured Docker setups. This allows you to run both the main application and the admin dashboard in isolated containers.
 
-➡️ **[View Docker Deployment Guide on the `docker_image` branch](https://github.com/JAdamHub/SkillScopeJob/blob/docker_image/README.md)**
+➡️ **[View Docker Deployment Guide in the `DOCKER_README.md`](https://github.com/JAdamHub/SkillScopeJob/DOCKER_README.md)**
 
 ---
 

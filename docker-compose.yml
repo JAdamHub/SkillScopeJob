@@ -1,0 +1,47 @@
+# Docker Compose for SkillScopeJob
+version: '3.8'
+
+services:
+  skillscopejob-main:
+    build: .
+    container_name: skillscopejob-main
+    ports:
+      - "8501:8501"
+    environment:
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+    volumes:
+      - ./data/databases:/app/data/databases
+      - ./data/logs:/app/data/logs
+      - ./data/cache:/app/data/cache
+    command: main
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  skillscopejob-admin:
+    build: .
+    container_name: skillscopejob-admin
+    ports:
+      - "8502:8502"
+    environment:
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+    volumes:
+      - ./data/databases:/app/data/databases
+      - ./data/logs:/app/data/logs
+      - ./data/cache:/app/data/cache
+    command: admin
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8502/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  skillscope_data:
+    driver: local
