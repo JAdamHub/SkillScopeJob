@@ -60,7 +60,7 @@ docker run -d \
 If you want to build the Docker image locally instead of using the pre-built image from GHCR:
 
 ```bash
-# Clone the repository (docker_image branch recommended for Docker deployment)
+# Clone the repository
 git clone https://github.com/JAdamHub/SkillScopeJob.git
 cd SkillScopeJob
 
@@ -147,7 +147,7 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## 🔄 GitHub Container Registry Integration
 
-SkillScopeJob images are automatically published to GitHub Container Registry via GitHub Actions whenever code is pushed to the main or docker_image branches.
+SkillScopeJob images are automatically published to GitHub Container Registry via GitHub Actions whenever code is pushed to the main branch.
 
 ### Using Pre-built Images from GHCR
 
@@ -155,13 +155,13 @@ SkillScopeJob images are automatically published to GitHub Container Registry vi
 # Pull the latest image (recommended for Docker deployment)
 docker pull ghcr.io/jadamhub/skillscopejob:latest
 
-# Run main application using GHCR image from docker_image branch
+# Run main application using GHCR image from main branch
 docker run -d \
   --name skillscopejob-main \
   -p 8501:8501 \
   -e TOGETHER_API_KEY="your_api_key_here" \
   -v "$(pwd)/data:/app/data" \
-  ghcr.io/jadamhub/skillscopejob:docker_image
+  ghcr.io/jadamhub/skillscopejob:latest
 ```
 
 ## 🧪 Testing Docker Setup Locally
