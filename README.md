@@ -47,10 +47,10 @@ For easy deployment, SkillScopeJob is available with pre-configured Docker setup
 
 SkillScopeJob follows a layered architecture with clean separation of concerns:
 
-### Layered Architecture Overview
-![Layered Architecture](assets/images/skillscope_layered_architecture.png)
+### Complete File Architecture Overview
+![Layered Architecture](assets/images/skillscope_file_architecture.png)
 
-### Component Interaction Diagram
+### User Interactions with components Diagram
 ![Component Interaction](assets/images/skillscope_component_interaction.png)
 
 *Architecture diagrams are automatically generated using the `src/skillscope/utils/system_architecture.py` script*
