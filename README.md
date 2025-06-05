@@ -12,7 +12,7 @@
 
 For easy deployment, SkillScopeJob is available with pre-configured Docker setups. This allows you to run both the main application and the admin dashboard in isolated containers.
 
-➡️ **[View Docker Deployment Guide in the `DOCKER_README.md`](https://github.com/JAdamHub/SkillScopeJob/DOCKER_README.md)**
+➡️ **[View Docker Deployment Guide in the `DOCKER_README.md`](https://github.com/JAdamHub/SkillScopeJob/blob/main/DOCKER_README.md)**
 
 ---
 
