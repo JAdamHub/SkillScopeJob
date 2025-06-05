@@ -89,14 +89,11 @@ def standardize_timestamps():
 standardize_timestamps()
 
 # Sidebar for configuration
-st.sidebar.header("⚙️ Scraper Configuration")
-
-# Job titles input
-st.sidebar.subheader("Job Titles")
+st.sidebar.subheader("⚙️ Scraper Configuration")
 job_titles_text = st.sidebar.text_area(
     "Enter job titles (one per line)",
     value="key account manager\nproject manager\nbusiness analyst\nmarketing manager\ndata analyst",
-    height=120
+    height=360
 )
 job_titles = [title.strip() for title in job_titles_text.split('\n') if title.strip()]
 
@@ -109,6 +106,65 @@ hours_old = st.sidebar.selectbox("Job age (hours)", options=[24, 72, 168, 336], 
 with st.sidebar.expander("Advanced Settings"):
     country = st.text_input("Country", value="denmark")
     delay_between_searches = st.slider("Delay between searches (seconds)", min_value=1, max_value=10, value=3)
+
+# Scraper controls in sidebar
+st.sidebar.divider()
+st.sidebar.subheader("🚀 Run Scraper")
+
+if not SCRAPER_AVAILABLE:
+    st.sidebar.error("❌ Scraper module not available")
+    st.sidebar.info("Install python-jobspy to enable scraping")
+else:
+    # Scraper button in sidebar
+    if st.sidebar.button("Start Scraping", type="primary", use_container_width=True):
+        if not job_titles:
+            st.sidebar.error("Please enter at least one job title")
+        else:
+            # Show progress in main content area
+            main_container = st.empty()
+            
+            with main_container.container():
+                st.header("🚀 Scraping in Progress")
+                
+                # Initialize progress tracking
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                results_container = st.container()
+                
+                # Initialize database
+                init_database()
+                
+                total_inserted = 0
+                
+                for i, job_title in enumerate(job_titles):
+                    status_text.text(f"Searching for: {job_title}")
+                    progress_bar.progress((i) / len(job_titles))
+                    
+                    try:
+                        # Run scraper for this job title
+                        inserted = scrape_indeed_jobs(job_title, location)
+                        total_inserted += inserted
+                        
+                        # Update results
+                        with results_container:
+                            st.success(f"✅ {job_title}: {inserted} jobs added")
+                        
+                        # Delay between searches
+                        if i < len(job_titles) - 1:
+                            time.sleep(delay_between_searches)
+                            
+                    except Exception as e:
+                        with results_container:
+                            st.error(f"❌ {job_title}: Error - {str(e)}")
+                
+                # Final update
+                progress_bar.progress(1.0)
+                status_text.text("Scraping completed!")
+                st.success(f"🎉 Total jobs added: {total_inserted}")
+                
+                # Auto-refresh after completion
+                time.sleep(2)
+                st.rerun()
 
 # Database functions
 @st.cache_data
@@ -160,7 +216,7 @@ def get_job_stats():
         return {'total': 0, 'recent': 0, 'with_descriptions': 0, 'by_term': []}
 
 # Main content area - Create tabs for different sections
-tab1, tab2, tab3 = st.tabs(["📊 Database Status", "🚀 Job Scraping", "🔍 Data Enrichment"])
+tab1, tab2 = st.tabs(["📊 Database Status", "🔍 Data Enrichment"])
 
 with tab1:
     col1, col2 = st.columns([2, 1])
@@ -320,57 +376,6 @@ with tab1:
             st.rerun()
 
 with tab2:
-    st.header("🚀 Run Scraper")
-    
-    if not SCRAPER_AVAILABLE:
-        st.error("❌ Job scraper module not available. Please check your installation and ensure python-jobspy is installed.")
-        st.info("To install missing dependencies, run: `pip install python-jobspy`")
-    else:
-        # Scraper controls
-        if st.button("Start Scraping", type="primary", use_container_width=True):
-            if not job_titles:
-                st.error("Please enter at least one job title")
-            else:
-                # Initialize progress tracking
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                results_container = st.empty()
-                
-                # Initialize database
-                init_database()
-                
-                total_inserted = 0
-                
-                for i, job_title in enumerate(job_titles):
-                    status_text.text(f"Searching for: {job_title}")
-                    progress_bar.progress((i) / len(job_titles))
-                    
-                    try:
-                        # Run scraper for this job title
-                        inserted = scrape_indeed_jobs(job_title, location)
-                        total_inserted += inserted
-                        
-                        # Update results
-                        with results_container.container():
-                            st.success(f"✅ {job_title}: {inserted} jobs added")
-                        
-                        # Delay between searches
-                        if i < len(job_titles) - 1:
-                            time.sleep(delay_between_searches)
-                            
-                    except Exception as e:
-                        with results_container.container():
-                            st.error(f"❌ {job_title}: Error - {str(e)}")
-                
-                # Final update
-                progress_bar.progress(1.0)
-                status_text.text("Scraping completed!")
-                st.success(f"🎉 Total jobs added: {total_inserted}")
-                
-                # Refresh the page data
-                st.rerun()
-
-with tab3:
     st.header("🔍 Data Enrichment")
     
     if not ENRICHMENT_AVAILABLE:
