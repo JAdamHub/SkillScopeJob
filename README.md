@@ -98,11 +98,10 @@ SkillScopeJob/
 │
 ├── admin/                          # Administrative tools
 ├── tests/                          # Test files and examples
-│   ├── 1-CV-Example-JONATHAN-WILLIAMS-ELEANOR-VANCE.pdf # Sample CV for testing
-│   ├── 2-CV-Example-Sofie-Jensen(Danish).pdf            # Danish CV example
-│   ├── 3-CV-Example-Emily-Rodriguez.docx                # DOCX format CV
-│   ├── 4-CV-Example-Lena-Greenwood.pdf                  # Additional PDF CV
-│   └── 5-CV-Example-Emma-Thompson.pdf                   # Another PDF CV sample
+│   ├── 1-CV-Example-Sofie-Jensen(Danish).pdf     # PDF Danish CV
+│   ├── 2-CV-Example-Emma-Thompson.pdf            # PDF English CV
+│   ├── 3-CV-Example-ELEANOR-VANCE.pdf            # PDF Another CV
+│   └── 4-CV-Example-Emily-Rodriguez.docx         # DOCX format CV
 └── docs/                          # Project documentation
 ```
 
