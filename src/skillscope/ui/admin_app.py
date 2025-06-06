@@ -17,9 +17,9 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-st.set_page_config(page_title="Job Scraper Dashboard", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="SSJ ADMIN Dashboard", page_icon="🔍", layout="wide")
 
-st.title("🔍 Indeed Job Scraper Dashboard")
+st.title("🔍 SkillScopeJob - ADMIN")
 st.markdown("Configure and run job searches with real-time monitoring")
 
 # Import the scraper functions

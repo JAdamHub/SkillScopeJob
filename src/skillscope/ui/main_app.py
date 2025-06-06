@@ -21,7 +21,7 @@ if src_path not in sys.path:
 # Set page config at the top level
 if 'page_config_set' not in st.session_state:
     st.set_page_config(
-        page_title="🎯 Advanced Career Profile",
+        page_title="🎯 SkillScopeJob",
         page_icon="🌟",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -199,7 +199,7 @@ def run_app():
     # Ensure os is available in function scope
     import os
     
-    st.title("🎯 Advanced Career Profile & Goal Setting")
+    st.title("🎯 SkillScopeJob - CV ❤️ Job Matching")
     st.markdown("Define your detailed profile for precise career insights. 🚀")
 
     initialize_session_state()
