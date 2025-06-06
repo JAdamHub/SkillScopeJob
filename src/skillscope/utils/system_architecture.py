@@ -1104,9 +1104,10 @@ def create_dual_interface_diagram():
         c.node('data_enrichment', 'Data Enrichment\n(data_enrichment.py)\n\n• AI-powered enhancement\n• Company information', 
                fillcolor='#E8F5E8', color=SHARED_COLOR)
     
-    # Database Layer
-    dot.node('database', 'SQLite Database\n(indeed_jobs.db)\n\n• Job postings storage\n• User profiles\n• Evaluation results', 
-             fillcolor='#F3E5F5', color=DATABASE_COLOR, penwidth='2')
+    # Database Layer (add ORM node between modules and DB)
+    dot.node('database_models', 'Data Models & ORM\n(database_models.py)\n\n• SQLAlchemy ORM\n• Table definitions\n• DB session management', fillcolor='#E0F2F1', color='#7B1FA2', penwidth='2')
+    
+    dot.node('database', 'SQLite Database\n(indeed_jobs.db)\n\n• Job postings storage\n• User profiles\n• Evaluation results', fillcolor='#F3E5F5', color=DATABASE_COLOR, penwidth='2')
     
     # External Services
     with dot.subgraph(name='cluster_external') as c:
@@ -1120,7 +1121,7 @@ def create_dual_interface_diagram():
     
     # Main App connections
     dot.edge('main_app', 'cv_extraction', label='CV upload', color=USER_APP_COLOR)
-    dot.edge('main_app', 'profile_matcher', label='profile search', color=USER_APP_COLOR)
+    dot.edge('main_app', 'profile_matcher', label='search profile', color=USER_APP_COLOR, minlen='2')
     dot.edge('main_app', 'cv_evaluator', label='evaluation request', color=USER_APP_COLOR)
     # Add result arrow from CV Extraction back to main_app
     dot.edge('cv_extraction', 'main_app', label='parsed data', color=USER_APP_COLOR)
@@ -1128,7 +1129,7 @@ def create_dual_interface_diagram():
     # Admin App connections - increased privileges for shared core services
     dot.edge('admin_app', 'job_scraper', label='scraping control', color=ADMIN_APP_COLOR, style='bold')
     dot.edge('admin_app', 'data_enrichment', label='enrichment monitoring', color=ADMIN_APP_COLOR, style='bold')
-    dot.edge('admin_app', 'database', label='direct DB access', color=ADMIN_APP_COLOR, style='bold')
+    dot.edge('admin_app', 'database_models', label='direct DB access', color=ADMIN_APP_COLOR, style='bold')
     
     # Profile matcher connections to shared services (now more explicitly shown)
     dot.edge('profile_matcher', 'job_scraper', label='triggers scraping', color=USER_MODULES_COLOR)
@@ -1140,14 +1141,17 @@ def create_dual_interface_diagram():
     dot.edge('data_enrichment', 'together_ai', label='AI enhancement', color=EXTERNAL_COLOR, style='dashed')
     dot.edge('cv_evaluator', 'together_ai', label='AI evaluation', color=EXTERNAL_COLOR, style='dashed')
     
-    # Database connections
-    dot.edge('job_scraper', 'database', label='store jobs', color=DATABASE_COLOR)
-    dot.edge('profile_matcher', 'database', label='query/store', color=DATABASE_COLOR)
-    dot.edge('data_enrichment', 'database', label='update data', color=DATABASE_COLOR)
-    dot.edge('cv_evaluator', 'database', label='store results', color=DATABASE_COLOR)
+    dot.edge('job_scraper', 'database_models', label='store jobs', color=DATABASE_COLOR)
+    dot.edge('profile_matcher', 'database_models', label='query/store', color=DATABASE_COLOR)
+    dot.edge('data_enrichment', 'database_models', label='update data', color=DATABASE_COLOR)
+    dot.edge('cv_evaluator', 'database_models', label='store results', color=DATABASE_COLOR)
+    dot.edge('admin_app', 'database_models', label='direct DB access', color=ADMIN_APP_COLOR, style='bold')
+    
+    # ORM to DB connection
+    dot.edge('database_models', 'database', label='ORM operations', color=DATABASE_COLOR, style='bold')
     
     # Results flow
-    dot.edge('profile_matcher', 'main_app', label='job matches', color=USER_APP_COLOR)
+    dot.edge('profile_matcher', 'main_app', label='job matches', color=USER_APP_COLOR, constraint='false', minlen='2')
     dot.edge('cv_evaluator', 'main_app', label='evaluation results', color=USER_APP_COLOR)
     
     return dot
