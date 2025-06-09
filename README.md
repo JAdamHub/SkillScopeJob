@@ -307,27 +307,6 @@ The application uses SQLAlchemy ORM with the following main models:
 - **UserJobMatch**: Job-profile matching results
 - **CVJobEvaluation**: CV evaluation results
 
-## 🛠️ Development
-
-### Setting Up Development Environment
-
-1. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-2. **Install development dependencies**
-   ```bash
-   pip install -r requirements.txt
-   pip install pytest black flake8  # Additional dev tools
-   ```
-
-3. **Run tests**
-   ```bash
-   python -m pytest tests/  # If test directory exists
-   ```
-
 ### Code Structure Guidelines
 
 - **Presentation Layer**: Streamlit applications for user interfaces
