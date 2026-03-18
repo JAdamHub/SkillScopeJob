@@ -18,10 +18,10 @@ except ImportError:
     load_dotenv()
 
 try:
-    from langchain_together import Together
+    from langchain_groq import ChatGroq
 except ImportError as e:
     print(f"Required package not installed: {e}")
-    print("Please run: pip install langchain-together")
+    print("Please run: pip install langchain-groq")
     exit(1)
 
 # Import existing modules
@@ -43,14 +43,16 @@ from skillscope.models.database_models import (
 from sqlalchemy.orm import joinedload, Session # Add Session for type hinting
 
 # Configuration
-TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
-if not TOGETHER_API_KEY:
-    print("Please set TOGETHER_API_KEY in your .env file")
-    print("Example: TOGETHER_API_KEY=your_api_key_here")
+if not GROQ_API_KEY:
+    print("Please set GROQ_API_KEY in your .env file")
+    print("Example: GROQ_API_KEY=your_api_key_here")
     exit(1)
 
 # Logging setup
+os.makedirs('data/logs', exist_ok=True)
+os.makedirs('data/databases', exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -66,17 +68,15 @@ class CVJobEvaluator:
     """
     
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or TOGETHER_API_KEY
+        self.api_key = api_key or GROQ_API_KEY
         
         # Initialize LLM with the most advanced available model
         try:
-            self.llm = Together(
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            self.llm = ChatGroq(
+                model_name="llama-3.3-70b-versatile",
                 api_key=self.api_key,
                 temperature=0.1,
-                max_tokens=4096,   
-                top_p=0.9,
-                repetition_penalty=1.1
+                max_tokens=4096
             )
             
             # Test LLM connection
@@ -421,7 +421,8 @@ Description: {description}
         """Generate response with retry logic for API failures"""
         for attempt in range(max_retries):
             try:
-                response = self.llm.invoke(prompt)
+                response_obj = self.llm.invoke(prompt)
+                response = str(response_obj.content) if hasattr(response_obj, 'content') else str(response_obj)
                 return response
             except Exception as e:
                 logging.warning(f"LLM generation attempt {attempt + 1} failed: {e}")

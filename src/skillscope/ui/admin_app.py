@@ -142,7 +142,7 @@ else:
                     
                     try:
                         # Run scraper for this job title
-                        inserted = scrape_indeed_jobs(job_title, location)
+                        inserted = scrape_indeed_jobs(job_title, location, results_per_title)
                         total_inserted += inserted
                         
                         # Update results
@@ -417,7 +417,7 @@ with tab2:
                 st.write(f"**API Key Status:** {api_status}")
                 
                 if not enrichment_status['api_key_configured']:
-                    st.warning("⚠️ Together AI API key not configured. Set TOGETHER_API_KEY environment variable.")
+                    st.warning("⚠️ Groq API key not configured. Set GROQ_API_KEY environment variable.")
                 
                 # Recommendations
                 if enrichment_status.get('recommendations'):

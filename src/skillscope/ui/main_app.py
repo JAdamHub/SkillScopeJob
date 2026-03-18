@@ -214,14 +214,12 @@ def run_app():
         
         with st.expander("📄 Upload your CV for intelligent profile completion", expanded=expander_expanded):
             # API Key configuration
-            api_key = os.getenv('TOGETHER_API_KEY')
+            api_key = os.getenv('GROQ_API_KEY')
 
             # Model selection
             model_options = [
-                "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-                "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-                "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                "mistralai/Mixtral-8x7B-Instruct-v0.1"
+                "llama-3.3-70b-versatile",
+                "llama-3.1-8b-instant"
             ]
             selected_model = st.selectbox(
                 "AI Model 🧠", 
@@ -309,14 +307,14 @@ def run_app():
                         st.markdown("**💡 Troubleshooting:**")
                         st.markdown("""
                         **Possible solutions:**
-                        - Check that your Together AI API key is correct
+                        - Check that your Groq API key is correct
                         - Try uploading the file again
                         - Try a different AI model
                         - Verify that the CV contains readable text
                         """)
             
             elif extract_button and not api_key.strip():
-                st.warning("⚠️ Please enter your Together AI API key first")
+                st.warning("⚠️ Please enter your Groq API key first")
             
             if clear_button:
                 # Clear all session state
@@ -335,7 +333,7 @@ def run_app():
         st.markdown("---")
     else:
         st.warning(f"🤖 AI CV extraction not available: {CV_EXTRACTION_ERROR if 'CV_EXTRACTION_ERROR' in globals() else 'Unknown error'}")
-        st.info("To enable AI CV extraction: `pip install together`")
+        st.info("To enable AI CV extraction: `pip install groq`")
 
     # --- Load ontologies ---
     default_roles = ["Software Engineer", "Data Scientist", "Project Manager", "UX Designer"]
@@ -1192,7 +1190,9 @@ def run_app():
                                 st.code(str(e))
                                 st.markdown("**Possible solutions:**")
                                 st.markdown("""
-                                - Check your Together AI API key configuration
+                                - Check your Groq API key configuration
+                                - Verify that the Groq API is reachable from your network
+                                - Check if you have exceeded your Groq rate limits
                                 - Verify that cv_job_evaluator.py is working correctly
                                 - Try with fewer jobs (the analysis is compute-intensive)
                                 - Check internet connection for AI service access

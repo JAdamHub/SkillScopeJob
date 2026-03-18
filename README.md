@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.40+-red.svg)](https://streamlit.io)
-[![Together AI](https://img.shields.io/badge/Together%20AI-LLM-green.svg)](https://together.ai)
+[![Groq](https://img.shields.io/badge/Groq-LLM-orange.svg)](https://groq.com)
 [![SQLite](https://img.shields.io/badge/SQLite-Database-lightblue.svg)](https://sqlite.org)
 
 **SkillScopeJob** is an advanced AI-powered career intelligence platform that combines CV analysis, job market intelligence, and personalized career recommendations to help professionals make data-driven career decisions.
@@ -135,7 +135,7 @@ Stores scraped job data with company details, location, job descriptions, and ma
 ### Prerequisites
 - Python 3.10 or higher
 - pip package manager
-- Together AI API key (for AI features)
+- Groq API key (for AI features)
 
 ### Quick Setup
 
@@ -148,16 +148,16 @@ Stores scraped job data with company details, location, job descriptions, and ma
 2. **Setup**
    ```bash
    # Create virtual environment
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: venv\Scripts\activate
    
    # Install dependencies
    pip install -r requirements.txt
    
    # Set up environment variables
    cp .env.example .env
-   # Edit .env with your Together API key
-      TOGETHER_API_KEY=your_together_ai_api_key_here
+   # Edit .env with your Groq API key
+      GROQ_API_KEY=your_groq_api_key_here
 
    # ⚠️ Initialize database (IMPORTANT!) ⚠️ 
    python scripts/setup_database.py
@@ -168,13 +168,13 @@ Stores scraped job data with company details, location, job descriptions, and ma
    # are created dynamically by the application or setup scripts if they do not exist.
    ```
 
-### Getting a Together AI API Key ($1.00 USD for free at sign-up)
+### Getting a Groq API Key (Free during beta/tiered)
 
-1. Visit [together.ai](https://together.ai)
+1. Visit [console.groq.com](https://console.groq.com)
 2. Sign up for an account
-3. Navigate to the API section
+3. Navigate to the API Keys section
 4. Generate a new API key
-5. Copy and place in .env file under: TOGETHER_API_KEY=your_together_ai_api_key_here
+5. Copy and place in .env file under: GROQ_API_KEY=your_groq_api_key_here
 
 ## 📖 Usage
 
@@ -249,16 +249,15 @@ The integrated data enrichment system provides:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `TOGETHER_API_KEY` | Together AI API key for LLM services | Yes |
+| `GROQ_API_KEY` | Groq API key for LLM services | Yes |
 
 ### Model Configuration
 
 The application supports multiple AI models:
 
-- **meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8** (Recommended)
-- **meta-llama/Llama-4-Scout-17B-16E-Instruct**
-- **meta-llama/Llama-3.3-70B-Instruct-Turbo**
-- **mistralai/Mixtral-8x7B-Instruct-v0.1**
+- **llama-3.3-70b-versatile** (Recommended for reasoning)
+- **llama-3.1-8b-instant** (Recommended for speed)
+- **mixtral-8x7b-32768** (Alternative)
 
 ### Database Configuration
 
@@ -327,13 +326,14 @@ The application uses SQLAlchemy ORM with the following main models:
 
 ### Core Stack
 - **Frontend**: Streamlit with custom components
-- **Backend**: Python with asyncio support
-- **Database**: SQLite with SQLAlchemy ORM
-- **AI/ML**: Together AI LLMs + for data enrichment
+- **Backend**: Python with SQLAlchemy ORM
+- **Database**: SQLite with WAL mode for concurrency
+- **AI/ML**: Groq LLMs + for data enrichment
 
 ### Major Dependencies
 - **streamlit**: Web application framework
-- **together**: Together AI SDK for LLM integration
+- **groq**: Groq SDK for LLM integration
+- **langchain-groq**: LangChain integration for Groq
 - **python-jobspy**: Job scraping from Indeed
 - **sqlalchemy**: Database ORM
 - **langchain**: LLM application framework
@@ -341,7 +341,7 @@ The application uses SQLAlchemy ORM with the following main models:
 - **pandas**: Data manipulation and analysis
 
 ### External Services
-- **Together AI**: Large Language Model services
+- **Groq**: Large Language Model services
 - **Indeed.com**: Job posting data source
 
 ## 📊 Architecture Diagrams
@@ -392,10 +392,10 @@ This will create/update the following diagrams in `assets/images/`:
 ### Common Issues
 
 #### CV Upload Fails
-- Verify Together AI API key is set correctly
+- Verify Groq API key is set correctly
 - Check file format (PDF, DOCX, TXT supported)
 - Ensure file is not corrupted or password-protected + has text
-- Try a different AI model if extraction fails
+- Try a different AI model (e.g., Llama-3.1-8b) if extraction fails
 
 #### Job Search Returns No Results
 - Check internet connectivity
@@ -410,11 +410,11 @@ This will create/update the following diagrams in `assets/images/`:
 
 ### Error Messages
 
-#### `ImportError: No module named 'together'`
-Install the Together AI package: `pip install together`
+#### `ImportError: No module named 'groq'`
+Install the Groq package: `pip install groq langchain-groq`
 
 #### `API key not found`
-Set your Together AI API key in environment variables or directly in the application.
+Set your Groq API key in environment variables or directly in the application.
 
 ## 📄 License
 

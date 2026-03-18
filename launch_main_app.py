@@ -24,6 +24,7 @@ def ensure_directories():
 ensure_directories()
 
 def main():
+    DEFAULT_PORT = 8501
     # Get the directory where this script is located (project root)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     src_path = os.path.join(script_dir, 'src')
@@ -44,7 +45,7 @@ def main():
     print(f"🐍 Python path: {src_path}")
     print(f"🚀 Launching: {main_app_path}")
     print()
-    print("🌐 The application will open in your browser at http://localhost:8501")
+    print("🌐 The application will open in your browser at http://localhost:8555")
     print("📝 Press Ctrl+C to stop the application")
     print("-" * 60)
     
@@ -53,8 +54,8 @@ def main():
         subprocess.run([
             'streamlit', 'run', main_app_path,
             '--server.address', '0.0.0.0',
-            '--server.port', '8501'
-        ], env=env, check=True)
+            '--server.port', '8555'
+        ] + sys.argv[1:], env=env, check=True)
     except subprocess.CalledProcessError as e:
         print(f"❌ Error launching application: {e}")
         return 1

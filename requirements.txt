@@ -5,8 +5,8 @@ sqlalchemy==2.0.41
 requests==2.32.3
 
 # LLM & AI dependencies
-together==1.5.8
-langchain-together==0.3.0
+groq
+langchain-groq
 langchain-core==0.3.63
 langchain-openai==0.3.18
 

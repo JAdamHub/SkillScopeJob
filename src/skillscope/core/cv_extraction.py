@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore", module="pdfminer")
 # Document parsing libraries with better error handling
 PDF_AVAILABLE = False
 DOCX_AVAILABLE = False
-TOGETHER_AVAILABLE = False
+GROQ_AVAILABLE = False
 
 try:
     import PyPDF2
@@ -34,11 +34,11 @@ except ImportError as e:
     print("To install: pip install python-docx")
 
 try:
-    from together import Together
-    TOGETHER_AVAILABLE = True
+    import groq
+    GROQ_AVAILABLE = True
 except ImportError as e:
-    print(f"INFO: Together AI not available: {e}")
-    print("To install: pip install together")
+    print(f"INFO: Groq not available: {e}")
+    print("To install: pip install groq")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -46,30 +46,30 @@ logger = logging.getLogger(__name__)
 
 class LLMCVExtractor:
     """
-    LLM-based CV extraction class that uses Together AI to parse CVs
+    LLM-based CV extraction class that uses Groq to parse CVs
     and extract structured data using advanced language models.
     """
     
-    def __init__(self, api_key: str = None, model: str = "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo"):
+    def __init__(self, api_key: str = None, model: str = "llama-3.3-70b-versatile"):
         """
         Initialize the LLM CV extractor
         
         Args:
-            api_key: Together AI API key (if not provided, will try to get from environment)
+            api_key: Groq API key (if not provided, will try to get from environment)
             model: LLM model to use for extraction
         """
         self.supported_formats = ['.pdf', '.docx', '.txt']
         self.model = model
         
-        # Initialize Together client
-        if not TOGETHER_AVAILABLE:
-            raise ImportError("Together AI library not available. Install with: pip install together")
+        # Initialize Groq client
+        if not GROQ_AVAILABLE:
+            raise ImportError("Groq library not available. Install with: pip install groq")
         
-        api_key = api_key or os.getenv("TOGETHER_API_KEY")
+        api_key = api_key or os.getenv("GROQ_API_KEY")
         if not api_key:
-            raise ValueError("Together AI API key required. Set TOGETHER_API_KEY environment variable or provide api_key parameter")
+            raise ValueError("Groq API key required. Set GROQ_API_KEY environment variable or provide api_key parameter")
         
-        self.client = Together(api_key=api_key)
+        self.client = groq.Groq(api_key=api_key)
         
         # Define JSON schema for CV extraction
         self.cv_schema = {
@@ -121,7 +121,7 @@ class LLMCVExtractor:
         return {
             'pdf': PDF_AVAILABLE,
             'docx': DOCX_AVAILABLE,
-            'together': TOGETHER_AVAILABLE
+            'groq': GROQ_AVAILABLE
         }
 
     def get_supported_formats(self) -> List[str]:
@@ -459,10 +459,10 @@ if __name__ == "__main__":
     print("=" * 40)
     
     # Check for API key
-    api_key = os.getenv("TOGETHER_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        print("WARNING: TOGETHER_API_KEY not found in environment")
-        print("Set it with: export TOGETHER_API_KEY=your_key_here")
+        print("WARNING: GROQ_API_KEY not found in environment")
+        print("Set it with: export GROQ_API_KEY=your_key_here")
     
     try:
         # Check dependencies

@@ -26,22 +26,22 @@ except ImportError:
     load_dotenv()
 
 try:
-    from langchain_together import Together
+    from langchain_groq import ChatGroq
 except ImportError as e:
     print(f"Required package not installed: {e}")
-    print("Please run: pip install langchain-together")
-    Together = None
+    print("Please run: pip install langchain-groq")
+    ChatGroq = None
 
 # Configuration
 DB_NAME = 'data/databases/indeed_jobs.db'
 TABLE_NAME = 'job_postings'
-TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
 # Don't exit at import time - allow module to be imported for data cleaning functions
-if not TOGETHER_API_KEY:
-    print("Warning: TOGETHER_API_KEY not set. LLM functions will not work.")
-    print("Set TOGETHER_API_KEY in your .env file for full functionality.")
-    print("Example: TOGETHER_API_KEY=your_api_key_here")
+if not GROQ_API_KEY:
+    print("Warning: GROQ_API_KEY not set. LLM functions will not work.")
+    print("Set GROQ_API_KEY in your .env file for full functionality.")
+    print("Example: GROQ_API_KEY=your_api_key_here")
     llm = None
 else:
     llm = None  # Will be initialized when needed
@@ -56,29 +56,27 @@ logging.basicConfig(
     ]
 )
 
-# Initialize TogetherAI LLM when needed
+# Initialize Groq LLM when needed
 def initialize_llm():
     """Initialize the LLM only when needed"""
     global llm
     if llm is not None:
         return llm
     
-    if not TOGETHER_API_KEY:
-        logging.error("TOGETHER_API_KEY not set. Cannot initialize LLM.")
+    if not GROQ_API_KEY:
+        logging.error("GROQ_API_KEY not set. Cannot initialize LLM.")
         return None
     
-    if Together is None:
-        logging.error("langchain_together not available. Cannot initialize LLM.")
+    if ChatGroq is None:
+        logging.error("langchain_groq not available. Cannot initialize LLM.")
         return None
     
     try:
-        llm = Together(
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            api_key=TOGETHER_API_KEY,
+        llm = ChatGroq(
+            model_name="llama-3.3-70b-versatile",
+            api_key=GROQ_API_KEY,
             temperature=0.1,
-            max_tokens=1024,
-            top_p=0.9,
-            repetition_penalty=1.1
+            max_tokens=1024
         )
         logging.info("LLM initialized successfully")
         return llm
@@ -518,7 +516,7 @@ def get_database_stats():
         conn.close()
 
 def is_rate_limit_error(msg: str) -> bool:
-    """Detect Together API rate limit error in a message."""
+    """Detect rate limit error in a message."""
     if not msg:
         return False
     return (
@@ -634,7 +632,8 @@ def batch_enrichment(batch_size=15):
             # Initialize LLM if needed
             current_llm = initialize_llm()
             logging.info(f"Sending batch of {len(jobs_data)} jobs to LLM...")
-            response = current_llm.invoke(prompt)
+            response_obj = current_llm.invoke(prompt)
+            response = str(response_obj.content) if hasattr(response_obj, 'content') else str(response_obj)
             logging.info(f"LLM batch response received: {len(response)} characters")
             
             # Log first 500 chars of response for debugging
@@ -827,7 +826,8 @@ START YOUR RESPONSE NOW:"""
             logging.error("LLM initialization failed. Cannot test functionality.")
             return False
             
-        response = current_llm.invoke(test_prompt)
+        response_obj = current_llm.invoke(test_prompt)
+        response = str(response_obj.content) if hasattr(response_obj, 'content') else str(response_obj)
         logging.info(f"Test response length: {len(response)} characters")
         logging.info(f"Test response preview: {response[:400]}...")
         
@@ -922,9 +922,9 @@ def main():
         logging.info("🔧 Database maintenance was performed before enrichment")
     
     # Verify API key is loaded
-    logging.info(f"API key loaded: {'Yes' if TOGETHER_API_KEY else 'No'}")
-    if TOGETHER_API_KEY:
-        logging.info(f"API key length: {len(TOGETHER_API_KEY)}")
+    logging.info(f"API key loaded: {'Yes' if GROQ_API_KEY else 'No'}")
+    if GROQ_API_KEY:
+        logging.info(f"API key length: {len(GROQ_API_KEY)}")
     
     # Test LLM functionality
     if not test_llm_functionality():
@@ -1239,7 +1239,7 @@ def get_enrichment_status():
             "freshness_ratio": health['freshness_ratio'],
             "recent_jobs_7_days": stats['recent_jobs_7_days'],
             "needs_enrichment": missing_total > 0,
-            "api_key_configured": bool(TOGETHER_API_KEY),
+            "api_key_configured": bool(GROQ_API_KEY),
             "recommendations": health.get('recommendations', [])
         }
         

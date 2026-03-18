@@ -402,62 +402,68 @@ class ProfileJobMatcher:
                 return search_results
             else:
                 logger.warning(f"⚠️ Live scraping found 0 jobs - falling back to database")
-                raise Exception("No jobs found in live scraping")
+                # Do not raise an exception, just fall through to the fallback logic below
+                pass
 
         except Exception as scraping_error:
             logger.error(f"❌ Live job scraping FAILED: {scraping_error}")
-            logger.info("🔄 Falling back to database as secondary source...")
             
-            # FALLBACK: Use database if live scraping fails
-            try:
-                user_session_id = profile_data.get('user_session_id', 'unknown')
-                database_matches = self.get_profile_job_matches(session, user_session_id, limit=max_results_per_search)
+        logger.info("🔄 Falling back to database as secondary source...")
+        
+        # FALLBACK: Use database if live scraping failed or returned 0 unique jobs
+        try:
+            user_session_id = profile_data.get('user_session_id', 'unknown')
+            database_matches = self.get_profile_job_matches(session, user_session_id, limit=max_results_per_search)
+            
+            if database_matches:
+                logger.info(f"✅ Database fallback SUCCESS: Found {len(database_matches)} jobs from local database")
                 
-                if database_matches:
-                    logger.info(f"✅ Database fallback SUCCESS: Found {len(database_matches)} jobs from local database")
-                    
-                    # Format as search results
-                    fallback_results = {
-                        "total_jobs_found": len(database_matches),
-                        "jobs": database_matches,
-                        "search_summary": {
-                            "source": "database_fallback",
-                            "reason": f"Live scraping failed: {str(scraping_error)}"
-                        },
+                # Format as search results
+                fallback_results = {
+                    "total_jobs_found": len(database_matches),
+                    "jobs": database_matches,
+                    "search_summary": {
                         "source": "database_fallback",
-                        "fallback_used": True,
-                        "scraping_error": str(scraping_error),
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    
-                    return fallback_results
-                else:
-                    logger.error("❌ Database fallback also failed - no jobs found in database")
-                    return {
-                        "error": f"Both live scraping and database fallback failed. Scraping error: {str(scraping_error)}",
-                        "total_jobs_found": 0,
-                        "search_summary": {},
-                        "source": "failed",
-                        "fallback_used": True,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    
-            except Exception as db_error:
-                logger.error(f"❌ Database fallback FAILED: {db_error}")
+                        "reason": "Live scraping yielded 0 jobs or failed."
+                    },
+                    "source": "database_fallback",
+                    "fallback_used": True,
+                    "scraping_error": None,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                return fallback_results
+            else:
+                logger.error("❌ Database fallback also failed - no jobs found in database")
                 return {
-                    "error": f"Both live scraping and database failed. Scraping: {str(scraping_error)}, Database: {str(db_error)}",
+                    "error": "No jobs found in live scraping or database.",
                     "total_jobs_found": 0,
                     "search_summary": {},
                     "source": "failed",
                     "fallback_used": True,
                     "timestamp": datetime.now().isoformat()
                 }
+                
+        except Exception as db_error:
+            logger.error(f"❌ Database fallback FAILED: {db_error}")
+            return {
+                "error": f"Database fallback error: {str(db_error)}",
+                "total_jobs_found": 0,
+                "search_summary": {},
+                "source": "failed",
+                "fallback_used": True,
+                "timestamp": datetime.now().isoformat()
+            }
 
     def enhance_search_term_for_job_type(self, base_search_term: str, job_types: List[str]) -> str:
         """
         Enhanced search term modification based on special job types
         """
-        enhanced_term = base_search_term
+        if ' ' in base_search_term and not base_search_term.startswith('"'):
+            enhanced_term = f'"{base_search_term}"'
+        else:
+            enhanced_term = base_search_term
+
         added_modifiers = []
         
         # Add specific modifiers for certain job types
@@ -476,8 +482,14 @@ class ProfileJobMatcher:
         """
         Extract and format search parameters from user profile data
         """
+        job_titles = profile_data.get('job_title_keywords', [])
+        if not job_titles:
+            job_titles = profile_data.get('target_roles_industries_selected', [])
+        if not job_titles:
+            job_titles = ['professional']
+
         search_params = {
-            'job_titles': profile_data.get('job_title_keywords', []),
+            'job_titles': job_titles,
             'locations': [],
             'job_types': [],
             'original_job_types': profile_data.get('job_types', []),

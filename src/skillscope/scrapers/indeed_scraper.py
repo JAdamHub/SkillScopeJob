@@ -16,13 +16,16 @@ JOB_TITLES = [
 LOCATION = "copenhagen, denmark"
 RESULTS_WANTED = 100  # per job title
 HOURS_OLD = 168  # 1 week - NOTE: this parameter may not be supported in current jobspy version
-COUNTRY = "denmark"
+COUNTRY = "Denmark"
 
 # database setup
 DB_NAME = 'data/databases/indeed_jobs.db'
 TABLE_NAME = 'job_postings'
 
 # logging setup
+import os
+os.makedirs('data/logs', exist_ok=True)
+os.makedirs('data/databases', exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -170,10 +173,10 @@ def insert_job_records(records: List[dict]) -> int:
     logging.info(f"📊 Job insertion summary: {inserted_count} new jobs, {updated_count} existing jobs updated")
     return inserted_count
 
-def scrape_indeed_jobs(search_term: str, location: str) -> int:
+def scrape_indeed_jobs(search_term: str, location: str, results_wanted: int = RESULTS_WANTED) -> int:
     """scrape jobs from indeed and save to database."""
     
-    logging.info(f"starting indeed job scrape for '{search_term}' in '{location}'")
+    logging.info(f"starting indeed job scrape for '{search_term}' in '{location}' with {results_wanted} results")
     
     try:
         # Build parameters dictionary to handle version differences
@@ -181,7 +184,7 @@ def scrape_indeed_jobs(search_term: str, location: str) -> int:
             "site_name": ["indeed"],
             "search_term": search_term,
             "location": location,
-            "results_wanted": RESULTS_WANTED,
+            "results_wanted": results_wanted,
             "country_indeed": COUNTRY,
             "verbose": 1,
             "description_format": "markdown"
@@ -300,7 +303,7 @@ def scrape_indeed_jobs_with_profile(search_term: str, location: str, job_type: s
             "search_term": search_term,
             "location": location,
             "results_wanted": max_results,
-            "country_indeed": "denmark",
+            "country_indeed": "Denmark",
             "verbose": 1,
             "description_format": "markdown"
         }

@@ -215,8 +215,21 @@ DATABASE_URL = "sqlite:///./data/databases/indeed_jobs.db"
 
 engine = create_engine(
     DATABASE_URL, 
-    connect_args={"check_same_thread": False} # Necessary for SQLite with multi-threaded apps like Streamlit
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 30.0  # Wait up to 30 seconds for a lock to clear
+    }
 )
+
+# Enable WAL mode for better concurrency (multiple readers + 1 writer)
+from sqlalchemy import event
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
